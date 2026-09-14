@@ -1,0 +1,132 @@
+# xcodegen spec for Everest.
+#
+# Regenerate after ANY file add/rename:  xcodegen generate
+#
+# Three things here are load-bearing and were each found the hard way. See
+# AGENTS.md section 7 for the full list of build gotchas.
+#
+#  1. A local package's `path:` resolves relative to THIS FILE, not the working
+#     directory. That is why project.yml lives at the repo root. Moving it
+#     produces `Spec validation error: Invalid local package "RewriteCore"`,
+#     which points nowhere useful.
+#  2. The app target needs an explicit `info:` block. Without one the build
+#     fails with `Build input file cannot be found: .../Info.plist`, which
+#     reads like a missing file rather than a missing generator directive.
+#  3. Anything pulling in mlx-swift needs the Metal Toolchain component
+#     installed (`xcodebuild -downloadComponent MetalToolchain`), because Cmlx
+#     compiles ~40 .metal kernels during a normal build.
+
+name: Everest
+
+options:
+  bundleIdPrefix: com.kabrapratik
+  deploymentTarget:
+    macOS: "26.0"
+  createIntermediateGroups: true
+
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    SWIFT_STRICT_CONCURRENCY: complete
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    # Apple Development identity. Accessibility permission is keyed to the code
+    # signature, so signing consistently avoids re-granting on every build.
+    CODE_SIGN_STYLE: Automatic
+    DEVELOPMENT_TEAM: LHZZ485Q37
+    ENABLE_HARDENED_RUNTIME: YES
+    # Deliberately NOT sandboxed. A sandboxed process cannot use the
+    # cross-process Accessibility API at all, which is the entire product.
+    # Do not add com.apple.security.app-sandbox.
+
+packages:
+  RewriteCore:
+    path: RewriteCore
+  KeyboardShortcuts:
+    url: https://github.com/sindresorhus/KeyboardShortcuts
+    from: 2.0.0
+  # Pinned to a release, NOT `branch: main`. This package already shipped one
+  # breaking major: 2.x to 3.x removed its downloader and tokenizer and changed
+  # every call site MLXEngine uses. A moving branch on the inference dependency
+  # is the same class of risk that AGENTS.md section 5 rejects for model weights,
+  # and it would break the build on someone else's clock rather than ours.
+  mlx-swift-lm:
+    url: https://github.com/ml-explore/mlx-swift-lm
+    from: 3.31.4
+  swift-huggingface:
+    url: https://github.com/huggingface/swift-huggingface
+    from: 0.10.1
+  swift-transformers:
+    url: https://github.com/huggingface/swift-transformers
+    from: 1.3.4
+
+targets:
+  Everest:
+    type: application
+    platform: macOS
+    sources:
+      - path: Everest
+        excludes:
+          - "**/*.md"
+          - "Resources/make_icon.py"
+          - "Resources/AppIcon-1024.png"
+    info:
+      path: Everest/Resources/Info.plist
+      properties:
+        CFBundleName: Everest
+        CFBundleDisplayName: Everest
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        CFBundleIconFile: AppIcon
+        LSMinimumSystemVersion: "26.0"
+        # Menu-bar only. No Dock icon, no main window on launch.
+        LSUIElement: true
+        NSHumanReadableCopyright: ""
+        # Shown in the system permission prompt.
+        NSAccessibilityUsageDescription: >-
+          Everest needs Accessibility access to read the text you select and
+          replace it with the rewritten version. Text never leaves your Mac.
+    entitlements:
+      path: Everest/Resources/Everest.entitlements
+      properties:
+        # Hardened Runtime is on, and MLX JIT-compiles Metal shaders at
+        # runtime, so the JIT exception is required or model load crashes.
+        com.apple.security.cs.allow-jit: true
+    dependencies:
+      - package: RewriteCore
+      - package: KeyboardShortcuts
+      - package: mlx-swift-lm
+        product: MLXLLM
+      - package: mlx-swift-lm
+        product: MLXLMCommon
+      - package: swift-huggingface
+        product: HuggingFace
+      - package: swift-transformers
+        product: Tokenizers
+
+  # Guard tests. One test per entry in AGENTS.md section 5, because every one
+  # of those guards looks removable to someone who does not know why it exists.
+  # These live in the app target's test bundle rather than in RewriteCore
+  # because the code under test (pasteboard transactions, secure-field refusal,
+  # replacement routing) is AppKit and Accessibility code that cannot move into
+  # the pure package.
+  EverestTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources: [Tests/EverestTests]
+    dependencies:
+      - target: Everest
+    settings:
+      base:
+        BUNDLE_LOADER: "$(TEST_HOST)"
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/Everest.app/Contents/MacOS/Everest"
+
+schemes:
+  Everest:
+    build:
+      targets:
+        Everest: all
+        EverestTests: [test]
+    test:
+      targets: [EverestTests]
+      gatherCoverageData: false
