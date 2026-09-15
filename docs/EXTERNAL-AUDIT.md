@@ -27,7 +27,7 @@ ranked highest.
 | EVE-009 | P1 | Posted ⌘C/⌘V can fire after their timeout | **Fixed** — copy half `302ff94`, paste half `943da4f` (restore only after the full budget) |
 | EVE-010 | P1 | Panel ⌘C not consumed, source app overwrites it | **Fixed** — `makeKey()` on terminal states; a non-activating panel can hold key without activating (`f941a5f`) |
 | EVE-011 | P2 | Google Docs rejected before clipboard fallback | **Fixed** (`fb76aa9`) |
-| EVE-012 | P2 | `clean()` corrupts legitimate content | **Fixed** — unwrap only the id-carrying envelope, quotes only if the source was unquoted (`56f671b`); 3× ratio removed (`79dcb62`) |
+| EVE-012 | P2 | `clean()` corrupts legitimate content | **Fixed** — `56f671b` + **`6b0eea9`**, which repairs a greedy-match wrong-write in `56f671b` itself; 3× ratio removed (`79dcb62`) |
 | EVE-013 | P2 | Onboarding keyed to permission, not completion | In progress |
 | EVE-014 | P2 | Model-management failures swallowed | In progress |
 | EVE-015 | P2 | Unusable style/privacy states | Partly fixed (blank names refused); rest in progress |
