@@ -27,6 +27,25 @@ struct AXSelectionAdapterTests {
         #expect(adapter.element(nil, ownedBy: 4242) == nil)
     }
 
+    /// And *both* candidates go through it. The fallback branch returned
+    /// unchecked, so the security check had a hole in exactly the branch that
+    /// exists because the system-wide query is unreliable: on macOS 26 that
+    /// query returns `kAXErrorCannotComplete` against ordinary apps, and
+    /// whatever the per-app query answered was then used without anyone
+    /// asking who owned it.
+    @Test("the per-app fallback is ownership-checked too, not just the system-wide answer")
+    func theFallbackFocusIsAlsoOwnershipChecked() {
+        let adapter = AXSelectionAdapter()
+        let ours = AXUIElementCreateApplication(501)
+        let stray = AXUIElementCreateApplication(4242)
+
+        // System-wide answers for another process, so the fallback is used.
+        #expect(adapter.focused(systemWide: stray, perApp: ours, ownedBy: 501) != nil)
+        #expect(adapter.focused(systemWide: stray, perApp: stray, ownedBy: 501) == nil)
+        // System-wide answers for ours, so the fallback is never consulted.
+        #expect(adapter.focused(systemWide: ours, perApp: stray, ownedBy: 501) != nil)
+    }
+
     /// Over-reporting is deliberate, because the failure modes are not
     /// symmetric. Over-reporting costs an attempted paste that the target
     /// ignores, which consumption observation detects and reports as

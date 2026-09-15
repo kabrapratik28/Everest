@@ -37,14 +37,30 @@ public final class AXSelectionAdapter: AccessibilityReading, AccessibilityWritin
     /// system-wide element is still asked first because it reflects real
     /// keyboard focus including panels and helper processes; it is just not
     /// trustworthy alone.
+    /// The decision, lifted away from the two C calls that feed it so it can
+    /// be driven in a test. `perApp` is an autoclosure to keep the
+    /// short-circuit: it is a synchronous cross-process call, and the common
+    /// case answers from the system-wide element without paying for it.
+    func focused(
+        systemWide: AXUIElement?,
+        perApp: @autoclosure () -> AXUIElement?,
+        ownedBy pid: pid_t
+    ) -> AXUIElement? {
+        if let owned = element(systemWide, ownedBy: pid) { return owned }
+        // Checked on this branch too. It used to be returned as-is, which put
+        // the hole in exactly the branch that exists *because* the
+        // system-wide query is unreliable — so the unchecked path was the one
+        // ordinary apps take on macOS 26.
+        return element(perApp(), ownedBy: pid)
+    }
+
     public func focusedElement(pid: pid_t) -> AXUIElement? {
-        if let wide = copyElement(systemWide, kAXFocusedUIElementAttribute as String),
-            let owned = element(wide, ownedBy: pid)
-        {
-            return owned
-        }
-        return copyElement(
-            AXUIElementCreateApplication(pid), kAXFocusedUIElementAttribute as String)
+        focused(
+            systemWide: copyElement(systemWide, kAXFocusedUIElementAttribute as String),
+            perApp: copyElement(
+                AXUIElementCreateApplication(pid), kAXFocusedUIElementAttribute as String),
+            ownedBy: pid
+        )
     }
 
     // MARK: - Reads
