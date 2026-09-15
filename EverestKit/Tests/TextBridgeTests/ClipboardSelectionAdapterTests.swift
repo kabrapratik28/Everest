@@ -40,10 +40,69 @@ struct ClipboardSelectionAdapterTests {
             pasteboard.clearContents()
             pasteboard.setString("copied ten minutes ago", forType: .string)
             let keystroke = FakeCopyKeystroke()  // the target copies nothing
+            let before = pasteboard.changeCount
 
             #expect(adapter(pasteboard, keystroke: keystroke).copySelection(pid: 501) == nil)
             #expect(keystroke.copies == 1)
             #expect(pasteboard.string(forType: .string) == "copied ten minutes ago")
+            // Untouched, not restored-to-identical. Writing the same bytes
+            // back bumps the change count, and a clipboard manager records
+            // that as a fresh copy — a duplicate history entry for every
+            // hotkey press in an app that cannot answer.
+            #expect(pasteboard.changeCount == before)
+        }
+    }
+
+    /// The budget bounds how long we *wait*, and an earlier version let it
+    /// also bound how long we stay responsible. When the target answered after
+    /// the budget expired the copy still landed — on the user's clipboard,
+    /// with nobody left watching to put it back. Their clipboard was gone for
+    /// good and their selected text sat on the general pasteboard indefinitely
+    /// for any clipboard-history app to record.
+    ///
+    /// Measured against real Chrome, the first synthetic ⌘C after launch took
+    /// 262 ms of the 400 ms budget, so "slower than the budget" is an ordinary
+    /// cold start on a loaded machine, not a pathological app.
+    @Test("a copy that lands after the copy budget is still read and still put back")
+    func aLateCopyIsStillRestored() throws {
+        withPrivatePasteboard { pasteboard in
+            pasteboard.clearContents()
+            pasteboard.setString("the user's clipboard", forType: .string)
+            let before = pasteboard.changeCount
+
+            // The write has to come from another thread to land after the
+            // budget at all; `NSPasteboard` is not `Sendable` and this one is
+            // private to the test, with the main thread parked in `wait`.
+            nonisolated(unsafe) let target = pasteboard
+            let keystroke = FakeCopyKeystroke()
+            keystroke.onCopy = {
+                // The target answers well after the copy budget, the way a
+                // cold renderer does.
+                DispatchQueue.global().asyncAfter(deadline: .now() + 0.1) {
+                    target.clearContents()
+                    target.setString("the selection", forType: .string)
+                }
+            }
+
+            let adapter = ClipboardSelectionAdapter(
+                pasteboard: pasteboard,
+                keystroke: keystroke,
+                copyBudget: .milliseconds(30),
+                settleBudget: .milliseconds(400),
+                pollInterval: .milliseconds(4)
+            )
+            let captured = adapter.copySelection(pid: 501)
+
+            // Let a late write land even when nothing waited for it, so the
+            // assertion below is about the clipboard's final state rather
+            // than about a race the old code happened to win.
+            let deadline = ContinuousClock.now + .seconds(2)
+            while pasteboard.changeCount == before, ContinuousClock.now < deadline {
+                Thread.sleep(forTimeInterval: 0.01)
+            }
+
+            #expect(captured == "the selection")
+            #expect(pasteboard.string(forType: .string) == "the user's clipboard")
         }
     }
 

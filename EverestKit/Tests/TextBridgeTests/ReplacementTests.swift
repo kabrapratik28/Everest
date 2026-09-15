@@ -540,4 +540,5 @@ struct ReplacementTests {
             #expect(outcome == .copiedOnly(cause: .pasteNotConsumed, reason: "the target did not accept the paste"))
         }
     }
+
 }

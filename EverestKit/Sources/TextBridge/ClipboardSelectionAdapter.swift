@@ -56,24 +56,44 @@ public final class ClipboardSelectionAdapter: ClipboardCapturing {
         let before = pasteboard.changeCount
         keystroke.postCopy(pid: pid)
 
-        // The pasteboard is read *only after observing the change count
-        // move*. If nothing is selected, ⌘C copies nothing, the clipboard
-        // still holds whatever the user copied ten minutes ago, and reading
-        // it here would rewrite that instead — silently, and looking like the
-        // model hallucinating rather than like a capture fault.
-        guard wait(upTo: copyBudget, until: { pasteboard.changeCount != before }) else {
-            return nil
-        }
-
-        // An app clears the pasteboard and writes it in two steps, so there
-        // is a window where the count has moved and the data has not landed.
+        // One watch and one give-back, deliberately not two exits. The budget
+        // bounds how long we *wait*; an earlier version let it also bound how
+        // long we stayed responsible, returning the moment it expired. A
+        // target that answered a little later still wrote the user's
+        // clipboard, and by then nobody was watching to put it back: the
+        // clipboard was gone for good and the selection sat on the general
+        // pasteboard for any history app to record. Measured against real
+        // Chrome, the first ⌘C after launch took 262 ms of the 400 ms budget,
+        // so "later than the budget" is an ordinary cold start.
+        //
+        // The two budgets keep their separate meanings and are spent in one
+        // deadline: `copyBudget` is how long the target gets to answer,
+        // `settleBudget` covers an app that clears the pasteboard and writes
+        // it in two steps, leaving a window where the count has moved and the
+        // data has not landed.
+        //
+        // The read is gated on the change count having moved. If nothing is
+        // selected, ⌘C copies nothing, the clipboard still holds whatever the
+        // user copied ten minutes ago, and reading it here would rewrite that
+        // instead — silently, looking like the model hallucinating rather
+        // than like a capture fault.
         var captured: String?
-        _ = wait(upTo: settleBudget) {
-            guard let text = pasteboard.string(forType: .string), !text.isEmpty else {
-                return false
-            }
+        _ = wait(upTo: copyBudget + settleBudget) {
+            guard pasteboard.changeCount != before,
+                let text = pasteboard.string(forType: .string), !text.isEmpty
+            else { return false }
             captured = text
             return true
+        }
+
+        // Nothing wrote, so there is nothing to put back. Restoring anyway
+        // would bump the change count and leave a duplicate entry in the
+        // user's clipboard history on every hotkey press in an app that
+        // cannot answer — and the borrow still has to end here rather than at
+        // deallocation.
+        guard pasteboard.changeCount != before else {
+            transaction.abandon()
+            return nil
         }
 
         // The writer was the target app, not us, so the transaction has to be

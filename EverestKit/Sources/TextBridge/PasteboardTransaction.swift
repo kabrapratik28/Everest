@@ -130,6 +130,15 @@ public final class PasteboardTransaction {
         releaseBorrow()
     }
 
+    /// Ends the transaction without writing: nothing happened, so there is
+    /// nothing to put back. Separate from `restoreIfUnchanged` because that
+    /// one always writes, and writing the same bytes back over an untouched
+    /// clipboard bumps the change count and leaves a duplicate entry in the
+    /// user's clipboard history for a rewrite that never started.
+    public func abandon() {
+        releaseBorrow()
+    }
+
     /// Declares which change count the transaction should treat as its own,
     /// for the case where the writer was the *target app* answering a
     /// synthetic ⌘C rather than us.
@@ -152,7 +161,16 @@ public final class PasteboardTransaction {
         // Gated on the change count still being exactly what our step left it
         // at. If anything at all has written since, the user's content is
         // newer than ours and we leave it alone.
-        guard pasteboard.changeCount == expectedChangeCount else { return false }
+        //
+        // Declining is still a logical end, so the borrow ends here too.
+        // Without that, `pasteReplace`'s `handOff` on the very next line
+        // cannot acquire and tells the user another rewrite is using the
+        // clipboard — false, and it withholds the rewrite instead of copying
+        // it for them.
+        guard pasteboard.changeCount == expectedChangeCount else {
+            releaseBorrow()
+            return false
+        }
 
         pasteboard.clearContents()
         let items = saved.map { entry -> NSPasteboardItem in

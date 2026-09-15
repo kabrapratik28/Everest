@@ -90,6 +90,42 @@ struct PasteboardTransactionTests {
         }
     }
 
+    /// Declining is right, and the transaction is still over. It did not say
+    /// so: the change-count path returned without releasing, and the borrow
+    /// outlived the work. `ReplacementService.pasteReplace` calls `handOff` on
+    /// the very next line, that hand-off opens a second transaction on the
+    /// same pasteboard, and the acquire fails — so the user is told "another
+    /// rewrite is using the clipboard", which is false, and the rewrite is
+    /// withheld from them instead of being copied for them.
+    ///
+    /// Third defect in this file's borrow lifetime. The pattern is that its
+    /// early exits are not all covered, so a new one should be assumed
+    /// uncovered until a test says otherwise.
+    @Test("a restore that declines still gives the borrow back")
+    func decliningToRestoreStillReleasesTheBorrow() throws {
+        withPrivatePasteboard { pasteboard in
+            // Its own registry: the shared one is process-wide and would
+            // couple this to whatever else is running.
+            let borrow = PasteboardBorrow()
+            pasteboard.clearContents()
+            pasteboard.setString("the user's original", forType: .string)
+
+            let transaction = PasteboardTransaction(pasteboard: pasteboard, borrow: borrow)
+            #expect(transaction.snapshot())
+            transaction.writeTransient("scratch")
+
+            pasteboard.clearContents()
+            pasteboard.setString("what the user just copied", forType: .string)
+            #expect(transaction.restoreIfUnchanged() == false)
+
+            // The copy-only hand-off, which in production runs on the line
+            // after the declined restore and with the first transaction still
+            // in scope.
+            let handOff = PasteboardTransaction(pasteboard: pasteboard, borrow: borrow)
+            #expect(handOff.snapshot(), "nothing else holds the clipboard, so say so")
+        }
+    }
+
     /// After a synthetic ⌘C the *target app* was the writer, not us, so the
     /// transaction has to be told which change count to treat as its own.
     /// Without this the restore would always decline on the copy path.
