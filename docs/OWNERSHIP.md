@@ -31,6 +31,11 @@ first, and suspicion is not a mechanism.
 
 ## Rules
 
+- **Never write a commit hash you have not just read.** The lead put two
+  invented hashes into a doc and a handover message within an hour — they look
+  exactly like real ones, and the only way to find out is to go looking for a
+  commit that does not exist. Read it from `git log` in the same command that
+  uses it, or substitute it with `$(git log --format=%h -1 --grep=…)`.
 - **Commit by explicit pathspec, never `git add -A`.** Six agents write to one
   tree, so a blanket add stages whatever three of them happened to have on
   disk. `7334547` was titled for five Settings defects and in fact carried the
