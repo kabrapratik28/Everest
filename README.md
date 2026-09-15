@@ -4,7 +4,7 @@ Select text in any Mac app, press `⌥R`, and a locally-generated rewrite stream
 
 The model runs on your Mac. Nothing is sent to a server, and it works with networking off.
 
-**One honest exception.** Where macOS will not let Everest read a selection directly — terminals, PDFs, Google Docs, Sublime Text — it falls back to the system clipboard, and anything on the system clipboard is eligible for Universal Clipboard if Handoff is on. There is no API to opt out of that. Turn Handoff off in System Settings ▸ General if it matters to you.
+**One honest exception, and it is about privacy rather than capability.** Some apps do not let macOS hand over a selection at all — terminals, PDFs, Google Docs, Sublime Text — so Everest reads it with a synthetic ⌘C instead. Most of those still get a normal in-place rewrite; see below for the two that do not. What they share is that the text passes through the system clipboard on the way, and anything on the system clipboard is eligible for Universal Clipboard if Handoff is on. There is no API to opt out of that. Turn Handoff off in System Settings ▸ General if it matters to you.
 
 **Requirements:** macOS 26 or later, Apple Silicon. Roughly 4 GB free for the model.
 
@@ -26,7 +26,7 @@ The weights are [Qwen3-4B-Instruct-2507-4bit](https://huggingface.co/mlx-communi
 
 Both shortcuts are configurable in Settings ▸ General.
 
-**Where it replaces in place:** native text fields, browsers, editors, chat apps, and — via a verified paste — editors that expose nothing to Accessibility, such as Sublime Text.
+**Where it replaces in place:** native text fields, browsers, editors, chat apps, and — via a verified paste — apps that expose nothing usable to Accessibility, such as Sublime Text and Google Docs.
 
 **Where it hands you the clipboard instead:** terminals, where a paste goes to the prompt rather than replacing a selection, and PDFs and ordinary web prose, which take no paste at all. The panel stays open and tells you.
 
