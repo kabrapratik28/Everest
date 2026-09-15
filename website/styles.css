@@ -110,9 +110,10 @@ body {
   line-height: 1.6;
   /* A long URL or bundle id must not push the page wider than 320px. */
   overflow-wrap: break-word;
-  /* Belt and braces for the decorative glows, which are already clipped by
-     their own section's overflow. */
-  overflow-x: hidden;
+  /* Deliberately NOT overflow-x: hidden. The decorative glows are already
+     clipped by their own section, so the only thing a page-level clip would
+     add is the ability to hide a future overflow bug from a screenshot
+     while leaving the layout broken. Let it show as a scrollbar instead. */
 }
 
 img { max-width: 100%; height: auto; }
@@ -855,6 +856,17 @@ kbd {
 .callout h3 { font-size: 1rem; }
 .callout pre { margin: 0 0 1rem; }
 
+/* The command wraps rather than scrolling, at every width.
+   A horizontal scroll inside a code block has no affordance — it just looks
+   cut off, and the half that gets hidden is the path, which is the half that
+   matters. Measured: it needs 471px and gets 242 at 320px, but also only
+   333–460 from 900px up, where the install grid goes two-column. So this is
+   not a phone rule; scrolling was silently truncating it on desktop too.
+   `anywhere` rather than `break-word` because the path is a single
+   unbreakable token and only `anywhere` will break it. pre-wrap inserts no
+   characters, so a copy still yields the original one-line command. */
+.callout pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+
 /* ───────────────────────────── Keys table ───────────────────────────── */
 
 .keys {
@@ -1099,5 +1111,11 @@ details p {
 }
 .fineprint a { color: inherit; text-decoration-color: color-mix(in srgb, currentColor 45%, transparent); }
 .fineprint a:hover { color: var(--accent); }
-.fineprint-onDark { color: color-mix(in srgb, #fff 72%, transparent); }
-.fineprint-onDark a:hover { color: #fff; }
+/* Solid, not 72% white. The boxed note this replaced carried a dark scrim
+   behind it, which is what let it hold a softened white; sitting straight on
+   the gradient, 72% measures 3.89:1 against the blue and 4.34:1 against the
+   teal end, both under the 4.5:1 floor for 14px text. The line still reads
+   as fine print from its size. Solid white measures 5.36:1 at the worst
+   point of the gradient. */
+.fineprint-onDark { color: #fff; }
+.fineprint-onDark a:hover { text-decoration-color: currentColor; }
