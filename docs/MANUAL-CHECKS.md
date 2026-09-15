@@ -123,19 +123,23 @@ nothing.
 Handed over rather than dropped. Each has a mechanism traced and a conclusion
 that needs the running app.
 
-22. **Download and hotkey racing the same missing model — the one to do first.**
-    `LoadOnce` single-flights the *load*; nothing single-flights the
-    *download*. The bytes are safe — `swift-huggingface` guards each blob with
-    an `flock(2)` lock and re-checks the cache inside it, which is what
-    `.locks/` is for — but the second caller **blocks on that lock**, and if no
-    progress fires before it is acquired the panel sits on
-    `preparing(progress: nil)` for minutes. `RewriteCoordinator.prepare`'s
-    generation check lives inside the `for await` body, so with nothing yielded
-    the download is never cancelled. *Do:* delete the model, click Download,
-    press the hotkey while it transfers, watch the panel and press Escape.
-    The whole dependency trace is two line refs, so nobody need redo it: the
-    `flock` re-check is `HubClient+Files.swift:520-537`, and the reason
-    cancellation cannot reach it is `RewriteCoordinator.prepare:208-214`.
+22. **Download and hotkey racing the same missing model — resolved by
+    reading the dependency, kept only as a sanity check.** `LoadOnce`
+    single-flights the *load* and nothing single-flights the *download*, but
+    that turns out to be harmless and was deliberately not "fixed".
+    `swift-huggingface`'s `FileLock` is `LOCK_EX | LOCK_NB` — a *non-blocking*
+    flock in a retry loop — and it re-checks the cache inside the lock, so the
+    bytes never transfer twice. The waiter retries on `Task.sleep`, which
+    throws on cancellation, so a cancelled second caller aborts within about a
+    second; and the cached-hit branch sets progress straight to complete, so
+    there is no stalled spinner. Refs, so nobody re-derives it:
+    `HubClient+Files.swift:518-537`. *Do, if you want confirmation:* delete the
+    model, click Download, press the hotkey while it transfers, and check the
+    panel neither stalls nor re-downloads.
+    **Separately and plainly: the engine's `cancel()` cannot abort a transfer
+    and never could** — it only cancels the generation stream. What aborts a
+    download is the coordinator cancelling its own preparation task. Two
+    mechanisms, not one.
 23. **Two transactions sharing one generation (F2).** Needs to know whether a
     Carbon hot-key `CFRunLoopSource` queued during the capture block is
     serviced before an already-enqueued main-actor job — unanswerable by
@@ -214,3 +218,13 @@ that needs the running app.
     Raycast) records nothing while "Keep rewrites out of clipboard history"
     is on — and note that a manager ignoring `TransientType` is allowed to
     record anyway, which is what the caveat under the toggle says.
+35. **The recorder says what the binding costs.** Settings ▸ General. With the
+    `⌥R` default it should read "…will no longer type ®" as plain secondary
+    text, *not* styled as the Italic caution — it is information, and the cost
+    is why `⌥R` was chosen. **Then record `⌥I`:** the line should change to the
+    dead-key caution about accented typing, since `⌥I` produces no character.
+    **Then record `⌘R`:** the cost line must *disappear*. Measured —
+    `UCKeyTranslate` reports `⌘R` as `"r"`, the same as the bare key, so a
+    naive reading would claim you can no longer type `r`. That exclusion is
+    the part worth eyeballing, because it is the one that would be wrong
+    rather than merely absent.
