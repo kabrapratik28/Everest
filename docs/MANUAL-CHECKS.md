@@ -105,17 +105,21 @@ nothing.
     rewrite — but it reads as flakiness.
 20. A deliberately slow or huge selection, against a real app rather than a
     fake, to exercise the late-copy path.
+21. **Screenshot on the clipboard, then rewrite in Docs.** Must now name the
+    *clipboard* as the obstacle and tell you to copy a word of text over it —
+    not say Google Docs cannot be read. No test on this machine reaches the
+    real pairing of a canvas editor and an oversize pasteboard.
 
 ## Judgment, not pass/fail
 
-21. **An 8,000-character rewrite holds the panel ~75 s**, streaming, where it
+22. **An 8,000-character rewrite holds the panel ~75 s**, streaming, where it
     used to take 19 s and silently truncate. Complete-and-slow was the right
     trade, but if it reads as a hang the answer is better progress in the
     panel, not a shorter budget.
-22. **VoiceOver.** Turn it on and listen. The posting code is right by
+23. **VoiceOver.** Turn it on and listen. The posting code is right by
     construction — `.announcementRequested` against `NSApp`, `.high` — but
     whether it is audible, and whether `.high` is too insistent for a routine
     `success`, needs a human.
-23. **`Expand` on a short sentence.** It has never worked: the 3× output guard
+24. **`Expand` on a short sentence.** It has never worked: the 3× output guard
     refused every honest expansion. With the guard gone it should now produce
     something several times longer than the source.
