@@ -17,7 +17,9 @@ Select text in any app, press `⌥R`, and a rewrite streams in and replaces it.
 
 <br><br>
 
-<img src="docs/assets/panel-rewriting.png" width="620" alt="Everest rewriting a sentence in a floating panel">
+<img src="docs/assets/demo.gif" width="700" alt="Selecting a badly written sentence in Sublime Text, pressing Option-R, and watching Everest replace it with a corrected version">
+
+<sub>Real capture. Sublime Text, which exposes no editable text to Accessibility — Everest verifies the target and pastes.</sub>
 
 </div>
 
@@ -26,6 +28,7 @@ Select text in any app, press `⌥R`, and a rewrite streams in and replaces it.
 - **It is fast to reach.** One keystroke, in the app you are already typing in. No window to switch to, nothing to paste into and back out of.
 - **Your text does not leave the machine.** Not "encrypted in transit", not "we do not train on it". It never goes anywhere. Unplug the network and it still works.
 - **It replaces the selection.** You are not handed a suggestion to copy; the text in your document changes, and `⌘Z` puts it back.
+- **It works where you already write.** Chrome and Safari, Sublime Text and VS Code, Slack, Mail, Messages, Notes, Google Docs, and ordinary macOS text fields. Terminals and PDFs hand you the clipboard instead, and the panel says so rather than failing quietly.
 - **Six styles, and they are yours.** Proofread, Professional, Friendly, Concise, Expand, Simplify — every prompt is editable in Settings, and you can add your own.
 - **It refuses password fields.** Before reading, and again immediately before any copy.
 - **Free and MIT.** No trial, no subscription, no upsell inside the app.
