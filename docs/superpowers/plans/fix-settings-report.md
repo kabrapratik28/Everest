@@ -1,6 +1,6 @@
 # Settings, onboarding and menu — report
 
-**AppCore: 58 tests, all green.** Baseline when I started was 35; I added 18,
+**AppCore: 61 tests, all green.** Baseline when I started was 35; I added 21,
 other agents added the rest. Every app-target file is `swiftc -parse` only —
 see *Not type-checked*.
 
@@ -498,8 +498,16 @@ existing test and exposed the `.standard`-store leak.
 **Final:**
 
 ```
-✔ Test run with 58 tests in 1 suite passed after 0.049 seconds.
+✔ Test run with 61 tests in 1 suite passed after 0.048 seconds.
 ```
+
+**Round 2 mutations** (§17-18), on copies. Restoring `runTest`'s bare `return`
+failed the test-box test. Then, for `EngineFailure`, two mutations run
+separately to check the two new tests are not redundant: reintroducing the
+independent lookup in `state(for:)` failed "never disagree" and left the
+refusal test green; widening the refusal predicate to any `AppleEngineError`
+failed the refusal test and left "never disagree" green. Orthogonal, which is
+what justifies keeping both.
 
 **Mutation, on a copy at `/tmp/ev-mut2`, never the shared tree.** Compile-error
 RED proves a symbol was absent, not that assertions bite, so eleven mutations
