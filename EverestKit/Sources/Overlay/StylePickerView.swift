@@ -1,7 +1,7 @@
 import RewriteCore
 import SwiftUI
 
-/// The numbered list behind ⌘⇧I.
+/// The numbered list behind the Choose Style hotkey.
 ///
 /// Not a `List(selection:)`. A non-activating panel is never key, so nothing in
 /// it is ever first responder and a `List`'s selection never moves with the
