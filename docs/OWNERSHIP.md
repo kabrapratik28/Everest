@@ -77,6 +77,13 @@ first, and suspicion is not a mechanism.
   reasoning — the two regressions introduced here were both of that kind, and
   a citation habit would have caught neither. Only a second pair of eyes on
   the same code did. That is what round 2 was for, and why one exists.
+- **Check a report for pasted runner output before accepting it, and do it
+  regardless of how well written it is.** The lead enforced §0's paste-the-RED
+  rule on two agents and not on a third, because the third's reports were more
+  pleasant to read — 722 lines, 29 sections, 2 lines of actual test output,
+  accepted for hours. Persuasiveness is not evidence, and grading on prose
+  selects against exactly the reports that most need checking. The artefact is
+  countable: `grep -c '✘'`.
 - **A test count is a required field in a report, not a habit.** The check
   below is mechanical for the reader and depends entirely on the writer, and
   its failure is silent — a report without a count reads completely normal.
