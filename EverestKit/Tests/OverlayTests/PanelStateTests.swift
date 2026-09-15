@@ -129,12 +129,26 @@ struct PanelStateTests {
     func copyOnlyOutcomesLeadWithTheAction() {
         let readOnly = PanelState.readOnly(text: "the rewrite")
         let moved = PanelState.targetChanged(text: "the rewrite")
+        let held = PanelState.heldForManualCopy(
+            text: "the rewrite", reason: "Sublime Text cannot be typed into"
+        )
 
-        // The action is the headline, not the caption.
-        #expect(readOnly.title.contains("⌘V"))
-        #expect(moved.title.contains("⌘V"))
+        // The action is the headline, not the caption — and *which* action
+        // says where the rewrite currently is. These two already put it on
+        // the clipboard, so the move left is to paste.
+        for state in [readOnly, moved] {
+            #expect(state.title.contains("⌘V"), "\(state.kind)")
+            #expect(!state.title.contains("⌘C"), "\(state.kind)")
+        }
 
-        // And the reason tells them apart.
+        // `heldForManualCopy` has *not* copied anything: the user's clipboard
+        // is untouched and the panel is the only place the rewrite exists.
+        // Offering ⌘V here would point at a clipboard holding nothing of
+        // theirs, which is the specific lie this state must not tell.
+        #expect(held.title.contains("⌘C"))
+        #expect(!held.title.contains("⌘V"))
+
+        // And the reason tells the copy-only pair apart.
         #expect(readOnly.detail != moved.detail)
     }
 

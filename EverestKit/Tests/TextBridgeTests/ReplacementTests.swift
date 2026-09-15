@@ -394,6 +394,91 @@ struct ReplacementTests {
         }
     }
 
+    /// **An absence is weak evidence.** The confirm used to accept only
+    /// "nothing came back" as proof of a landed paste, and nothing coming
+    /// back has more than one cause: Sublime's `copy_with_empty_selection`
+    /// defaults on, so ⌘C at a collapsed caret hands over the whole current
+    /// line, and a successful paste then looked like a failed one.
+    ///
+    /// Containment cannot fix it in either direction — a single-line paste
+    /// makes the copied line wider than the rewrite, a multi-line paste makes
+    /// it narrower — so the reliable signal is the *failure* one: a paste
+    /// that was ignored leaves the selection untouched, and ⌘C then returns
+    /// exactly what was captured.
+    @Test("a confirm that copies something other than the original is a landed paste")
+    func aConfirmReturningSomethingElseIsSuccess() throws {
+        withPrivatePasteboard { pasteboard in
+            pasteboard.clearContents()
+            pasteboard.setString("the user's own clipboard", forType: .string)
+
+            let clipboard = FakeClipboardCapture()
+            clipboard.result = "the original"  // the re-read agrees
+            let keystroke = FakeKeystroke()
+            keystroke.onPaste = {
+                // Sublime, caret collapsed after the paste: ⌘C gives the
+                // whole line, which is neither empty nor the original.
+                clipboard.result = "    the rewrite, indented as the line holds it"
+            }
+
+            let outcome = service(
+                FakeAccessibility(), keystroke: keystroke, pasteboard: pasteboard,
+                clipboard: clipboard
+            ).apply(
+                "the rewrite", to: viaClipboardSnapshot(),
+                autoReplace: true, keepOutOfHistory: true)
+
+            #expect(outcome == .replaced)
+            #expect(pasteboard.string(forType: .string) == "the user's own clipboard")
+        }
+    }
+
+    /// The other side, and the positive evidence the rule turns on: the
+    /// original coming back means the selection was never touched.
+    @Test("a confirm that returns exactly the original proves the paste was ignored")
+    func aConfirmReturningTheOriginalIsFailure() throws {
+        withPrivatePasteboard { pasteboard in
+            let clipboard = FakeClipboardCapture()
+            clipboard.result = "the original"  // unchanged by the paste
+            let keystroke = FakeKeystroke()
+
+            let outcome = service(
+                FakeAccessibility(), keystroke: keystroke, pasteboard: pasteboard,
+                clipboard: clipboard
+            ).apply(
+                "the rewrite", to: viaClipboardSnapshot(),
+                autoReplace: true, keepOutOfHistory: true)
+
+            if case .heldForManualCopy(cause: .notPasted, _) = outcome {} else {
+                Issue.record("expected the rewrite to be held, got \(outcome)")
+            }
+        }
+    }
+
+    /// Unknown is not success. A confirm that cannot borrow proves nothing,
+    /// and the costs are asymmetric: holding shows a panel and keeps the
+    /// rewrite, while a wrong `.replaced` dismisses with a tick and the
+    /// rewrite is gone from the panel *and* the clipboard.
+    @Test("a confirm that cannot borrow holds rather than claiming success")
+    func aConfirmThatCannotBorrowHolds() throws {
+        withPrivatePasteboard { pasteboard in
+            let clipboard = FakeClipboardCapture()
+            clipboard.result = "the original"
+            let keystroke = FakeKeystroke()
+            keystroke.onPaste = { clipboard.borrowRefused = true }
+
+            let outcome = service(
+                FakeAccessibility(), keystroke: keystroke, pasteboard: pasteboard,
+                clipboard: clipboard
+            ).apply(
+                "the rewrite", to: viaClipboardSnapshot(),
+                autoReplace: true, keepOutOfHistory: true)
+
+            if case .heldForManualCopy = outcome {} else {
+                Issue.record("expected the rewrite to be held, got \(outcome)")
+            }
+        }
+    }
+
     /// The Sublime shape, which every other clipboard fixture here missed.
     ///
     /// Rung 9 is reached two different ways and they look nothing alike to

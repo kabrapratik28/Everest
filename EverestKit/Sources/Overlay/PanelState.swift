@@ -124,7 +124,12 @@ public extension PanelState {
         case .refused:            "The model declined"
         case .error:              "Rewrite failed"
         case .stylePicker:        "Choose a style"
-        case .heldForManualCopy:  "Copy this before closing"
+        // ⌘C and not ⌘V, and the difference is the whole point: nothing has
+        // been copied. The user's clipboard is untouched and this panel is
+        // the only place the rewrite exists, so pointing at the clipboard
+        // would point at nothing of theirs. Both steps are named because
+        // neither happens on its own, and nothing here closes on a timer.
+        case .heldForManualCopy:  "Press ⌘C, then paste your rewrite"
         }
     }
 
@@ -147,20 +152,24 @@ public extension PanelState {
         // nobody sees it, and at the old 1200 ms it covered the text the user
         // had just asked to look at.
         //
-        // 500 and not 1000, which was the other candidate: the tick is a
-        // state *change* on a panel that has been streaming for seconds, and
-        // the eye catches the flip rather than the duration — something
-        // appearing cold would need longer. It also lands at the same instant
-        // as the text changing, so there are two signals, not one. And 1000
-        // is within 200 ms of the 1200 that prompted the complaint, so it
-        // would nearly undo the change. **1 second is the sanctioned fallback**
-        // if the manual check says 500 reads as too quick; the test pins the
-        // relations rather than the number, so that swap needs no test change.
+        // 1000 and not 500, which was tried and which Pratik could not see.
+        // The reason is measured rather than a theory about perception: the
+        // panel collapses from a streaming height to a one-line tick, and
+        // `present` resizes with `setFrame(animate:)`, which **blocks for
+        // 293 ms** on that change. At 500 ms only 207 ms of the tick was
+        // static — the rest was the panel shrinking, which in peripheral
+        // vision reads as going away rather than as confirming. At 1000 ms
+        // it is 707 ms static, 3.4× the still part rather than 2×.
+        //
+        // So the cheaper alternative, if this ever needs to come back down,
+        // is not a shorter delay but presenting `.success` without the
+        // animated resize: 500 ms fully static beats 1000 ms mostly moving.
+        // That is a behaviour change and needs its own test.
         //
         // Presented rather than skipped for a separate reason: a screen
         // reader user gets no confirmation from the document changing, so
         // this is the only announcement the replaced path makes.
-        case .success:                                       .milliseconds(500)
+        case .success:                                       .seconds(1)
         case .readOnly, .targetChanged:                      .seconds(6)
         case .refused, .error:                               .seconds(8)
         }

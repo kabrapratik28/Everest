@@ -238,16 +238,36 @@ public final class ReplacementService {
             )
         }
 
-        // A landed paste replaced the selection, so there is nothing left to
-        // copy. Anything else — the original still there, or the app busy —
-        // is not proof it worked, and claiming `.replaced` would lose the
-        // rewrite entirely for a target that ignored the paste.
-        guard case .nothingCopied = clipboard.copySelection(pid: snapshot.pid) else {
+        // **The failure signal is the reliable one.** This used to accept only
+        // "nothing came back" as proof of a landed paste, and an absence has
+        // more than one cause: Sublime's `copy_with_empty_selection` defaults
+        // on, so ⌘C at a collapsed caret hands back the whole current line
+        // and a successful paste read as a failed one.
+        //
+        // Comparing against the *rewrite* cannot work in either direction —
+        // a single-line paste makes the copied line wider than the rewrite,
+        // a multi-line paste makes it narrower. Comparing against what was
+        // captured can: a paste that was ignored leaves the selection exactly
+        // as it was, so ⌘C returns exactly that.
+        //
+        // **Do not carry `observeConsumption`'s trade over here.** That one
+        // takes any change as proof because its false negative copies a
+        // rewrite it already pasted and the user duplicates a paragraph. Here
+        // the costs invert: a false negative shows a panel and keeps the
+        // rewrite, a false positive dismisses with a tick and the rewrite is
+        // gone from the panel *and* the clipboard. Same question, opposite
+        // answer, which is why unknown holds rather than passing.
+        switch clipboard.copySelection(pid: snapshot.pid) {
+        case let .captured(after) where after == snapshot.text:
             trace.record(.pasteConfirmed(false))
             return held("the target did not accept the paste")
+        case .unavailable:
+            trace.record(.pasteConfirmed(false))
+            return held("the paste could not be confirmed")
+        case .captured, .nothingCopied:
+            trace.record(.pasteConfirmed(true))
+            return .replaced
         }
-        trace.record(.pasteConfirmed(true))
-        return .replaced
     }
 
     /// The rewrite stays in the panel and the clipboard is not touched. This
