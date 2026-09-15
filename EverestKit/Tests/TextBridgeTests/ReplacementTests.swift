@@ -163,6 +163,14 @@ struct ReplacementTests {
     /// Route one. The app performs the replacement itself, so it lands in one
     /// undo step, respects the field's own formatting rules, and never
     /// touches the clipboard.
+    ///
+    /// **And when the write reports success we stop.** No confirming read:
+    /// the only thing a confirmation could do if it came back inconclusive is
+    /// fall through and paste as well, and a false negative there inserts the
+    /// rewrite twice. A duplicated paragraph is unrecoverable; a rewrite that
+    /// quietly did not land is visible and the user can press the hotkey
+    /// again. The asymmetry decides it — which is what `keystroke.pastes == 0`
+    /// below is really pinning, and why it is not a throwaway assertion.
     @Test("a still-matching target is replaced through the accessibility write")
     func matchingTargetIsReplacedInPlace() throws {
         withPrivatePasteboard { pasteboard in
@@ -181,26 +189,6 @@ struct ReplacementTests {
                 pasteboard.string(forType: .string) == "the user's clipboard",
                 "route one does not touch the clipboard at all"
             )
-        }
-    }
-
-    /// When the write reports success we stop. No confirming read: the only
-    /// thing a confirmation could do if it came back inconclusive is fall
-    /// through and paste as well, and a false negative there inserts the
-    /// rewrite twice. A duplicated paragraph is unrecoverable; a rewrite that
-    /// quietly did not land is visible and the user can press the hotkey
-    /// again. The asymmetry decides it.
-    @Test("a successful accessibility write is not verified and never chains into a paste")
-    func successfulWriteDoesNotChainIntoAPaste() throws {
-        withPrivatePasteboard { pasteboard in
-            let ax = liveTarget()
-            let keystroke = FakeKeystroke()
-
-            _ = service(ax, keystroke: keystroke, pasteboard: pasteboard)
-                .apply("the rewrite", to: snapshot())
-
-            #expect(ax.writes.count == 1)
-            #expect(keystroke.pastes == 0)
         }
     }
 
@@ -375,6 +363,18 @@ struct ReplacementTests {
 
             #expect(ax.focusResolutions == 0, "the validator never ran")
             #expect(ax.textReads == 0)
+
+            // The positive control, which this test had none of. Both zeroes
+            // above read identically when `apply` did nothing at all —
+            // refused earlier for an unrelated reason, or never reached. What
+            // makes them mean "the flag suppressed the validator" is the same
+            // fixture with the flag off driving it. Deliberately *not* an
+            // assertion on the outcome: that is the subject of the test above,
+            // and repeating it would make one regression look like two.
+            let readable = liveTarget()
+            _ = service(readable, keystroke: FakeKeystroke(), pasteboard: pasteboard)
+                .apply("the rewrite", to: snapshot(isRangeDerived: false))
+            #expect(readable.focusResolutions > 0, "the validator runs when it is allowed to")
         }
     }
 

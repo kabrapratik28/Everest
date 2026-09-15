@@ -18,41 +18,12 @@ import Testing
 @Suite("Text fidelity")
 struct TextFidelityTests {
 
-    private func capture(_ text: String, via route: Route) throws -> TargetSnapshot {
-        let ax = FakeAccessibility()
-        let clipboard = FakeClipboardCapture()
-
-        switch route {
-        case .selectedText:
-            ax.focused = testElement()
-            ax.selected = text
-            ax.range = CFRange(location: 0, length: text.utf16.count)
-        case .stringForRange:
-            ax.focused = testElement()
-            ax.selected = ""
-            ax.range = CFRange(location: 0, length: text.utf16.count)
-            ax.stringForRange = text
-        case .clipboard:
-            clipboard.result = text
-        }
-
-        return try SelectionCoordinator(
-            system: FakeSystem(),
-            accessibility: ax,
-            clipboard: clipboard,
-            excludedBundleIDs: [],
-            manualAccessibilitySettle: .zero
-        ).capture()
-    }
-
-    enum Route: CaseIterable { case selectedText, stringForRange, clipboard }
-
     @Test("whitespace, tabs and newlines survive every capture route byte for byte",
-          arguments: Route.allCases)
-    func textSurvivesByteForByte(route: Route) throws {
+          arguments: CaptureRoute.allCases)
+    func textSurvivesByteForByte(route: CaptureRoute) throws {
         let original = "  spaced  \tand\ttabbed  \n\n  and a trailing newline\n"
 
-        let snapshot = try capture(original, via: route)
+        let snapshot = try captureText(original, via: route)
 
         #expect(snapshot.text == original)
         #expect(Array(snapshot.text.utf8) == Array(original.utf8))
@@ -60,11 +31,12 @@ struct TextFidelityTests {
 
     /// Composed characters, combining marks and a zero-width joiner sequence.
     /// Any normalisation pass would quietly rewrite these.
-    @Test("composed and combining characters are not normalised", arguments: Route.allCases)
-    func unicodeIsNotNormalised(route: Route) throws {
+    @Test("composed and combining characters are not normalised",
+          arguments: CaptureRoute.allCases)
+    func unicodeIsNotNormalised(route: CaptureRoute) throws {
         let original = "e\u{0301}clair \u{1F469}\u{200D}\u{1F4BB} \u{FF41}\u{0000}end"
 
-        let snapshot = try capture(original, via: route)
+        let snapshot = try captureText(original, via: route)
 
         #expect(Array(snapshot.text.unicodeScalars) == Array(original.unicodeScalars))
     }

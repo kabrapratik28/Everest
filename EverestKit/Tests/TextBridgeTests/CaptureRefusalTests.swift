@@ -31,6 +31,53 @@ struct CaptureRefusalTests {
         #expect(ax.textReads == 0, "the password must never be read")
     }
 
+    /// Rung 8, and the reason this test exists is that deleting the guard it
+    /// covers used to leave all 74 tests passing.
+    ///
+    /// On the Chromium and Electron path this re-check is the **only** thing
+    /// in the way. Rung 0 does not fire: a web password input does not set
+    /// the process-wide flag, which is measured and recorded in `AGENTS.md`.
+    /// Rung 4 was skipped because there was no element to inspect — which is
+    /// precisely why rung 8 ran at all. So the tree that `AXManualAccessibility`
+    /// reveals is the first sight of the field, and the last chance to refuse
+    /// before a password is read into a prompt.
+    ///
+    /// The fixture that reaches this guard was already in the suite, in
+    /// `manualAccessibilityEnablesTheTreeAndRetriesOnce`; it just revealed an
+    /// ordinary text field, so the one fixture able to exercise the guard was
+    /// the one that never did.
+    @Test("a secure field in the tree revealed by AXManualAccessibility is refused")
+    func revealedTreeIsRecheckedForASecureField() throws {
+        let ax = FakeAccessibility()
+        ax.focused = nil  // Chromium, tree switched off
+        let clipboard = FakeClipboardCapture()
+        clipboard.result = "hunter2"
+
+        ax.onEnableManualAccessibility = { [weak ax] in
+            // The tree appears, and it is a password field.
+            ax?.focused = testElement()
+            ax?.role = "AXTextField"
+            ax?.subrole = "AXSecureTextField"
+            ax?.selected = "hunter2"
+            ax?.range = CFRange(location: 0, length: 7)
+        }
+
+        let coordinator = SelectionCoordinator(
+            system: FakeSystem(secureInputEnabled: false),
+            accessibility: ax,
+            clipboard: clipboard,
+            excludedBundleIDs: [],
+            manualAccessibilitySettle: .zero
+        )
+
+        #expect(throws: CaptureError.secureField) {
+            _ = try coordinator.capture()
+        }
+        #expect(ax.manualAccessibilityEnables == 1, "the tree really was revealed")
+        #expect(ax.textReads == 0, "the password was never read")
+        #expect(clipboard.attempts == 0, "and no ⌘C was posted at it")
+    }
+
     /// Rung 0. The process-wide flag is what a native password field and a
     /// password manager set, and it costs nothing and needs no permission, so
     /// it is checked before the app is even identified.
@@ -143,23 +190,19 @@ struct CaptureRefusalTests {
     /// The character budget is a property of the capture, not of the engine:
     /// refusing here means the overlay can say why instead of the model
     /// quietly truncating the user's document.
-    @Test("input over the 8,000 character limit is refused with its own length")
-    func refusesInputOverTheCharacterLimit() throws {
+    ///
+    /// Driven on every route on purpose. The check sits at one choke point
+    /// after the chain, so that a new rung cannot forget it — but a test that
+    /// only ever arrives by rung 5 pins it to rung 5, and a refactor moving it
+    /// into that branch would pass. Rungs 7 and 9 are the whole copy-only
+    /// column of root §3: every terminal, every PDF, and Google Docs.
+    @Test("input over the 8,000 character limit is refused whichever rung produced it",
+          arguments: CaptureRoute.allCases)
+    func refusesInputOverTheCharacterLimit(route: CaptureRoute) throws {
         let overLimit = String(repeating: "a", count: CaptureLimits.maxCharacters + 1)
-        let ax = FakeAccessibility()
-        ax.focused = testElement()
-        ax.selected = overLimit
-        ax.range = CFRange(location: 0, length: overLimit.count)
-
-        let coordinator = SelectionCoordinator(
-            system: FakeSystem(),
-            accessibility: ax,
-            clipboard: FakeClipboardCapture(),
-            excludedBundleIDs: []
-        )
 
         #expect(throws: CaptureError.tooLong(CaptureLimits.maxCharacters + 1)) {
-            _ = try coordinator.capture()
+            _ = try captureText(overLimit, via: route)
         }
     }
 

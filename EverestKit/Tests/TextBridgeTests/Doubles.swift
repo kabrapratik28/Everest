@@ -11,6 +11,41 @@ func testElement(pid: pid_t = 501) -> AXUIElement {
     AXUIElementCreateApplication(pid)
 }
 
+/// Which rung produced the text. Shared rather than private to one suite,
+/// because a decision taken at the chain's choke point has to be proved on
+/// every route: rung 5 is the app's own answer, and rungs 7 and 9 are the
+/// entire copy-only column of root §3 — every terminal, every PDF, Google Docs.
+enum CaptureRoute: CaseIterable { case selectedText, stringForRange, clipboard }
+
+/// Captures `text` through a chosen rung, with the settle at zero so the
+/// suite never sleeps.
+func captureText(_ text: String, via route: CaptureRoute) throws -> TargetSnapshot {
+    let ax = FakeAccessibility()
+    let clipboard = FakeClipboardCapture()
+
+    switch route {
+    case .selectedText:
+        ax.focused = testElement()
+        ax.selected = text
+        ax.range = CFRange(location: 0, length: text.utf16.count)
+    case .stringForRange:
+        ax.focused = testElement()
+        ax.selected = ""
+        ax.range = CFRange(location: 0, length: text.utf16.count)
+        ax.stringForRange = text
+    case .clipboard:
+        clipboard.result = text
+    }
+
+    return try SelectionCoordinator(
+        system: FakeSystem(),
+        accessibility: ax,
+        clipboard: clipboard,
+        excludedBundleIDs: [],
+        manualAccessibilitySettle: .zero
+    ).capture()
+}
+
 /// A class, not a struct, so a test can change what the machine reports
 /// between two captures — an app upgrading under a warm cache entry, say.
 final class FakeSystem: SystemProbing {
