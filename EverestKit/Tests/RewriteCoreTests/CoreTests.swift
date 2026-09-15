@@ -252,13 +252,50 @@ func outputValidatorValidateAcceptsReasonableRewrite() {
 
 // MARK: - Preset
 
-@Test("Preset.builtInStyles has exactly 5 presets with unique names")
-func presetBuiltInStylesHasExactlyFiveUniqueNames() {
-    let styles = Preset.builtInStyles
-    #expect(styles.count == 5)
+/// **Names and UUIDs are pinned; instruction wording deliberately is not.**
+///
+/// A UUID is persistence: `AppSettings` Codable-round-trips styles through
+/// `UserDefaults`, so changing one silently orphans a user's edit of that
+/// style and the picker gets a duplicate. Order is the picker's reading
+/// order. Both are facts a future edit can break without noticing.
+///
+/// The instruction strings are not pinned, on purpose. They are prompt
+/// wording, expected to be tuned against the model, and a test that copies
+/// them asserts the data equals itself — it fails on every honest
+/// improvement and catches no bug. The one property of the wording that does
+/// matter has its own test below.
+@Test("Preset.builtInStyles is the six documented styles, in order, with stable ids")
+func presetBuiltInStylesIsTheSixDocumentedStyles() {
+    let expected: [(String, String)] = [
+        ("Proofread", "11111111-1111-1111-1111-111111111111"),
+        ("Professional", "22222222-2222-2222-2222-222222222222"),
+        ("Friendly", "33333333-3333-3333-3333-333333333333"),
+        ("Concise", "44444444-4444-4444-4444-444444444444"),
+        ("Expand", "55555555-5555-5555-5555-555555555555"),
+        ("Simplify", "66666666-6666-6666-6666-666666666666"),
+    ]
 
-    let uniqueNames = Set(styles.map(\.name))
-    #expect(uniqueNames.count == 5)
+    let styles = Preset.builtInStyles
+    #expect(styles.map(\.name) == expected.map(\.0))
+    #expect(styles.map { $0.id.uuidString.lowercased() } == expected.map(\.1))
+    #expect(styles.allSatisfy { !$0.instruction.isEmpty && !$0.subtitle.isEmpty })
+}
+
+/// **Quick Improve must not be one of the picker's styles wearing a second
+/// UUID.** It used to be: `quickImprove` and the picker's "Improve" shipped
+/// the same instruction, so the hotkey and the picker's first row did the
+/// same thing and one of the six choices was spent on it. Proofread took that
+/// slot — corrections only, no stylistic rewriting — which is a different
+/// behaviour from Quick Improve's broad clean-up.
+///
+/// Compared by instruction rather than by name because the instruction is
+/// what reaches the model; two presets with different names and identical
+/// instructions are still one behaviour offered twice.
+@Test("Preset.quickImprove is not a duplicate of any picker style")
+func presetQuickImproveIsNotADuplicateOfAPickerStyle() {
+    let quick = Preset.quickImprove.instruction
+    #expect(!quick.isEmpty)
+    #expect(!Preset.builtInStyles.contains { $0.instruction == quick })
 }
 
 // MARK: - ModelCatalog

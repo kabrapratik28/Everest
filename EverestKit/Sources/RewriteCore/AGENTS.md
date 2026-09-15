@@ -42,7 +42,7 @@ Any Qwen3.5 model is disqualified: it's a vision-language model (loads via `mlx_
 
 ## Smaller decisions worth knowing about
 
-**Built-in presets use fixed, hand-written UUIDs**, not `UUID()` — a fresh one on every access would break Codable round-tripping through `AppSettings` and SwiftUI list identity. `quickImprove` and `builtInStyles`'s "Improve" entry share instruction text on purpose but deliberately not a UUID: two independently user-editable fields.
+**Built-in presets use fixed, hand-written UUIDs**, not `UUID()` — a fresh one on every access would break Codable round-tripping through `AppSettings` and SwiftUI list identity, and it is what lets a user's edit of a style survive a version bump. `quickImprove` keeps its own UUID because it is a separately editable field, and it no longer duplicates a picker style: it shipped the picker's "Improve" instruction verbatim, so the hotkey and the first row did the same thing and one of the choices bought nothing. Proofread — corrections only, no stylistic rewriting — holds that UUID now. **The instruction strings are not pinned by a test and should not be**: they are prompt wording, tuned against the model, and a test asserting the data equals itself fails on every honest improvement. The properties with tests are the ids, the order, and that Quick Improve is not a style in disguise.
 
 **`AppSettings` is `UserDefaults`-backed with an injectable store** (`init(store: UserDefaults = .standard)`), so a test or preview never touches the real user's defaults. `.shared` still works exactly as the plan specifies.
 
