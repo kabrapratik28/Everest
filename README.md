@@ -65,6 +65,14 @@ cd EverestKit && swift test    # all logic, no app needed
 
 Xcode 26 needs the Metal toolchain: `xcodebuild -downloadComponent MetalToolchain`.
 
+## Updates
+
+From 0.1.1 Everest updates itself with [Sparkle](https://sparkle-project.org). It checks a signed feed in this repository, offers the new version, and installs on quit. Sparkle asks before its first automatic check, and **Check for Updates…** in the menu-bar dropdown works whatever you answer.
+
+Every update is signed with an EdDSA key whose private half never leaves the maintainer's Keychain. Sparkle refuses an update whose signature does not verify, which is what stops anyone else shipping you an "update".
+
+If you are on 0.1.0 you must update by hand once — that build predates Sparkle and cannot check for anything.
+
 ## Privacy
 
 The model runs on your Mac and your text is not sent anywhere. The clipboard is the one real exception, and [PRIVACY.md](PRIVACY.md) sets out exactly what that means, what is stored on disk, and how to remove it.

@@ -1,5 +1,6 @@
 import AppCore
 import AppKit
+import Sparkle
 import Carbon.HIToolbox
 import KeyboardShortcuts
 import Overlay
@@ -32,6 +33,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: StatusItemController?
     private var hotkeys: HotkeyManager?
     private var onboarding: NSWindow?
+
+    /// Sparkle. Held for the process lifetime, not made per-check: the
+    /// controller *is* the scheduler, so a local one would be deallocated
+    /// before it ever ran a background check and only the menu item would
+    /// work.
+    ///
+    /// `startingUpdater: true` begins the schedule now. `updaterDelegate` and
+    /// `userDriverDelegate` are nil on purpose — every decision Sparkle would
+    /// ask about has a sane default, and a delegate here would be app-target
+    /// code no test can reach. The feed URL and public key are in
+    /// `project.yml`'s `info:` block, so there is one home for each.
+    private let updater = SPUStandardUpdaterController(
+        startingUpdater: true,
+        updaterDelegate: nil,
+        userDriverDelegate: nil
+    )
 
     /// Assigned by `EverestApp`'s scene body, which is the only scope that can
     /// read `OpenSettingsAction`. Set before launch finishes, so by the time
@@ -133,6 +150,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             chooseStyle: { [coordinator] in Task { await coordinator.chooseStyle() } },
             openSettings: { [weak self] in self?.openSettings() },
             openOnboarding: { [weak self] in self?.showOnboarding() },
+            checkForUpdates: { [weak self] in
+                // `nil` sender is Sparkle's own convention for "not from a
+                // menu item I installed". Activating first because an
+                // accessory app is not frontmost when its status menu is
+                // clicked, and Sparkle's window would open behind whatever
+                // the user was typing in.
+                NSApp.activate(ignoringOtherApps: true)
+                self?.updater.checkForUpdates(nil)
+            },
             shortcutText: { HotkeyManager.rendered($0) }
         )
 

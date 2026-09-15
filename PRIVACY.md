@@ -14,10 +14,15 @@ Two things do go out, and neither carries your text:
   at a pinned revision. That request tells Hugging Face your IP address and
   the usual HTTP metadata. Availability and rate limits there are outside
   Everest's control.
-- **Nothing else, today.** When automatic updates ship (see
-  `docs/RELEASING.md`), an update check will contact the appcast host on a
-  schedule and expose an IP address and the app version. This page will say so
-  when that happens.
+- **The update check**, from 0.1.1 onwards. Everest asks
+  `raw.githubusercontent.com` for a small XML file listing the newest
+  version, and if you accept an update it downloads the new build from
+  `github.com`. Those requests tell GitHub your IP address, your app version
+  and your macOS version — ordinary HTTP metadata, and nothing about your
+  text. Sparkle asks your permission before the first automatic check and you
+  can decline; the **Check for Updates…** item in the menu-bar dropdown then
+  stays available for when you want one. There is no separate server: the
+  feed is a file in the public repository.
 
 ## The clipboard, which is the real exception
 
@@ -57,6 +62,7 @@ see. The excluded-apps list in Settings ▸ Privacy is there for those.
 | Model weights, ~2.3 GB | `~/Library/Application Support/Everest/Models/` | Settings ▸ Model ▸ Delete, or delete the folder |
 | Preferences, including any custom styles and prompt text you write | `~/Library/Preferences/com.kabrapratik.Everest.plist` | `defaults delete com.kabrapratik.Everest` |
 | Diagnostic log lines | The unified system log, subsystem `com.kabrapratik.Everest` | `sudo log erase`, or wait — the system rotates them |
+| Sparkle's update-check state (last check, whether you allowed automatic checks) | `~/Library/Preferences/com.kabrapratik.Everest.plist`, keys beginning `SU` | `defaults delete com.kabrapratik.Everest` |
 
 Your custom style instructions are your text and they are kept, because the
 app has to send them to the model on the next press. Your **selections** and

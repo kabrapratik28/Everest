@@ -268,3 +268,19 @@ that produced the Alacritty bug.
     naive reading would claim you can no longer type `r`. That exclusion is
     the part worth eyeballing, because it is the one that would be wrong
     rather than merely absent.
+
+## Sparkle auto-update — needs two published versions
+
+38. **Check for Updates… on the current version.** Menu-bar dropdown ▸ Check
+    for Updates…. Must say you are up to date, not fail to reach the feed. A
+    feed error and "up to date" look similar at a glance; read the wording.
+39. **Sparkle's first-run consent prompt.** On a fresh install it asks once
+    whether to check automatically. Decline, and confirm the menu item still
+    works — declining must not disable manual checks.
+40. **An actual upgrade.** Install the older version, publish the newer,
+    then check for updates. Confirm it downloads, installs on quit, and
+    relaunches at the new version.
+41. **Accessibility survives that upgrade.** The one with real consequences:
+    after the update installs, press the hotkey. If macOS asks for
+    Accessibility again, the designated requirement moved and every future
+    update will silently break the app for everyone. Untested as of 0.1.1.

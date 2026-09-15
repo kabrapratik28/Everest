@@ -24,6 +24,7 @@ func onlyGlobalHotkeysAreLabelled() {
 
     #expect(MenuCommand.settings.hotkey == nil)
     #expect(MenuCommand.setupGuide.hotkey == nil)
+    #expect(MenuCommand.checkForUpdates.hotkey == nil)
     #expect(MenuCommand.quit.hotkey == nil)
 
     // Every hotkey the app registers reaches a menu item, so a binding the
@@ -50,6 +51,9 @@ func onlySettingsHasAFixedKeyEquivalent() {
 
     #expect(MenuCommand.quit.fixedKeyEquivalent == nil)
     #expect(MenuCommand.setupGuide.fixedKeyEquivalent == nil)
+    // Sparkle's own menu item carries no convention, and it must not borrow
+    // ⌘U — that is Underline in every editor Everest writes into.
+    #expect(MenuCommand.checkForUpdates.fixedKeyEquivalent == nil)
 
     // The two that are user-recordable must never carry one, whatever else
     // changes — that is the stale-copy rule.

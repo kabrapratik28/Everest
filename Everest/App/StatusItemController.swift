@@ -9,6 +9,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     private let chooseStyle: () -> Void
     private let openSettings: () -> Void
     private let openOnboarding: () -> Void
+    private let checkForUpdates: () -> Void
     private let shortcutText: @MainActor (Hotkey) -> String?
 
     /// Every item that could carry a shortcut, with the command it runs.
@@ -20,12 +21,14 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         chooseStyle: @escaping () -> Void,
         openSettings: @escaping () -> Void,
         openOnboarding: @escaping () -> Void,
+        checkForUpdates: @escaping () -> Void,
         shortcutText: @escaping @MainActor (Hotkey) -> String?
     ) {
         self.quickImprove = quickImprove
         self.chooseStyle = chooseStyle
         self.openSettings = openSettings
         self.openOnboarding = openOnboarding
+        self.checkForUpdates = checkForUpdates
         self.shortcutText = shortcutText
         item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         super.init()
@@ -70,6 +73,10 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         menu.addItem(.separator())
         add(.settings, "Settings…", #selector(runOpenSettings), to: menu)
         add(.setupGuide, "Setup Guide…", #selector(runOpenOnboarding), to: menu)
+        // Sparkle's own `SPUStandardUpdaterController` would install a menu
+        // item for us, but only into an app menu — which an `LSUIElement`
+        // app does not have. This dropdown is the only menu Everest owns.
+        add(.checkForUpdates, "Check for Updates…", #selector(runCheckForUpdates), to: menu)
         menu.addItem(.separator())
         add(.quit, "Quit Everest", #selector(runQuit), to: menu)
         return menu
@@ -108,5 +115,6 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     @objc private func runChooseStyle() { chooseStyle() }
     @objc private func runOpenSettings() { openSettings() }
     @objc private func runOpenOnboarding() { openOnboarding() }
+    @objc private func runCheckForUpdates() { checkForUpdates() }
     @objc private func runQuit() { NSApp.terminate(nil) }
 }

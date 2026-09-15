@@ -24,6 +24,7 @@ public enum MenuCommand: CaseIterable, Sendable {
     case chooseStyle
     case settings
     case setupGuide
+    case checkForUpdates
     case quit
 
     /// The global hotkey behind this command, if it has one.
@@ -38,7 +39,7 @@ public enum MenuCommand: CaseIterable, Sendable {
         switch self {
         case .quickImprove: .quickImprove
         case .chooseStyle: .chooseStyle
-        case .settings, .setupGuide, .quit: nil
+        case .settings, .setupGuide, .checkForUpdates, .quit: nil
         }
     }
 
@@ -56,13 +57,15 @@ public enum MenuCommand: CaseIterable, Sendable {
     /// The Command modifier is left implicit: `NSMenuItem` defaults
     /// `keyEquivalentModifierMask` to `.command`, so assigning "," is ⌘,.
     ///
-    /// Quit and Setup Guide stay bare deliberately. `⌘Q` on a menu-bar app
-    /// meant to keep running is an invitation nobody asked for, and Setup
-    /// Guide has no convention to borrow.
+    /// Quit, Setup Guide and Check for Updates stay bare deliberately. `⌘Q`
+    /// on a menu-bar app meant to keep running is an invitation nobody asked
+    /// for; Setup Guide has no convention to borrow; and the nearest thing
+    /// to a convention for an update check is `⌘U`, which is Underline in
+    /// every editor Everest writes into.
     public var fixedKeyEquivalent: String? {
         switch self {
         case .settings: ","
-        case .quickImprove, .chooseStyle, .setupGuide, .quit: nil
+        case .quickImprove, .chooseStyle, .setupGuide, .checkForUpdates, .quit: nil
         }
     }
 }

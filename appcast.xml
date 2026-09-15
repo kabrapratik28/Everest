@@ -1,0 +1,15 @@
+<?xml version='1.0' encoding='utf-8'?>
+<rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
+    <channel>
+        <title>Everest</title>
+        <item>
+            <title>0.1.1</title>
+            <pubDate>Tue, 15 Sep 2026 14:17:18 -0700</pubDate>
+            <link>https://github.com/kabrapratik28/Everest</link>
+            <sparkle:version>2</sparkle:version>
+            <sparkle:shortVersionString>0.1.1</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
+            <enclosure url="https://github.com/kabrapratik28/Everest/releases/download/v0.1.1/Everest_0.1.1_aarch64.dmg" length="20369339" type="application/octet-stream" sparkle:edSignature="oyNTcDdjgp4RXovA4kVnEtTf7sI8iBvy6dFLUdTqvM/F4jV5USu5B8nTK0sDYvbzQ11mlbMwMH6JO3waMS+aCg==" />
+        </item>
+    </channel>
+</rss>
