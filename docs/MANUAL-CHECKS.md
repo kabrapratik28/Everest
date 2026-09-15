@@ -148,16 +148,35 @@ that needs the running app.
     is an assumption, not an established fact. Failure would be a spurious
     `modelNotLoaded` on a warm model.
 
+## The two new settings — neither is verifiable here
+
+28. **Does your clipboard manager actually honour `TransientType`?** The
+    "keep rewrites out of clipboard history" setting rests entirely on third
+    parties obeying a convention, and **nobody on this project has ever
+    watched one obey it** — we assert in two comments that every mainstream
+    manager does. Test against the manager you actually run, by name. If it
+    ignores the marker the setting silently does nothing, and you believe your
+    rewrites are out of history while they are in it. **A privacy toggle that
+    lies is worse than no toggle**, so if yours ignores it, say so and the
+    honest move is to name the limitation in the UI or drop the setting.
+29. **Does auto-replace ever fire?** It only does anything where
+    Accessibility reports a target non-editable *and* a paste nonetheless
+    lands — a WebKit `contenteditable`, which is the case the `isEditable`
+    comment was written about. The test proves the branch is taken; only a
+    real editor proves those targets accept a paste at all. If they do not,
+    you get the same copy-only as before **plus a ~450 ms wait**, which is
+    worse than today and would mean reverting the default.
+
 ## Judgment, not pass/fail
 
-28. **An 8,000-character rewrite holds the panel ~75 s**, streaming, where it
+30. **An 8,000-character rewrite holds the panel ~75 s**, streaming, where it
     used to take 19 s and silently truncate. Complete-and-slow was the right
     trade, but if it reads as a hang the answer is better progress in the
     panel, not a shorter budget.
-29. **VoiceOver.** Turn it on and listen. The posting code is right by
+31. **VoiceOver.** Turn it on and listen. The posting code is right by
     construction — `.announcementRequested` against `NSApp`, `.high` — but
     whether it is audible, and whether `.high` is too insistent for a routine
     `success`, needs a human.
-30. **`Expand` on a short sentence.** It has never worked: the 3× output guard
+32. **`Expand` on a short sentence.** It has never worked: the 3× output guard
     refused every honest expansion. With the guard gone it should now produce
     something several times longer than the source.

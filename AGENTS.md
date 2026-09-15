@@ -76,7 +76,7 @@ Everest/               thin .app shell: App/, Settings/, Resources/
 project.yml            xcodegen spec, at repo root
 ```
 
-Logic in the app target is untestable, and `swift test` does not even *compile* it — only `xcodebuild` does, so an agent editing there is writing blind until someone runs an app build. Keep the shell thin.
+Logic in the app target is untestable, and `swift test` does not even *compile* it — only `xcodebuild` does, so an agent editing there is writing blind until someone runs an app build. **A break here is loud to nobody** — omitting a default so the shell "fails loudly" buys nothing on its own, because nothing compiles it; what carries the signal is telling the lead in the same message. Keep the shell thin.
 
 ## 5. Model: `mlx-community/Qwen3-4B-Instruct-2507-4bit`
 
