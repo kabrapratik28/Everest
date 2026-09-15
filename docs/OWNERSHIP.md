@@ -3,17 +3,16 @@
 **Operational state, not architecture.** Stale the moment work finishes — check
 the date, and ask the lead rather than trusting a name you remember.
 
-Last updated: 2026-09-15 01:20 PDT
+Last updated: 2026-09-15 00:45 PDT
 
 | Target | Owner | Notes |
 |---|---|---|
-| `EverestKit/Sources/TextBridge/` + tests | **fix-docs** | Was `tdd-bridge`. Reassigned without telling it, which caused three misroutes. |
-| `EverestKit/Sources/Engines/` + tests | **audit-correctness** | Truncation fix. Was `tdd-engines`. |
-| `EverestKit/Sources/RewriteCore/OutputValidator.swift`, `EngineLimits.swift` | **audit-correctness** | |
-| `EverestKit/Sources/RewriteCore/PromptBuilder.swift` | *unowned* | `audit-security` finished and stood down. |
-| `EverestKit/Sources/Overlay/` + tests | **fix-keys** | Was `tdd-overlay`. |
+| `EverestKit/Sources/TextBridge/` + tests | **fix-docs** | Was `tdd-bridge`. Reassigned without telling it, which caused three misroutes. Building the EVE-009 paste fix. |
+| `EverestKit/Sources/Engines/` + tests | **audit-correctness** | Truncation and `LoadOnce` both landed. Was `tdd-engines`. |
+| `EverestKit/Sources/RewriteCore/` | **audit-correctness** | `OutputValidator`, `EngineLimits`, and `PromptBuilder` — `audit-security` stood down and EVE-012 turned out to span both. |
+| `EverestKit/Sources/Overlay/` + tests | *unowned* | `fix-keys` finished. EVE-010's `PanelKeyWindowTests` landed from an unconfirmed author. |
 | `EverestKit/Sources/AppCore/` + tests | **fix-settings** | `EngineFactory.swift` was carved out to `fix-model`, now finished and returned. |
-| `Everest/App/`, `Everest/Settings/` | **fix-settings** | Except `HotkeyManager.swift`, which is the lead's. |
+| `Everest/App/`, `Everest/Settings/` | **fix-settings** | Except `HotkeyManager.swift`, which is the lead's — the *bindings* were, never the rendering. |
 | `project.yml`, `README.md`, root `AGENTS.md`, `docs/` | **lead** | |
 | git — every command | **lead only** | Six agents, one tree. A stray `checkout` destroys uncommitted work. |
 
@@ -44,3 +43,11 @@ first, and suspicion is not a mechanism.
 - **Verify before you act on a report about your own files.** Reports go stale
   fast here; so do the lead's. Two of the lead's own bug reports were of
   problems already fixed.
+- **Claim new files in your report.** Three untracked files appeared —
+  `LoadOnce.swift`, `PanelKeyWindowTests.swift`, `ShortcutCopy.swift` — that no
+  report mentioned, so they sat uncommitted while the lead asked around. A file
+  nobody claims cannot be committed, because its message would be a guess.
+- **Ask the lead for an app build before believing app-target code.** Nothing
+  under `Everest/` is in the SwiftPM graph, so `swift test` never compiles it
+  and `swiftc -parse` does not check argument order. Two agents have now had
+  app-target code sit broken in the tree without knowing.
