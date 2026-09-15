@@ -93,6 +93,13 @@ first, and suspicion is not a mechanism.
   `LoadOnce.swift`, `PanelKeyWindowTests.swift`, `ShortcutCopy.swift` — that no
   report mentioned, so they sat uncommitted while the lead asked around. A file
   nobody claims cannot be committed, because its message would be a guess.
+- **Report app-target files as "parses; not type-checked", never as clean.**
+  `swiftc -parse` is syntax only — it cannot see an argument type, a closure
+  result type, or memberwise-init order, which are three of the four
+  app-target breaks this project has had. "All six app files parse" reads as
+  "compile" and the phrasing was overclaiming even when the facts under it
+  were right. "Ready for a build" means the package is green and the shell is
+  syntactically valid; only the lead's build settles the rest.
 - **Ask the lead for an app build before believing app-target code.** Nothing
   under `Everest/` is in the SwiftPM graph, so `swift test` never compiles it
   and `swiftc -parse` does not check argument order. Two agents have now had
