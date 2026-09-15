@@ -12,7 +12,7 @@ The signing certificate on this machine is `Apple Development`. Measured:
 ```
 $ spctl -a -vvv -t exec /Applications/Everest.app
 /Applications/Everest.app: rejected
-origin=Apple Development: kabrapratik28@gmail.com
+origin=Apple Development: <your name> (<team id>)
 ```
 
 `rejected` is what every downloader hits. It does **not** mean the app cannot

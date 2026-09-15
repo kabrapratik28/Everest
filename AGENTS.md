@@ -143,7 +143,7 @@ Bundle id `com.kabrapratik.Everest`. Never hardcode it as an `OSLog` subsystem �
 | Dependency | Why |
 |---|---|
 | `KeyboardShortcuts` | User-recordable global hotkeys + recorder UI in ~15 lines. Wraps Carbon, so no Input Monitoring permission. |
-| `mlx-swift-lm` (pinned `3.31.4`) | Local inference. Pinned, not `main`: 2.x→3.x removed the downloader and tokenizer and broke every call site. |
+| `mlx-swift-lm` (`exact: 3.31.4`) | Local inference. **`exact:`, not `from:`** — the doc said "pinned" while the manifest said `from:`, which pins nothing; and the app's own resolved file is gitignored with the `.xcodeproj`, so only the package's lockfile was holding versions at all. 2.x→3.x removed the downloader and tokenizer and broke every call site. |
 | `swift-huggingface`, `swift-transformers` | Required by mlx-swift-lm 3.x, which dropped its own. |
 | Apple `FoundationModels` | System framework, availability-gated at runtime. |
 
