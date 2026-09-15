@@ -6,6 +6,7 @@ public final class ReplacementService {
     private let system: SystemProbing
     private let accessibility: AccessibilityReading & AccessibilityWriting
     private let keystroke: KeystrokePosting
+    private let clipboard: ClipboardCapturing
     private let pasteboard: NSPasteboard
     private let borrow: PasteboardBorrow
 
@@ -21,6 +22,7 @@ public final class ReplacementService {
         system: SystemProbing,
         accessibility: AccessibilityReading & AccessibilityWriting,
         keystroke: KeystrokePosting,
+        clipboard: ClipboardCapturing,
         pasteboard: NSPasteboard,
         borrow: PasteboardBorrow = .shared,
         consumptionBudget: Duration = .milliseconds(450),
@@ -29,6 +31,7 @@ public final class ReplacementService {
         self.system = system
         self.accessibility = accessibility
         self.keystroke = keystroke
+        self.clipboard = clipboard
         self.pasteboard = pasteboard
         self.borrow = borrow
         self.consumptionBudget = consumptionBudget
@@ -75,6 +78,17 @@ public final class ReplacementService {
 
         let validator = TargetValidator(system: system, accessibility: accessibility)
         if let refusal = validator.validate(snapshot) {
+            // Only "could not verify" is overridable, and only for a rung-9
+            // snapshot, and only with auto-replace on. `.notFrontmost` and
+            // `.secure` are checked *by the same call* and are never
+            // overridden — which is the whole reason this branches on the
+            // refusal rather than skipping the validator: the paste path
+            // would otherwise post ⌘V at an app the user has left, and
+            // `postToPid` delivers it there whether or not they are looking.
+            if autoReplace, snapshot.viaClipboard, refusal == .unverifiable {
+                return pasteUnverifiable(
+                    text, to: snapshot, keepOutOfHistory: keepOutOfHistory)
+            }
             return handOff(
                 text, cause: refusal.cause, reason: refusal.reason,
                 keepOutOfHistory: keepOutOfHistory)
@@ -125,6 +139,93 @@ public final class ReplacementService {
     }
 
     private let writeRefused = "the target would not accept the write"
+
+    /// Apps where ⌘V **succeeds and does not replace** — it inserts at the
+    /// shell prompt, and a rewrite ending in a newline is a rewrite that ran.
+    ///
+    /// A bundle-id list is the last thing this module should want, and it is
+    /// here because no observation can substitute for it: a terminal's paste
+    /// *is* consumed, so every signal we have says it worked. Everything else
+    /// self-corrects — a PDF simply does not take the paste, and the
+    /// confirming re-read catches that. **This is not a denylist to grow.**
+    /// The entry test is "paste succeeds but does not replace", and anything
+    /// failing it belongs in the user's privacy exclusion list instead, which
+    /// already stops Everest touching an app entirely.
+    static let insertsRatherThanReplaces: Set<String> = [
+        "com.apple.terminal",
+        "com.googlecode.iterm2",
+        "com.mitchellh.ghostty",
+        "dev.warp.warp-stable",
+        "io.alacritty",
+        "net.kovidgoyal.kitty",
+        "com.github.wez.wezterm",
+        "co.zeit.hyper",
+    ]
+
+    /// Rung 9 left no element and no range, so the validator can never
+    /// confirm this target — but the mechanism that captured the text still
+    /// works, and asking it again is evidence the validator does not have.
+    ///
+    /// Three synthetic copies across a rewrite is the cost, and it is paid
+    /// because the alternative was `.copiedOnly`, whose durable write
+    /// destroyed the user's clipboard on every single rewrite in these apps.
+    /// Each is bounded by the copy budget and returns as soon as the change
+    /// count moves — measured warm, tens of milliseconds.
+    ///
+    /// Nothing here runs inside a transaction that is already open: the
+    /// borrow is exclusive, so a nested `copySelection` would be refused
+    /// outright. The re-read happens before the transaction and the
+    /// confirmation after it, and both block rather than suspend, so
+    /// `pasteReplace`'s no-suspension-point invariant still holds.
+    private func pasteUnverifiable(
+        _ text: String, to snapshot: TargetSnapshot, keepOutOfHistory: Bool
+    ) -> ReplaceOutcome {
+        if let bundleID = snapshot.bundleID,
+            Self.insertsRatherThanReplaces.contains(bundleID.lowercased())
+        {
+            return held("this app inserts a paste rather than replacing the selection")
+        }
+
+        guard case let .captured(live) = clipboard.copySelection(pid: snapshot.pid),
+            live == snapshot.text
+        else {
+            return held("the selection changed while the rewrite was being written")
+        }
+
+        let transaction = PasteboardTransaction(pasteboard: pasteboard, borrow: borrow)
+        guard transaction.snapshot() else {
+            return .heldForManualCopy(
+                cause: Self.heldCause(transaction.fidelity),
+                reason: Self.heldReason(writeRefused, transaction.fidelity))
+        }
+
+        transaction.writeTransient(text)
+        keystroke.postPaste(pid: snapshot.pid)
+        hold(until: ContinuousClock.now + consumptionBudget)
+        guard transaction.restoreIfUnchanged() else {
+            return .heldForManualCopy(
+                cause: .clipboardChanged,
+                reason:
+                    "something else was copied while the rewrite ran, so the rewrite is only in this panel"
+            )
+        }
+
+        // A landed paste replaced the selection, so there is nothing left to
+        // copy. Anything else — the original still there, or the app busy —
+        // is not proof it worked, and claiming `.replaced` would lose the
+        // rewrite entirely for a target that ignored the paste.
+        guard case .nothingCopied = clipboard.copySelection(pid: snapshot.pid) else {
+            return held("the target did not accept the paste")
+        }
+        return .replaced
+    }
+
+    /// The rewrite stays in the panel and the clipboard is not touched. This
+    /// is `copiedOnly`'s opposite on purpose: that case promises a durable
+    /// write, and the durable write is what was destroying the clipboard.
+    private func held(_ reason: String) -> ReplaceOutcome {
+        .heldForManualCopy(cause: .notPasted, reason: reason)
+    }
 
     /// Route two: pasteboard plus synthetic ⌘V, reached when an app answers
     /// accessibility reads but will not accept the write. Real web-based

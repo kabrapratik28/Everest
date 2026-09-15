@@ -23,6 +23,17 @@ public struct TargetSnapshot: @unchecked Sendable {
     /// every call site to state which kind of read it performed.
     public let isRangeDerived: Bool
 
+    /// True when rung 9 produced this: `element` is the *application*, not a
+    /// field, and there is no range to verify against.
+    ///
+    /// A dispatch discriminator, **not** a safety mechanism — the validator
+    /// remains the thing that refuses, and this never relaxes it. It exists
+    /// because `range == nil` does not mean the same thing: rung 5 can also
+    /// produce a nil range while holding a real focused element, and those
+    /// two must not take the same route. No default, for the reason
+    /// `isRangeDerived` has none.
+    public let viaClipboard: Bool
+
     public let capturedAt: ContinuousClock.Instant
 
     public init(
@@ -35,6 +46,7 @@ public struct TargetSnapshot: @unchecked Sendable {
         role: String?,
         isEditable: Bool,
         isRangeDerived: Bool,
+        viaClipboard: Bool,
         capturedAt: ContinuousClock.Instant = ContinuousClock.now
     ) {
         self.pid = pid
@@ -46,6 +58,7 @@ public struct TargetSnapshot: @unchecked Sendable {
         self.role = role
         self.isEditable = isEditable
         self.isRangeDerived = isRangeDerived
+        self.viaClipboard = viaClipboard
         self.capturedAt = capturedAt
     }
 }
@@ -102,6 +115,10 @@ public enum HoldCause: Equatable, Sendable {
     case clipboardTooLarge
     /// Another rewrite is mid-transaction and holds the borrow.
     case clipboardBusy
+    /// The target could not be pasted into, and the clipboard was left
+    /// alone on purpose rather than overwritten with the rewrite. The panel
+    /// is the only copy until the user asks for it.
+    case notPasted
     /// The user copied something while the rewrite ran. Writing the rewrite
     /// over it would destroy the newer thing, so nothing is written and the
     /// panel keeps the only copy.

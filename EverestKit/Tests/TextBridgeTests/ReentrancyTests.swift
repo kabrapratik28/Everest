@@ -27,7 +27,8 @@ struct ReentrancyTests {
             pid: 501, bundleID: "com.example.editor", appVersion: "1.0",
             element: AXUIElementCreateApplication(501),
             text: "the original", range: CFRange(location: 3, length: 12),
-            role: "AXTextArea", isEditable: true, isRangeDerived: false
+            role: "AXTextArea", isEditable: true, isRangeDerived: false,
+            viaClipboard: false
         )
     }
 
@@ -56,6 +57,7 @@ struct ReentrancyTests {
             ),
             accessibility: ax,
             keystroke: keystroke,
+            clipboard: FakeClipboardCapture(),
             pasteboard: pasteboard,
             borrow: borrow,
             consumptionBudget: .milliseconds(40),

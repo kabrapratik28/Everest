@@ -35,7 +35,27 @@ struct ReplacementTests {
             range: range,
             role: "AXTextArea",
             isEditable: true,
-            isRangeDerived: isRangeDerived
+            isRangeDerived: isRangeDerived,
+            viaClipboard: false
+        )
+    }
+
+    /// Exactly what `SelectionCoordinator.readViaClipboard` builds: the
+    /// application element standing in for a field, no range, no role.
+    private func viaClipboardSnapshot(
+        bundleID: String = "com.sublimetext.4", text: String = "the original"
+    ) -> TargetSnapshot {
+        TargetSnapshot(
+            pid: 501,
+            bundleID: bundleID,
+            appVersion: "1.0",
+            element: AXUIElementCreateApplication(501),
+            text: text,
+            range: nil,
+            role: nil,
+            isEditable: false,
+            isRangeDerived: false,
+            viaClipboard: true
         )
     }
 
@@ -80,6 +100,7 @@ struct ReplacementTests {
         _ ax: FakeAccessibility,
         keystroke: FakeKeystroke,
         pasteboard: NSPasteboard,
+        clipboard: FakeClipboardCapture = FakeClipboardCapture(),
         consumptionBudget: Duration = .milliseconds(40),
         system: FakeSystem = FakeSystem(
             frontmost: FrontmostApp(pid: 501, bundleID: "com.example.editor", appVersion: "1.0")
@@ -89,6 +110,7 @@ struct ReplacementTests {
             system: system,
             accessibility: ax,
             keystroke: keystroke,
+            clipboard: clipboard,
             pasteboard: pasteboard,
             // Small but real, and now the floor on how long `apply` takes on
             // route two rather than a ceiling: the rewrite has to outlive an
@@ -327,20 +349,161 @@ struct ReplacementTests {
         }
     }
 
-    /// The precondition for auto-replace, pinned rather than reasoned about.
+    /// A rung-9 target has no element and no range, so the validator can
+    /// never confirm it — but the mechanism that *captured* the text still
+    /// works, and asking it again is evidence the validator does not have.
+    /// Same text back ⇒ the selection has not moved ⇒ paste.
     ///
+    /// Sublime Text is the case: measured, it exposes no editable element at
+    /// all, so every rewrite there was `.copiedOnly`, and `copiedOnly` means
+    /// a durable write — the "safe" fallback destroying the clipboard on
+    /// every single use.
+    ///
+    /// Confirmed the same way, because `observeConsumption` cannot work here
+    /// either: a landed paste replaces the selection, so a third ⌘C copies
+    /// nothing at all. That is the signal, and it is why success is
+    /// reportable rather than every rewrite ending in a panel.
+    @Test("a clipboard-captured target is pasted into when the re-read still matches")
+    func clipboardCaptureIsPastedWhenTheReReadMatches() throws {
+        withPrivatePasteboard { pasteboard in
+            pasteboard.clearContents()
+            pasteboard.setString("the user's own clipboard", forType: .string)
+
+            let ax = FakeAccessibility()  // Sublime: nothing at all
+            let keystroke = FakeKeystroke()
+            let clipboard = FakeClipboardCapture()
+            clipboard.result = "the original"  // the re-read agrees
+
+            keystroke.onPaste = {
+                // The paste lands, so the selection is gone and the
+                // confirming ⌘C will copy nothing.
+                clipboard.result = nil
+            }
+
+            let outcome = service(
+                ax, keystroke: keystroke, pasteboard: pasteboard, clipboard: clipboard
+            ).apply(
+                "the rewrite", to: viaClipboardSnapshot(),
+                autoReplace: true, keepOutOfHistory: true)
+
+            #expect(outcome == .replaced)
+            #expect(keystroke.pastes == 1)
+            #expect(
+                pasteboard.string(forType: .string) == "the user's own clipboard",
+                "and his clipboard ends exactly as it started")
+        }
+    }
+
+    /// The re-read is the whole safety argument, so it has to be able to say
+    /// no. A selection that moved while the model was working means the text
+    /// we hold is not what is selected now, and pasting would replace the
+    /// wrong thing — the unrecoverable case root §6 exists for.
+    @Test("a re-read that disagrees refuses the paste and leaves the clipboard alone")
+    func aMovedSelectionRefusesThePaste() throws {
+        withPrivatePasteboard { pasteboard in
+            pasteboard.clearContents()
+            pasteboard.setString("the user's own clipboard", forType: .string)
+
+            let clipboard = FakeClipboardCapture()
+            clipboard.result = "something else entirely"  // they selected elsewhere
+            let keystroke = FakeKeystroke()
+
+            let outcome = service(
+                FakeAccessibility(), keystroke: keystroke, pasteboard: pasteboard,
+                clipboard: clipboard
+            ).apply(
+                "the rewrite", to: viaClipboardSnapshot(),
+                autoReplace: true, keepOutOfHistory: true)
+
+            #expect(keystroke.pastes == 0, "nothing was pasted over the wrong text")
+            #expect(
+                pasteboard.string(forType: .string) == "the user's own clipboard",
+                "and the rewrite was not written over their clipboard either")
+            if case .heldForManualCopy(cause: .notPasted, _) = outcome {} else {
+                Issue.record("expected the rewrite to be held, got \(outcome)")
+            }
+        }
+    }
+
+    /// Named for the mechanism, not the list. A terminal is the one case no
+    /// observation can catch: ⌘V *succeeds* there — it inserts at the shell
+    /// prompt — so the confirming re-read would see the selection gone and
+    /// call it a replacement, while a rewrite ending in a newline has just
+    /// run as a command. Everything that merely *ignores* a paste, a PDF
+    /// included, is caught by the confirmation and needs no entry.
+    @Test("an app that inserts a paste rather than replacing it is never pasted into")
+    func anAppThatInsertsRatherThanReplacesIsRefused() throws {
+        withPrivatePasteboard { pasteboard in
+            pasteboard.clearContents()
+            pasteboard.setString("the user's own clipboard", forType: .string)
+
+            let clipboard = FakeClipboardCapture()
+            clipboard.result = "the original"  // the re-read would have agreed
+            let keystroke = FakeKeystroke()
+
+            let outcome = service(
+                FakeAccessibility(), keystroke: keystroke, pasteboard: pasteboard,
+                clipboard: clipboard
+            ).apply(
+                "the rewrite", to: viaClipboardSnapshot(bundleID: "com.apple.Terminal"),
+                autoReplace: true, keepOutOfHistory: true)
+
+            #expect(keystroke.pastes == 0)
+            #expect(clipboard.attempts == 0, "refused before even the re-read")
+            #expect(pasteboard.string(forType: .string) == "the user's own clipboard")
+            if case .heldForManualCopy(cause: .notPasted, _) = outcome {} else {
+                Issue.record("expected the rewrite to be held, got \(outcome)")
+            }
+        }
+    }
+
+    /// What the switch is for. Off means exactly today's behaviour, including
+    /// the durable write — a user who turns it off is asking to paste by
+    /// hand, and `copiedOnly` is the promise that the text is there to paste.
+    @Test("with auto-replace off a clipboard capture is copy-only, exactly as before")
+    func autoReplaceOffKeepsTheOldCopyOnlyBehaviour() throws {
+        withPrivatePasteboard { pasteboard in
+            pasteboard.clearContents()
+            pasteboard.setString("the user's own clipboard", forType: .string)
+
+            let clipboard = FakeClipboardCapture()
+            clipboard.result = "the original"
+            let keystroke = FakeKeystroke()
+
+            let outcome = service(
+                FakeAccessibility(), keystroke: keystroke, pasteboard: pasteboard,
+                clipboard: clipboard
+            ).apply(
+                "the rewrite", to: viaClipboardSnapshot(),
+                autoReplace: false, keepOutOfHistory: false)
+
+            #expect(keystroke.pastes == 0)
+            #expect(clipboard.attempts == 0, "no re-read, so no extra ⌘C")
+            #expect(pasteboard.string(forType: .string) == "the rewrite", "durably, as promised")
+            #expect(
+                outcome
+                    == .copiedOnly(
+                        cause: .unverifiable, reason: "the target could not be verified"))
+        }
+    }
+
     /// A rung-9 snapshot carries no range and no real element — `element` is
     /// the *application* element, which is not a thing anyone can paste into.
     /// `compare` therefore returns `.unknown` the moment it sees a nil range,
-    /// `validate` turns that into `.unverifiable`, and `apply` hands off long
-    /// before the editability check. Terminals, PDFs and Google Docs are all
-    /// rung 9, so nothing that reaches the editability check can be one.
+    /// and `validate` turns that into `.unverifiable`.
+    ///
+    /// **Route two is now reachable for these, but only through
+    /// `pasteUnverifiable`**, which re-reads the selection first and refuses
+    /// the apps where a paste inserts rather than replaces. This test is the
+    /// other side of that gate: with auto-replace *off*, the old refusal
+    /// stands exactly, and the ordinary editability path can still never be
+    /// reached by a clipboard capture.
     ///
     /// The fixture deliberately makes every *other* signal say yes: the
     /// element matches, and `isEditable` is true. The nil range alone has to
     /// be enough, because it is the only one of the three that a rung-9
     /// snapshot always has.
-    @Test("a clipboard-derived snapshot never reaches route two")
+    @Test("a clipboard-derived snapshot never reaches the ordinary paste route")
     func clipboardCaptureNeverReachesRouteTwo() throws {
         withPrivatePasteboard { pasteboard in
             let ax = liveTarget()
@@ -358,7 +521,8 @@ struct ReplacementTests {
                 range: nil,
                 role: nil,
                 isEditable: false,
-                isRangeDerived: false
+                isRangeDerived: false,
+                viaClipboard: true
             )
 
             let outcome = service(ax, keystroke: keystroke, pasteboard: pasteboard)

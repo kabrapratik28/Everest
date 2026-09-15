@@ -102,6 +102,36 @@ struct CaptureRefusalTests {
         #expect(ax.textReads == 0)
     }
 
+    /// Rung 0 runs at the top of the chain and rung 9 runs after the
+    /// `AXManualAccessibility` write and its settle, so there are a hundred
+    /// milliseconds and change in which focus can move into a password field
+    /// — and rung 9 is exactly the path where there is no element to inspect,
+    /// so the subrole check cannot cover it. Asked again immediately before
+    /// the keystroke, because that is the moment it matters.
+    @Test("secure input taken during the chain refuses before ⌘C is posted")
+    func secureInputTakenMidChainRefusesBeforeTheCopy() throws {
+        let ax = FakeAccessibility()  // answers nothing, so the chain reaches rung 9
+        let clipboard = FakeClipboardCapture()
+        clipboard.result = "hunter2"
+        let system = FakeSystem(secureInputEnabled: false)
+
+        // The user clicks into a password field while the tree is settling.
+        ax.onEnableManualAccessibility = { system.secureInputEnabled = true }
+
+        let coordinator = SelectionCoordinator(
+            system: system,
+            accessibility: ax,
+            clipboard: clipboard,
+            excludedBundleIDs: [],
+            manualAccessibilitySettle: .zero
+        )
+
+        #expect(throws: CaptureError.secureField) {
+            _ = try coordinator.capture()
+        }
+        #expect(clipboard.attempts == 0, "no ⌘C was posted at it")
+    }
+
     /// The exclusion list is the user's own "stay out of this app". It is
     /// honoured before a single accessibility call is aimed at the app, so an
     /// excluded password manager is never even inspected.

@@ -378,7 +378,11 @@ extension TargetSnapshot {
             range: CFRange(location: 0, length: text.utf16.count),
             role: "AXTextArea",
             isEditable: true,
-            isRangeDerived: false
+            isRangeDerived: false,
+            // This stub is a real focused element with a real range — the
+            // snapshot that passes every `ReplacementService` check. Rung 9
+            // is the clipboard path, and none of these tests take it.
+            viaClipboard: false
         )
     }
 }

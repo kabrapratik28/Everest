@@ -46,9 +46,14 @@ public final class SelectionCoordinator {
 
     /// Rung 4, before any text is read and before any keystroke is posted.
     /// Rung 0 catches a password manager that has taken secure input; this
-    /// catches a password field that has not, which is the normal case for a
-    /// web or Electron password input — measured, those set the secure subrole
-    /// and do *not* set the process-wide flag.
+    /// catches a password field that has not.
+    ///
+    /// This comment used to say web and Electron password fields never set
+    /// the process-wide flag. Measured against Chrome 153, that is wrong —
+    /// it sets it for `<input type=password>`. The subrole check is still
+    /// what to rely on, because that flag is Chrome-the-app's doing and no
+    /// other Chromium host is obliged to match it; the two guards are
+    /// independent rather than one covering for the other.
     private func refuseIfSecure(_ element: AXUIElement) throws {
         if accessibility.isSecure(element) { throw CaptureError.secureField }
     }
@@ -96,8 +101,9 @@ public final class SelectionCoordinator {
         // Only now. The cache is allowed to skip *work*; it is never allowed to
         // skip a *refusal*. Moving this above `refuseIfSecure` reintroduces a
         // fixed bug in which a remembered clipboard app posted ⌘C at a web
-        // password field, with only the process-wide flag in the way — and web
-        // password fields do not set it.
+        // password field, with only the process-wide flag in the way — and
+        // that flag is per-host, not guaranteed: Chrome 153 sets it, nothing
+        // obliges an Electron app to.
         //
         // A cached answer is also a hint rather than a gate: if the remembered
         // route comes up empty we fall through and probe properly, so a stale
@@ -121,7 +127,7 @@ public final class SelectionCoordinator {
                 == .clipboard
         {
             clipboardTried = true
-            if let snapshot = readViaClipboard(app: app, refused: &clipboardRefused) {
+            if let snapshot = try readViaClipboard(app: app, refused: &clipboardRefused) {
                 return snapshot
             }
         }
@@ -152,7 +158,7 @@ public final class SelectionCoordinator {
         }
 
         if !clipboardTried,
-            let snapshot = readViaClipboard(app: app, refused: &clipboardRefused)
+            let snapshot = try readViaClipboard(app: app, refused: &clipboardRefused)
         {
             // Remembered only for an app that stayed dark. The cache is keyed
             // by app and an app is not one text engine: Chrome is one bundle
@@ -188,7 +194,17 @@ public final class SelectionCoordinator {
 
     /// Rung 9. No element, so no range and no text identity: such a snapshot
     /// can never be proved safe to write to and always ends in copy-only.
-    private func readViaClipboard(app: FrontmostApp, refused: inout Bool) -> TargetSnapshot? {
+    private func readViaClipboard(app: FrontmostApp, refused: inout Bool) throws -> TargetSnapshot?
+    {
+        // Rung 0 again, at the moment it matters. It was asked at the top of
+        // the chain; between then and here sit the `AXManualAccessibility`
+        // write and its settle, and the user can click into a password field
+        // in that time. This is also the one rung with no element to inspect,
+        // so the subrole refusal cannot cover it — the process-wide flag is
+        // all there is, and asking it once at the start is asking it about a
+        // different moment.
+        if system.isSecureEventInputEnabled() { throw CaptureError.secureField }
+
         let capture = clipboard.copySelection(pid: app.pid)
         if capture == .unavailable { refused = true }
         guard case let .captured(text) = capture, !text.isEmpty else { return nil }
@@ -201,7 +217,8 @@ public final class SelectionCoordinator {
             range: nil,
             role: nil,
             isEditable: false,
-            isRangeDerived: false
+            isRangeDerived: false,
+            viaClipboard: true
         )
     }
 
@@ -278,7 +295,8 @@ public final class SelectionCoordinator {
             range: range,
             role: accessibility.role(of: element),
             isEditable: accessibility.isEditable(element),
-            isRangeDerived: isRangeDerived
+            isRangeDerived: isRangeDerived,
+            viaClipboard: false
         )
     }
 }

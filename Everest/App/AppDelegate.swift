@@ -54,13 +54,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private lazy var accessibility = AXSelectionAdapter()
     private lazy var keystroke = SyntheticKeystroke()
 
+    /// One adapter, shared by the read and the write paths.
+    ///
+    /// It is configuration only — no mutable state — and its pasteboard lock
+    /// is `PasteboardBorrow.shared` either way, so a second instance would
+    /// coordinate identically and mean nothing. Hoisted out of `selection`
+    /// because `ReplacementService` now needs it too: the Sublime paste path
+    /// re-reads the selection to verify the target before pasting into it.
+    private lazy var clipboard = ClipboardSelectionAdapter(
+        pasteboard: pasteboard,
+        keystroke: keystroke
+    )
+
     private lazy var selection = SelectionCoordinator(
         system: probe,
         accessibility: accessibility,
-        clipboard: ClipboardSelectionAdapter(
-            pasteboard: pasteboard,
-            keystroke: keystroke
-        ),
+        clipboard: clipboard,
         excludedBundleIDs: settings.excludedBundleIDs
     )
 
@@ -68,6 +77,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         system: probe,
         accessibility: accessibility,
         keystroke: keystroke,
+        clipboard: clipboard,
         pasteboard: pasteboard
     )
 
