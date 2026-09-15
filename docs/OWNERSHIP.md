@@ -84,7 +84,11 @@ first, and suspicion is not a mechanism.
   count in your tree does not match the count in their last message, you are
   reading something older than their work — cheaper than a diff, and it is one
   comparison rather than a judgement. Three stale reads between the lead and
-  one agent tonight would each have been caught by it.
+  one agent tonight would each have been caught by it. **It cannot see a
+  change that does not move the number** — folding an assertion into an
+  existing test leaves the count agreeing while the trees differ, which is the
+  very case it exists for. When the count matches and something still seems
+  off, the tiebreak is the report filename or a specific line.
 - **Claim new files in your report.** Three untracked files appeared —
   `LoadOnce.swift`, `PanelKeyWindowTests.swift`, `ShortcutCopy.swift` — that no
   report mentioned, so they sat uncommitted while the lead asked around. A file
