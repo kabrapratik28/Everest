@@ -66,6 +66,12 @@ first, and suspicion is not a mechanism.
   you noticed, and §8 has already shown what happens to a rule you comply with
   by feeling careful. A citation is something you either typed or did not, and
   every claim that survived scrutiny tonight had one.
+  **And a paraphrase of a signature is never the tiebreaker.** When a summary
+  and the code disagree, the code wins without discussion — the signature is
+  two lines away and free to read. The lead described a parameter as
+  `recordInHistory`; it is `keepOutOfHistory`. Wiring to the summary would
+  have inverted a privacy setting for exactly the users who asked for it,
+  with both sides internally consistent and no test able to notice.
   **Its boundary:** it catches wrong claims *about the tree*, which is where
   all five landed. It does not catch correct readings followed by wrong
   reasoning — the two regressions introduced here were both of that kind, and
