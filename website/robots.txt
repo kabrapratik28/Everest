@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://kabrapratik28.github.io/Everest/sitemap.xml

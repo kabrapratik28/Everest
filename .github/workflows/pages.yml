@@ -1,0 +1,55 @@
+# Deploys the one-page site in website/ to GitHub Pages.
+#
+# Actions are pinned to full commit SHAs, not tags: a tag is mutable, and a
+# workflow that can write to Pages is not a place to trust one. The comment
+# beside each SHA is the release it was resolved from, so a bump is reviewable.
+#
+# No secrets are used or needed here. Apple certificates, the notarisation
+# credentials and the Sparkle private key have no business in this workflow.
+
+name: Deploy website
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'website/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deployment at a time. In-progress runs are allowed to finish rather
+# than being cancelled, so a half-uploaded artifact never becomes the live site.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Configure Pages
+        uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
+
+      # Only website/ is uploaded. The repository root holds the app source,
+      # the engineering docs and the Sparkle appcast, none of which belong
+      # on a public web root.
+      - name: Upload website/
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: website
+
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
