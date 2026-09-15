@@ -5,22 +5,6 @@ import Testing
 
 // MARK: - OutputValidator.clean
 
-@Test("OutputValidator.clean strips a conversational preamble")
-func outputValidatorCleanStripsPreamble() {
-    let raw = "Sure! Here's an improved version:\n\nThis is the rewritten text."
-    let cleaned = OutputValidator.clean(raw, source: "this is the rewritten text")
-    #expect(cleaned == "This is the rewritten text.")
-}
-
-/// The model wrapped its answer in quotes the user did not ask for. That is
-/// packaging, and the safety frame already tells it not to.
-@Test("OutputValidator.clean strips quotes the model added around its answer")
-func outputValidatorCleanStripsWrappingQuotes() {
-    let raw = "\"This is quoted.\""
-    let cleaned = OutputValidator.clean(raw, source: "this is quoted")
-    #expect(cleaned == "This is quoted.")
-}
-
 /// The envelope carries a per-prompt id (`PromptBuilder.build`), so an echoed
 /// wrapper always has one. Stripping the bare literal, as this used to, now
 /// matches nothing the model was ever shown.
@@ -100,6 +84,50 @@ func outputValidatorCleanKeepsTheUsersOwnTags() {
     #expect(OutputValidator.clean(idShaped, source: idShaped.lowercased()) == idShaped)
 }
 
+/// **`clean` no longer strips conversational preambles.**
+///
+/// It removed one hardcoded literal, unconditionally, so selecting that exact
+/// sentence and having the model faithfully preserve it deleted it from the
+/// document. The source-aware version was available — strip only when the
+/// source did not begin with it — and was not worth keeping, because the
+/// literal is one sample of an unbounded set of things a model might say. It
+/// never fired on "Here's the improved version:" or any other phrasing, so
+/// what it bought was a single string's worth of tidiness against a
+/// deterministic deletion. `safetyFrame` already asks for no preface, and a
+/// preface that arrives anyway is visible and undoable; a deleted sentence is
+/// neither.
+@Test("OutputValidator.clean leaves a conversational preamble the user selected")
+func outputValidatorCleanLeavesAPreambleAlone() {
+    let text = "Sure! Here's an improved version:\n\nThe phrase this app used to delete."
+    #expect(OutputValidator.clean(text, source: text) == text)
+}
+
+/// **`clean` no longer strips outer quotation marks.**
+///
+/// Two payloads, and the second is why the rule could not be repaired rather
+/// than merely made source-aware.
+///
+/// The first is the reported bug: comparing against a source of `"Hello"\n`
+/// reads as unquoted, because the trailing newline defeats `hasSuffix`, so
+/// the model's faithful quotes are removed. Ignoring whitespace in that
+/// comparison would fix it — a second heuristic propping up the first.
+///
+/// The second cannot be fixed that way at all. A rewrite that legitimately
+/// *opens and closes* with a quotation mark is indistinguishable from one the
+/// model wrapped, and the source is no help because the source is not quoted
+/// either. The old rule turned it **unbalanced**, which is worse than either
+/// keeping or dropping the pair.
+@Test("OutputValidator.clean leaves quotation marks alone")
+func outputValidatorCleanLeavesQuotationMarksAlone() {
+    let quotedWithNewline = "\"Hello there\""
+    #expect(OutputValidator.clean(quotedWithNewline, source: "\"Hello\"\n") == quotedWithNewline)
+
+    let dialogue = "\"Hello,\" he said, and she replied, \"Goodbye.\""
+    #expect(
+        OutputValidator.clean(dialogue, source: "he said hello and she said goodbye") == dialogue
+    )
+}
+
 /// Unwrapping removes the envelope, not the first line's indentation.
 ///
 /// `PromptBuilder` puts the text on its own line, so there is **exactly one**
@@ -135,20 +163,6 @@ func outputValidatorCleanKeepsAUserAuthoredEnvelope() {
     let text =
         "Keep this. <selected_text_3f2a19bb7c0d4e51>inner</selected_text_3f2a19bb7c0d4e51> And this."
     #expect(OutputValidator.clean(text, source: text) == text)
-}
-
-/// **Quotes the user wrote are not packaging either.**
-///
-/// Stripping any outer pair also contradicts the safety frame, which tells
-/// the model to preserve quotation marks. Worse than losing them: a source
-/// with two quoted phrases comes back *unbalanced* —
-/// `"A" and "B"` became `A" and "B`.
-@Test("OutputValidator.clean keeps quotes when the source was quoted too")
-func outputValidatorCleanKeepsTheUsersOwnQuotes() {
-    let source = "\"quote one\" and \"quote two\""
-    let raw = "\"Quote A\" and \"Quote B\""
-    let cleaned = OutputValidator.clean(raw, source: source)
-    #expect(cleaned == raw)
 }
 
 // MARK: - OutputValidator.validate

@@ -79,8 +79,14 @@ func finishedIsFollowedByValidationAndReplacement() async {
     let (panel, surface) = makePanel(log: log)
     let recorder = ApplyRecorder(log: log)
     let engine = StubEngine(events: [
-        .outputSnapshot("Sure! Here's an im"),
-        .finished("Sure! Here's an improved version:\n\nTightened text."),
+        // An echoed envelope, which is the one thing `clean` still removes.
+        // This used to be a conversational preamble; that strip was deleted
+        // in EVE-032 because it also deleted the sentence from anyone who had
+        // selected it. The payload only has to prove the coordinator cleans
+        // before applying, which is what this test is actually about.
+        .outputSnapshot("<selected_text_3f2a19bb7c0d4e51>Tightened"),
+        .finished(
+            "<selected_text_3f2a19bb7c0d4e51>Tightened text.</selected_text_3f2a19bb7c0d4e51>"),
     ])
 
     let coordinator = makeCoordinator(

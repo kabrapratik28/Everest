@@ -13,18 +13,26 @@ public enum ValidationFailure: Error, Equatable, Sendable {
 /// behind PromptBuilder's safety frame, catching output that got hijacked or
 /// otherwise stopped looking like a rewrite of the input.
 ///
-/// **Everything here removes the model's packaging, never the user's
-/// content**, and the two are told apart by comparing against the source.
-/// Both unwrapping rules once failed that test and silently edited people's
-/// writing: every `<selected_text>` occurrence was deleted wherever it
-/// appeared, and any outer pair of double quotes was stripped — which the
-/// safety frame explicitly asks the model to preserve. A tidy-up that damages
-/// correct input is a worse bug than the tic it was tidying.
+/// **One cleaning rule survives, and it is the only one that was ever
+/// provable.** The envelope carries a per-prompt random id, so "this is our
+/// packaging" is a fact about the text rather than a guess about the model.
+///
+/// Two other rules used to live here and both deleted people's writing. A
+/// conversational preamble was stripped by literal match, so selecting that
+/// exact sentence removed it. Any outer pair of double quotes was stripped —
+/// which the safety frame explicitly asks the model to *preserve* — so a
+/// quoted passage came back unquoted, and a rewrite that merely opened and
+/// closed on a quotation mark came back **unbalanced**.
+///
+/// Neither was salvageable by the source comparison that saved the envelope.
+/// The preamble was one literal out of an unbounded set of things a model
+/// might say, so it bought a single string's worth of tidiness. And no source
+/// distinguishes `"…"` the model added from `"…"` the rewrite legitimately
+/// begins and ends with. **A tidy-up that damages correct input is a worse
+/// bug than the tic it was tidying**, and an unwanted preface or quote pair
+/// is visible and undoable where a deleted sentence is neither. Do not add
+/// either back.
 public enum OutputValidator {
-    /// Conversational preambles some models prepend despite instructions not to.
-    private static let preambles = [
-        "Sure! Here's an improved version:\n\n",
-    ]
 
     /// The tags `PromptBuilder` wraps the selection in, echoed back around the
     /// answer.
@@ -58,13 +66,7 @@ public enum OutputValidator {
     }
 
     public static func clean(_ raw: String, source: String) -> String {
-        var result = raw
-        for preamble in preambles where result.hasPrefix(preamble) {
-            result.removeFirst(preamble.count)
-            break
-        }
-        if let unwrapped = unwrappedEnvelope(result, source: source) { result = unwrapped }
-        return unquoted(result, source: source)
+        unwrappedEnvelope(raw, source: source) ?? raw
     }
 
     /// What one echoed envelope contains, or `nil` if there is not exactly one.
@@ -116,22 +118,6 @@ public enum OutputValidator {
         if inner.hasPrefix("\n") { inner = inner.dropFirst() }
         if inner.hasSuffix("\n") { inner = inner.dropLast() }
         return String(inner)
-    }
-
-    /// Removes a pair of quotes the *model* put around its answer, and leaves
-    /// alone a pair the user wrote.
-    ///
-    /// The old rule stripped any outer pair, so a source holding two quoted
-    /// phrases came back **unbalanced** — `"A" and "B"` became `A" and "B`.
-    /// Asking whether the source was quoted too is what separates the model
-    /// packaging its reply from the user quoting someone.
-    private static func unquoted(_ text: String, source: String) -> String {
-        guard isQuoted(text), !isQuoted(source) else { return text }
-        return String(text.dropFirst().dropLast())
-    }
-
-    private static func isQuoted(_ text: String) -> Bool {
-        text.count >= 2 && text.hasPrefix("\"") && text.hasSuffix("\"")
     }
 
     /// `clean()`, then the one thing left worth refusing.

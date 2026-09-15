@@ -271,7 +271,14 @@ func anInterruptedTestReportsItself() async {
 func theTestBoxUsesTheRealPath() async {
     let settings = makeSettings()
     let engine = StubEngine(
-        events: [.finished("Sure! Here's an improved version:\n\nA tightened sentence.")]
+        // An echoed envelope — the one thing `clean` still removes, since the
+        // preamble strip was deleted in EVE-032. The payload only has to
+        // prove the test box cleans on the same path a rewrite does.
+        events: [
+            .finished(
+                "<selected_text_3f2a19bb7c0d4e51>A tightened sentence.</selected_text_3f2a19bb7c0d4e51>"
+            )
+        ]
     )
     let model = ModelSettingsModel(settings: settings, engineFor: { _ in engine })
 
