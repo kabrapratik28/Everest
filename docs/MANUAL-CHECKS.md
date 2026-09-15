@@ -125,6 +125,9 @@ that needs the running app.
     generation check lives inside the `for await` body, so with nothing yielded
     the download is never cancelled. *Do:* delete the model, click Download,
     press the hotkey while it transfers, watch the panel and press Escape.
+    The whole dependency trace is two line refs, so nobody need redo it: the
+    `flock` re-check is `HubClient+Files.swift:520-537`, and the reason
+    cancellation cannot reach it is `RewriteCoordinator.prepare:208-214`.
 23. **Two transactions sharing one generation (F2).** Needs to know whether a
     Carbon hot-key `CFRunLoopSource` queued during the capture block is
     serviced before an already-enqueued main-actor job — unanswerable by
