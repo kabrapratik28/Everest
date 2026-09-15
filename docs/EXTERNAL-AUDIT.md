@@ -25,7 +25,7 @@ ranked highest.
 | EVE-007 | P1 | Shortcut labels hardcoded, contradict the default | In progress |
 | EVE-008 | P1 | 30B offered on Macs that cannot run it | In progress |
 | EVE-009 | P1 | Posted ⌘C/⌘V can fire after their timeout | **Partly** — the copy half fixed (`302ff94`); the paste half approved and being built |
-| EVE-010 | P1 | Panel ⌘C not consumed, source app overwrites it | In progress |
+| EVE-010 | P1 | Panel ⌘C not consumed, source app overwrites it | **Fixed** — `makeKey()` on terminal states; a non-activating panel can hold key without activating (`f941a5f`) |
 | EVE-011 | P2 | Google Docs rejected before clipboard fallback | **Fixed** (`fb76aa9`) |
 | EVE-012 | P2 | `clean()` corrupts legitimate content | **Fixed** — unwrap only the id-carrying envelope, quotes only if the source was unquoted (`56f671b`) |
 | EVE-013 | P2 | Onboarding keyed to permission, not completion | In progress |
