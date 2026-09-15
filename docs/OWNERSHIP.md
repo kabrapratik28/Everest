@@ -71,6 +71,11 @@ first, and suspicion is not a mechanism.
   reasoning — the two regressions introduced here were both of that kind, and
   a citation habit would have caught neither. Only a second pair of eyes on
   the same code did. That is what round 2 was for, and why one exists.
+- **Put a test count in every report, and check it before replying.** If the
+  count in your tree does not match the count in their last message, you are
+  reading something older than their work — cheaper than a diff, and it is one
+  comparison rather than a judgement. Three stale reads between the lead and
+  one agent tonight would each have been caught by it.
 - **Claim new files in your report.** Three untracked files appeared —
   `LoadOnce.swift`, `PanelKeyWindowTests.swift`, `ShortcutCopy.swift` — that no
   report mentioned, so they sat uncommitted while the lead asked around. A file
