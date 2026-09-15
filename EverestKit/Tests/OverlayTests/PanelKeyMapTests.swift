@@ -12,6 +12,9 @@ struct PanelKeyMapTests {
     /// Matched by character, not key code, so a keyCode of 0 is deliberate.
     static let commandC = Keystroke(keyCode: 0, characters: "c", modifiers: .command)
 
+    /// A key the picker never claims — the user typing somewhere else.
+    static let bareZ = Keystroke(keyCode: 6, characters: "z", modifiers: [])
+
     /// Digits are matched by the character, not the key code, so a keyCode of 0
     /// here is deliberate: it would be wrong for the map to care.
     static func digit(_ value: Int, plain: Bool = true) -> Keystroke {

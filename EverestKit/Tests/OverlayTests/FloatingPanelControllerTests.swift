@@ -579,16 +579,22 @@ struct FloatingPanelControllerTests {
         controller.onPickStyle = { picked.value = $0 }
         controller.onCancel = { cancels.bump() }
 
-        controller.show(.stylePicker(presets: PanelKeyMapTests.fiveStyles))
-
-        #expect(tap.send(PanelKeyMapTests.arrowDown) == true)
-        #expect(tap.send(PanelKeyMapTests.arrowUp) == true)
-        #expect(tap.send(PanelKeyMapTests.enter) == true)
-        #expect(tap.send(PanelKeyMapTests.escape) == true)
+        // A fresh picker per key. The picker answers once, so the keys that
+        // answer it cannot be sent in a row at the same one — doing that was
+        // this test relying on a picker that could be answered three times.
+        for keystroke in [
+            PanelKeyMapTests.arrowDown,
+            PanelKeyMapTests.arrowUp,
+            PanelKeyMapTests.enter,
+            PanelKeyMapTests.escape,
+            PanelKeyMapTests.digit(3),
+        ] {
+            controller.show(.stylePicker(presets: PanelKeyMapTests.fiveStyles))
+            #expect(tap.send(keystroke) == true, "\(keystroke.characters)")
+        }
 
         // Swallowed *and* acted on. Consuming without acting would be a picker
         // that eats the user's keys and does nothing with them.
-        #expect(tap.send(PanelKeyMapTests.digit(3)) == true)
         #expect(picked.value == PanelKeyMapTests.fiveStyles[2])
         #expect(cancels.count == 1)
     }
@@ -658,8 +664,7 @@ struct FloatingPanelControllerTests {
     /// "there at 3": the `3` never arrives, and it picks a style and starts
     /// rewriting a selection captured minutes ago. So the picker is treated as
     /// a question: anything that is not an answer to it means the user has
-    /// moved on. The tap goes at once rather than waiting for the coordinator
-    /// to come back and dismiss, because that round trip is more keystrokes.
+    /// moved on, so the picker ends and the coordinator takes the panel down.
     @Test("a key the picker cannot answer ends the picker instead of holding the tap open")
     func anUnclaimedKeyEndsThePicker() {
         let tap = SpyKeyMonitor()
@@ -670,11 +675,18 @@ struct FloatingPanelControllerTests {
         controller.show(.stylePicker(presets: PanelKeyMapTests.fiveStyles))
         #expect(tap.isInstalled)
 
-        let bareZ = Keystroke(keyCode: 6, characters: "z", modifiers: [])
         // Still passes through — ending the picker is not a reason to eat the
-        // keystroke the user was actually typing.
-        #expect(tap.send(bareZ) == false)
+        // keystroke the user was actually typing. `cancels` is the positive
+        // control: it proves the handler ran rather than the spy being dead.
+        #expect(tap.send(PanelKeyMapTests.bareZ) == false)
         #expect(cancels.count == 1)
+
+        // The tap is *not* dropped on the spot. Doing that raced the gap
+        // before the coordinator can dismiss and reopened the original bug —
+        // see `thePickerAnswersOnce`. Its life is bound by `state.didSet` and
+        // `dismiss()`, the same guarantee the monitors have.
+        #expect(tap.isInstalled)
+        controller.dismiss()
         #expect(tap.isInstalled == false)
     }
 
@@ -709,6 +721,99 @@ struct FloatingPanelControllerTests {
         clock.now = clock.start + .seconds(1)
         controller.update(.error(reason: "the model ran out of memory"))
         #expect(surface.announced.last == "Rewrite failed. the model ran out of memory")
+    }
+
+    /// The picker is a question, and a question is answered once.
+    ///
+    /// Nothing in this target can dismiss the panel — only the coordinator
+    /// can, and it gets there through an `await`. So for the width of at least
+    /// one actor hop after the picker has been answered, `state` is still
+    /// `.stylePicker` and every picker key still resolves to an action. A
+    /// digit arriving in that gap started a second rewrite of a selection the
+    /// user had already finished with; and where the gap was opened by a key
+    /// the picker could not answer, the tap had been dropped, so the digit
+    /// also reached the app holding the selection and replaced it — the
+    /// original `ORIGINAL` → `34` bug, back for the length of one hop.
+    ///
+    /// All three ways of ending a picker have that gap, not just the one that
+    /// drops the tap.
+    @Test("the picker answers once, and a key arriving before it closes is swallowed, not leaked")
+    func thePickerAnswersOnce() {
+        for ender in [PanelKeyMapTests.enter, PanelKeyMapTests.escape, PanelKeyMapTests.bareZ] {
+            let tap = SpyKeyMonitor()
+            let controller = makeController(keyInterceptor: tap)
+            let picked = Box<Preset>()
+            controller.onPickStyle = { picked.value = $0 }
+
+            controller.show(.stylePicker(presets: PanelKeyMapTests.fiveStyles))
+            tap.send(ender)
+            let answer = picked.value
+
+            // The gap. The tap has to still be here, or the digit lands in the
+            // document; and it has to do nothing, or it picks a second style.
+            #expect(tap.isInstalled, "\(ender.characters)")
+            #expect(tap.send(PanelKeyMapTests.digit(3)) == true, "\(ender.characters)")
+            #expect(picked.value == answer, "\(ender.characters)")
+        }
+    }
+
+    /// A picker with no rows cannot answer anything — but Return and the
+    /// arrows still resolved to actions, because reaching the key map counted
+    /// as success even when the action found no row to apply itself to. So
+    /// "a key the picker cannot answer ends it" never fired for exactly the
+    /// keys a picker owns, and the tap swallowed them for as long as the panel
+    /// stayed up, which for `stylePicker` is until the user finds Escape.
+    /// Nothing stops someone deleting every style, and `chooseStyle` then
+    /// shows precisely this.
+    ///
+    /// Consumed rather than passed on, unlike a key the picker never claims:
+    /// the user aimed these at the picker, and a leaked Return submits a form
+    /// in whatever happens to be frontmost.
+    @Test("an empty picker ends on a key it cannot answer instead of swallowing it forever")
+    func anEmptyPickerEndsRatherThanSwallow() {
+        let tap = SpyKeyMonitor()
+        let controller = makeController(keyInterceptor: tap)
+        let cancels = Counter()
+        controller.onCancel = { cancels.bump() }
+
+        for keystroke in [PanelKeyMapTests.enter, PanelKeyMapTests.arrowDown] {
+            controller.show(.stylePicker(presets: []))
+            #expect(tap.send(keystroke) == true, "\(keystroke.characters)")
+        }
+
+        #expect(cancels.count == 2)
+    }
+
+    /// The handler can take the panel down while the keystroke is still being
+    /// answered, so key status has to be read from the state the keystroke was
+    /// *dispatched against*, never from whatever `state` holds afterwards.
+    ///
+    /// Production's `onCopy` is `AppDelegate.copyToPasteboard`, which calls
+    /// `panel.dismiss()` synchronously — `state` is `nil` before the copy
+    /// returns. Reading key status after the action therefore answered "not
+    /// consumed" for a ⌘C it had just performed, so the frontmost app ran its
+    /// own Copy afterwards and overwrote the rewrite, in the one state where
+    /// the panel is the user's only copy of it.
+    ///
+    /// The other ⌘C test passes either way, because its stub only records the
+    /// text. A double quieter than production is the case a green suite cannot
+    /// catch, so this one dismisses the way the app does.
+    @Test("Command-C is still consumed when the copy handler dismisses the panel")
+    func commandCIsConsumedWhenTheHandlerDismisses() {
+        let monitor = SpyKeyMonitor()
+        let controller = makeController(keyMonitor: monitor)
+        let copied = Box<String>()
+        controller.onCopy = { [weak controller] text in
+            copied.value = text
+            controller?.dismiss()
+        }
+
+        controller.show(.heldForManualCopy(text: "the whole rewrite", reason: "the window moved"))
+
+        #expect(monitor.send(PanelKeyMapTests.commandC) == true)
+        // Positive control: the handler really ran, so the false above would
+        // have been a verdict rather than a dead spy.
+        #expect(copied.value == "the whole rewrite")
     }
 
     /// The coordinator drives the panel straight from engine events, so that

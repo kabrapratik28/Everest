@@ -35,6 +35,8 @@ public final class FloatingPanelController {
     /// The last kind spoken to a screen reader, so each state is announced
     /// once. See `render`.
     private var announcedKind: PanelStateKind?
+    /// Whether the picker has already produced its outcome. See `endPicker`.
+    private var pickerIsSpent = false
     /// Sampled once per presentation. See `screenIsCapturedAtShow`.
     private var anchorScreen: CGRect?
 
@@ -59,6 +61,7 @@ public final class FloatingPanelController {
         highlightedStyleIndex = 0
         followsTail = true
         announcedKind = nil
+        pickerIsSpent = false
         clock.cancel()
         surface.refreshAppearance()
         armKeyMonitor()
@@ -178,8 +181,17 @@ public final class FloatingPanelController {
     /// may claim the event — and only then does the local monitor swallow it
     /// before the frontmost app sees it.
     private func handle(_ keystroke: Keystroke) -> Bool {
+        // Captured *before* the action runs, because running it can take the
+        // panel down: production's `onCopy` dismisses synchronously, so by the
+        // time a ⌘C finishes copying, `state` is nil. Reading key status
+        // afterwards then reports "not consumed" for a key just acted on, and
+        // the frontmost app runs its own Copy over the rewrite we had put on
+        // the clipboard — in `heldForManualCopy`, the user's only copy of it.
+        // The verdict belongs to the state the keystroke was dispatched
+        // against, not to whatever `state` became along the way.
+        let dispatchedAgainst = state
         let acted = perform(keystroke)
-        return acted && (state?.acceptsKeyWindow ?? false)
+        return acted && (dispatchedAgainst?.acceptsKeyWindow ?? false)
     }
 
     /// The tap's answer: whether the keystroke was consumed.
@@ -191,50 +203,101 @@ public final class FloatingPanelController {
     /// selection. It claims exactly what it acted on, so every other keystroke
     /// the user types passes through untouched.
     private func intercept(_ keystroke: Keystroke) -> Bool {
-        if perform(keystroke) { return true }
-
-        // Not an answer to the question the picker is asking, so the user has
-        // moved on — most likely to another application, since the picker has
-        // no timer and will otherwise sit there. Holding the tap open past
-        // that point means swallowing their digits and Return somewhere else
-        // entirely. Dropped here rather than waiting for the coordinator to
-        // come back through `dismiss()`, because that round trip is more
-        // keystrokes. The key itself is not consumed: ending the picker is no
-        // reason to eat what the user was actually typing.
-        armedInterceptor = nil
-        cancel()
-        return false
-    }
-
-    /// Runs whatever this keystroke means in this state. Returns whether it
-    /// meant anything.
-    private func perform(_ keystroke: Keystroke) -> Bool {
         guard let state, let action = PanelKeyMap.action(for: keystroke, in: state) else {
+            // Nothing the picker could answer, so the user has moved on —
+            // most likely to another application, since the picker has no
+            // timer and will otherwise sit there. Passed on rather than
+            // eaten: ending the picker is no reason to swallow the keystroke
+            // the user was actually typing.
+            //
+            // The tap is deliberately *not* dropped here. It was, and that
+            // reopened the original bug: `state` stays `.stylePicker` until
+            // the coordinator comes back through `dismiss()`, so for one actor
+            // hop the picker keys still resolve — and with the tap gone a
+            // digit reached the app holding the selection and replaced it.
+            // `state.didSet` and `dismiss()` already bound the tap's life;
+            // `pickerIsSpent` makes the interval inert rather than trying to
+            // win a race against it.
+            endPicker()
             return false
         }
-
-        switch action {
-        case .cancel:                   cancel()
-        case .copy:                     copy()
-        case let .pickStyle(index):     pickStyle(at: index)
-        case .commitHighlightedStyle:   pickStyle(at: highlightedStyleIndex)
-        case let .moveHighlight(offset): moveHighlight(by: offset)
+        guard run(action) else {
+            // A key the picker *owns* with no row to apply it to: an empty
+            // style list, or a picker already answered. Unlike a key it never
+            // claims, this one was aimed at the panel, so it is swallowed
+            // rather than handed on — a leaked Return submits a form. It
+            // still cannot be answered, so the picker ends.
+            endPicker()
+            return true
         }
         return true
     }
 
-    private func moveHighlight(by offset: Int) {
-        guard case let .stylePicker(presets) = state, !presets.isEmpty else { return }
+    /// The picker has produced its one outcome.
+    ///
+    /// Idempotent, so a run of keys arriving in the same gap is one
+    /// cancellation at the coordinator rather than one per keystroke.
+    private func endPicker() {
+        guard !pickerIsSpent else { return }
+        pickerIsSpent = true
+        cancel()
+    }
+
+    /// Runs whatever this keystroke means in this state. Returns whether it
+    /// meant anything *and* found something to apply itself to.
+    private func perform(_ keystroke: Keystroke) -> Bool {
+        guard let state, let action = PanelKeyMap.action(for: keystroke, in: state) else {
+            return false
+        }
+        return run(action)
+    }
+
+    /// Returns whether the action found anything to act on. Reaching the key
+    /// map is not enough: Return and the arrows resolve in a picker with no
+    /// rows at all, and reporting those no-ops as success is what let an empty
+    /// picker swallow them instead of standing down.
+    private func run(_ action: PanelKeyAction) -> Bool {
+        switch action {
+        // Escape ends the picker too, and has exactly the same gap before the
+        // coordinator can dismiss. Harmless in the states that are not a
+        // picker, where the flag is never read again.
+        case .cancel:
+            pickerIsSpent = true
+            cancel()
+            return true
+        // The key map only offers this where `copyableText` is non-nil.
+        case .copy:
+            copy()
+            return true
+        case let .pickStyle(index):
+            return pickStyle(at: index)
+        case .commitHighlightedStyle:
+            return pickStyle(at: highlightedStyleIndex)
+        case let .moveHighlight(offset):
+            return moveHighlight(by: offset)
+        }
+    }
+
+    private func moveHighlight(by offset: Int) -> Bool {
+        guard case let .stylePicker(presets) = state, !presets.isEmpty else { return false }
         highlightedStyleIndex = min(max(highlightedStyleIndex + offset, 0), presets.count - 1)
         render(.stylePicker(presets: presets))
+        return true
     }
 
     /// Also the mouse path: a non-activating panel receives clicks without
     /// activating the app, and a click does not go through `PanelKeyMap`, so
     /// the bounds check lives here rather than there.
-    public func pickStyle(at index: Int) {
-        guard case let .stylePicker(presets) = state, presets.indices.contains(index) else { return }
+    /// Returns whether there was such a row to pick.
+    @discardableResult
+    public func pickStyle(at index: Int) -> Bool {
+        guard !pickerIsSpent,
+              case let .stylePicker(presets) = state,
+              presets.indices.contains(index)
+        else { return false }
+        pickerIsSpent = true
         onPickStyle?(presets[index])
+        return true
     }
 
     /// Dropping the handle is the removal. Nothing else is needed, and there
