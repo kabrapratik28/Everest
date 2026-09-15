@@ -125,6 +125,12 @@ public enum CaptureError: Error, Equatable {
     /// rather than pick one and send half the users to reselect forever.
     case nothingCaptured
 
+    /// The clipboard could not be borrowed, so rung 9 never ran. Separate
+    /// from `.nothingCaptured` because the app is fine and the clipboard is
+    /// what is in the way: naming the app sends the user hunting for a
+    /// permission that does not exist.
+    case clipboardUnavailable
+
     case tooLong(Int)
     case excludedApp(String)
 }

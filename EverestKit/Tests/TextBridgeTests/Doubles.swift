@@ -131,10 +131,17 @@ final class FakeKeystroke: KeystrokePosting {
 
 final class FakeClipboardCapture: ClipboardCapturing {
     var result: String?
+
+    /// The user's clipboard holds something too large to put back, so the
+    /// borrow is refused and ⌘C is never posted.
+    var borrowRefused = false
+
     private(set) var attempts = 0
 
-    func copySelection(pid: pid_t) -> String? {
+    func copySelection(pid: pid_t) -> ClipboardCapture {
         attempts += 1
-        return result
+        if borrowRefused { return .unavailable }
+        guard let result else { return .nothingCopied }
+        return .captured(result)
     }
 }

@@ -513,6 +513,9 @@ func everyCaptureRefusalHasItsOwnMessage() {
         // text they have selected to go and select some text, which is the
         // one remedy we know cannot help them.
         CaptureFailure.message(for: CaptureError.nothingCaptured),
+        // Distinct from the one above specifically: that one blames the app,
+        // and this one is the case where the app is fine.
+        CaptureFailure.message(for: CaptureError.clipboardUnavailable),
         CaptureFailure.message(for: CaptureError.tooLong(12_000)),
         CaptureFailure.message(for: CaptureError.excludedApp("com.1password.1password")),
         // `capture()` is declared with untyped `throws`, so something other

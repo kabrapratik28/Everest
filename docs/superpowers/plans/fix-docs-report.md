@@ -325,13 +325,27 @@ safely". The replace side already distinguishes this as
 *before* ⌘C is posted, which is why nothing is destroyed — it is only the
 reporting that lies.
 
-### Not built — it needs sequencing with `fix-settings`
+### Commit 7 — applied, after sequencing
+
+`Sources/TextBridge/Seams.swift` (`ClipboardCapture`)
+`Sources/TextBridge/ClipboardSelectionAdapter.swift`
+`Sources/TextBridge/SelectionCoordinator.swift`
+`Sources/TextBridge/TargetSnapshot.swift` (`.clipboardUnavailable`)
+`Sources/TextBridge/AGENTS.md`
+`Tests/TextBridgeTests/` — `Doubles`, `CaptureChainTests`,
+`ClipboardSelectionAdapterTests`, `ReentrancyTests`
+`Sources/AppCore/CaptureFailure.swift` + `Tests/AppCoreTests/RewriteCoordinatorTests.swift`
+
+**TextBridge 74 green, AppCore 58 green.** Applied with `Edit` against exact
+anchors rather than copying the scratch copy over, so a moved anchor would
+have failed loudly instead of clobbering; none had moved.
 
 Checked as you asked: **`CaptureFailure.message(for:)` switches `CaptureError`
 exhaustively with no `default`**, so adding a case breaks the AppCore build for
-everyone. That means the TextBridge half is **not separable** — adding the case
+everyone. That made the TextBridge half **not separable** — adding the case
 alone breaks the build, and adding the seam change without the case leaves dead
-information the Iron Law would reject. It is one change across two modules.
+information the Iron Law would reject. One change across two modules, which is
+why it waited for `fix-settings` to be out of the file.
 
 **Prepared and proven on a scratch copy at `/tmp/everest-cand2`, not applied.**
 The whole cycle has been run there: **TextBridge 74 green, AppCore 57 green**.

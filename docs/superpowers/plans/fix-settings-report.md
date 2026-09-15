@@ -482,16 +482,19 @@ a glance.
 
 ## Things for you to arbitrate
 
-- **`AppCore/AGENTS.md` is 88 lines against the 60 budget** — not the 70 you
-  have. It was 62 before this batch, and now carries `RewriteCoordinator`,
-  `EngineFactory` and nine Settings-screen decisions from three agents. Every
-  remaining line carries a *why*, which you sharpened as a requirement, so the
-  two rules are in direct tension in this one file. You said you would cut it
-  yourself once I am done — **I am done with it.** `App/AGENTS.md` and
-  `Settings/AGENTS.md` are both exactly 60.
-- **`RewriteCore/AGENTS.md` is stale** and not my file: it still says
-  `OutputValidator` is "deliberately shallow — empty output and a 3× length
-  ratio". The ratio is gone. Worth telling whoever owns it.
+Both resolved by the lead; kept here because the reasoning outlived them.
+
+- **`AppCore/AGENTS.md` is 88 lines.** It was 62 before this batch and now
+  carries `RewriteCoordinator`, `EngineFactory` and nine Settings-screen
+  decisions from three agents. Every line carries a *why*, so the 60-line
+  budget and the record-the-why rule were in direct tension in this one file.
+  **Resolved:** root §2 now reads ≤60 per directory except `AppCore` at ≤90,
+  named as the single exception. At 88, the next addition still has to cut
+  something. `App/AGENTS.md` and `Settings/AGENTS.md` are both exactly 60.
+- **~~`RewriteCore/AGENTS.md` is stale~~ — wrong, I was reading a tree minutes
+  out of date.** `audit-correctness` had already rewritten it to describe the
+  length-ratio removal correctly. Verified by the lead against the file. No
+  action; noted so nobody chases it.
 
 ## Cross-agent adaptations
 

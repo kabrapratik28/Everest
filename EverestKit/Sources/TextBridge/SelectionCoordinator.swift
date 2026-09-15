@@ -104,11 +104,17 @@ public final class SelectionCoordinator {
         // entry costs one wasted copy, never a permanent downgrade to a path
         // that can never be written back.
         var clipboardTried = false
+        // Survives the whole chain: the borrow can be refused on the cached
+        // attempt and the accessibility rungs can then fail on their own, and
+        // what the user still needs told is that their clipboard is in the way.
+        var clipboardRefused = false
         if cache.strategy(for: app.bundleID ?? "", appVersion: app.appVersion, now: now())
             == .clipboard
         {
             clipboardTried = true
-            if let snapshot = readViaClipboard(app: app) { return snapshot }
+            if let snapshot = readViaClipboard(app: app, refused: &clipboardRefused) {
+                return snapshot
+            }
         }
 
         if let focused, let snapshot = try readViaAccessibility(app: app, element: focused) {
@@ -136,7 +142,9 @@ public final class SelectionCoordinator {
             }
         }
 
-        if !clipboardTried, let snapshot = readViaClipboard(app: app) {
+        if !clipboardTried,
+            let snapshot = readViaClipboard(app: app, refused: &clipboardRefused)
+        {
             // Remembered only for an app that stayed dark. The cache is keyed
             // by app and an app is not one text engine: Chrome is one bundle
             // identifier for Google Docs, readable only through ⌘C, and for
@@ -148,6 +156,12 @@ public final class SelectionCoordinator {
             if focused == nil { record(.clipboard, for: app) }
             return snapshot
         }
+
+        // The app was never the problem: ⌘C was never posted, because the
+        // clipboard holds something we could not have put back afterwards.
+        // Reporting the app sends them hunting for a permission that does not
+        // exist, when what fixes it is copying something smaller.
+        if clipboardRefused { throw CaptureError.clipboardUnavailable }
 
         // Not `.noSelection`. Nothing along the way told us the user had made
         // no selection; we simply ran out of ways to ask, and an app that
@@ -165,10 +179,10 @@ public final class SelectionCoordinator {
 
     /// Rung 9. No element, so no range and no text identity: such a snapshot
     /// can never be proved safe to write to and always ends in copy-only.
-    private func readViaClipboard(app: FrontmostApp) -> TargetSnapshot? {
-        guard let text = clipboard.copySelection(pid: app.pid), !text.isEmpty else {
-            return nil
-        }
+    private func readViaClipboard(app: FrontmostApp, refused: inout Bool) -> TargetSnapshot? {
+        let capture = clipboard.copySelection(pid: app.pid)
+        if capture == .unavailable { refused = true }
+        guard case let .captured(text) = capture, !text.isEmpty else { return nil }
         return TargetSnapshot(
             pid: app.pid,
             bundleID: app.bundleID,

@@ -57,10 +57,27 @@ public protocol AccessibilityWriting: AnyObject {
     func setSelectedText(_ text: String, on element: AXUIElement) -> Bool
 }
 
+/// What rung 9 came back with. Three states rather than an optional, because
+/// "⌘C produced nothing" and "the clipboard could not be borrowed" have
+/// different causes and different remedies, and collapsing them told a user
+/// whose clipboard held a screenshot that this app's text cannot be read.
+public enum ClipboardCapture: Equatable, Sendable {
+    case captured(String)
+
+    /// ⌘C was posted and the target wrote nothing.
+    case nothingCopied
+
+    /// The borrow was refused, so ⌘C was never posted and nothing was
+    /// disturbed. Not split into too-large and already-borrowed: `Fidelity`
+    /// keeps those apart where it matters, and capture blocks the main
+    /// thread, so in production only the first can reach a user.
+    case unavailable
+}
+
 /// The synthetic-copy path, behind a protocol so a test can assert that a
 /// refusal happened without a keystroke ever being posted.
 public protocol ClipboardCapturing: AnyObject {
-    func copySelection(pid: pid_t) -> String?
+    func copySelection(pid: pid_t) -> ClipboardCapture
 }
 
 /// The synthetic ⌘V, behind a protocol for the same reason.

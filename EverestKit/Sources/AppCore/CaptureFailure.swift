@@ -42,6 +42,16 @@ public enum CaptureFailure {
             // looking at their own highlighted paragraph sends them to
             // reselect and press again, indefinitely, learning nothing.
             "Everest tried every way it has to read this app — Accessibility, then a copy — and got nothing back. If your text is selected, this app draws it somewhere macOS cannot read it; Google Docs works that way. If it is not selected, select it and press the shortcut again."
+        case .clipboardUnavailable:
+            // Names the clipboard rather than the app. The refusal itself is
+            // correct and protective — the borrow is declined before ⌘C is
+            // posted, so nothing is destroyed — but reporting it as an
+            // unreadable app sends someone with a screenshot on their
+            // clipboard looking for a Google Docs permission that does not
+            // exist. The remedy is "copy something small", not "clear the
+            // clipboard": macOS offers no way to empty it, so the only thing
+            // the user can actually do is replace what is on it.
+            "Everest reads some apps by copying, and it will not do that while your clipboard holds something too large to put back — a screenshot or an image, usually. Copy a word of text to replace it, then press the shortcut again."
         case let .tooLong(count):
             "That selection is \(grouped(count)) characters. Everest rewrites up to \(grouped(CaptureLimits.maxCharacters)) at a time — select a shorter passage."
         case let .excludedApp(bundleID):

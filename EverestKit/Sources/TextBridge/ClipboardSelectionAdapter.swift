@@ -45,13 +45,17 @@ public final class ClipboardSelectionAdapter: ClipboardCapturing {
         self.pollInterval = pollInterval
     }
 
-    public func copySelection(pid: pid_t) -> String? {
+    public func copySelection(pid: pid_t) -> ClipboardCapture {
         let transaction = PasteboardTransaction(pasteboard: pasteboard, borrow: borrow)
 
         // Before posting, not after: that keystroke makes the *target app*
         // overwrite the clipboard, and if we could not take a faithful copy
         // we would be unable to put it back.
-        guard transaction.snapshot() else { return nil }
+        //
+        // Reported as its own answer rather than as "nothing". Nothing is
+        // wrong with the app here — the clipboard is the thing in the way —
+        // and a caller that cannot tell those apart blames the app.
+        guard transaction.snapshot() else { return .unavailable }
 
         let before = pasteboard.changeCount
         keystroke.postCopy(pid: pid)
@@ -93,7 +97,7 @@ public final class ClipboardSelectionAdapter: ClipboardCapturing {
         // deallocation.
         guard pasteboard.changeCount != before else {
             transaction.abandon()
-            return nil
+            return .nothingCopied
         }
 
         // The writer was the target app, not us, so the transaction has to be
@@ -101,7 +105,8 @@ public final class ClipboardSelectionAdapter: ClipboardCapturing {
         transaction.expect(changeCount: pasteboard.changeCount)
         transaction.restoreIfUnchanged()
 
-        return captured
+        guard let captured else { return .nothingCopied }
+        return .captured(captured)
     }
 
     private func wait(upTo budget: Duration, until condition: () -> Bool) -> Bool {

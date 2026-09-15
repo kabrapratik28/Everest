@@ -42,7 +42,8 @@ struct ClipboardSelectionAdapterTests {
             let keystroke = FakeCopyKeystroke()  // the target copies nothing
             let before = pasteboard.changeCount
 
-            #expect(adapter(pasteboard, keystroke: keystroke).copySelection(pid: 501) == nil)
+            #expect(
+                adapter(pasteboard, keystroke: keystroke).copySelection(pid: 501) == .nothingCopied)
             #expect(keystroke.copies == 1)
             #expect(pasteboard.string(forType: .string) == "copied ten minutes ago")
             // Untouched, not restored-to-identical. Writing the same bytes
@@ -101,7 +102,7 @@ struct ClipboardSelectionAdapterTests {
                 Thread.sleep(forTimeInterval: 0.01)
             }
 
-            #expect(captured == "the selection")
+            #expect(captured == .captured("the selection"))
             #expect(pasteboard.string(forType: .string) == "the user's clipboard")
         }
     }
@@ -120,7 +121,7 @@ struct ClipboardSelectionAdapterTests {
 
             let captured = adapter(pasteboard, keystroke: keystroke).copySelection(pid: 501)
 
-            #expect(captured == "the selection")
+            #expect(captured == .captured("the selection"))
             #expect(pasteboard.string(forType: .string) == "the user's clipboard")
         }
     }
@@ -140,7 +141,9 @@ struct ClipboardSelectionAdapterTests {
 
             let keystroke = FakeCopyKeystroke()
 
-            #expect(adapter(pasteboard, keystroke: keystroke).copySelection(pid: 501) == nil)
+            #expect(
+                adapter(pasteboard, keystroke: keystroke).copySelection(pid: 501) == .unavailable,
+                "and it says which of the two nothings this is")
             #expect(keystroke.copies == 0, "no keystroke was posted")
             #expect(pasteboard.changeCount == changeCountBefore)
             #expect(pasteboard.pasteboardItems?.first?.data(forType: .tiff) == huge)
@@ -161,7 +164,8 @@ struct ClipboardSelectionAdapterTests {
             let keystroke = FakeCopyKeystroke()
             keystroke.onCopy = { pasteboard.clearContents() }  // step one only
 
-            #expect(adapter(pasteboard, keystroke: keystroke).copySelection(pid: 501) == nil)
+            #expect(
+                adapter(pasteboard, keystroke: keystroke).copySelection(pid: 501) == .nothingCopied)
             #expect(
                 pasteboard.string(forType: .string) == "the user's clipboard",
                 "and the user's clipboard is put back"

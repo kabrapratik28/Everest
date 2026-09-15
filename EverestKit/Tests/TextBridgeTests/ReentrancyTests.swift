@@ -118,7 +118,7 @@ struct ReentrancyTests {
             let ax = liveTarget()
             let keystroke = FakeKeystroke()
             let copyKeystroke = FakeCopyKeystroke()
-            let captured = Box<String>()
+            let captured = Box<ClipboardCapture>()
             let borrow = PasteboardBorrow()
 
             keystroke.onPaste = {
@@ -137,7 +137,9 @@ struct ReentrancyTests {
 
             _ = service(ax, keystroke, pasteboard, borrow).apply("the rewrite", to: snapshot())
 
-            #expect(captured.value == nil)
+            // Not merely "nothing": the nested capture is told *why*, which
+            // is what stops it reporting an unreadable app.
+            #expect(captured.value == .unavailable)
             #expect(copyKeystroke.copies == 0, "no ⌘C posted into an open transaction")
             #expect(pasteboard.string(forType: .string) == "the user's clipboard")
         }

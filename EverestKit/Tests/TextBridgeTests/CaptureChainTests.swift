@@ -221,6 +221,24 @@ struct CaptureChainTests {
         }
     }
 
+    /// The borrow refusal is correct and protective — it happens *before* ⌘C
+    /// is posted, which is why nothing is destroyed — but reporting it as
+    /// `.nothingCaptured` tells the user this app's text cannot be read. It
+    /// can; their clipboard is holding a screenshot. An error naming the
+    /// wrong cause is worse than a vague one, because it sends them to fix
+    /// something that is not broken — here, a Google Docs permission that
+    /// does not exist.
+    @Test("a clipboard too large to borrow is reported as that, not as an unreadable app")
+    func aRefusedBorrowIsNotReportedAsAnUnreadableApp() throws {
+        let ax = FakeAccessibility()  // answers nothing, so the chain reaches rung 9
+        let clipboard = FakeClipboardCapture()
+        clipboard.borrowRefused = true
+
+        #expect(throws: CaptureError.clipboardUnavailable) {
+            _ = try coordinator(ax, clipboard: clipboard).capture()
+        }
+    }
+
     /// Rung 9, last for three reasons: it is the only path that disturbs the
     /// user's clipboard, the only one that depends on the target having a
     /// working Edit menu Copy, and it leaks the selection to any clipboard
