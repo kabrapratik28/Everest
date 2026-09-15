@@ -134,8 +134,16 @@ func rejectedOutputIsNeverWritten() async {
         panel: panel,
         settings: makeSettings(),
         snapshot: .stub(text: "short"),
-        // Far past the length ratio a genuine rewrite ever reaches.
-        engine: StubEngine(events: [.finished(String(repeating: "runaway ", count: 200))]),
+        // Output that cleans down to nothing. This used to be a runaway
+        // generation caught by the 3× length ratio; that ceiling was removed
+        // when output became bounded at the decoder instead and overlong
+        // generations started reporting `GenerationError.truncated`, so
+        // `.empty` is the only thing the validator still rejects. The guard
+        // under test is unchanged — a rejection must not reach the document.
+        // Note `""` and not whitespace: `clean` trims only inside the
+        // envelope, so "   " is a non-empty rewrite as far as `validate` is
+        // concerned and would be written.
+        engine: StubEngine(events: [.finished("")]),
         apply: recorder
     )
 
@@ -143,11 +151,9 @@ func rejectedOutputIsNeverWritten() async {
 
     #expect(recorder.applied.isEmpty)
     #expect(surface.presented.last?.kind == .refused)
-
-    // Two rejections with two different causes. "Nothing came back" and "far
-    // more came back than went in" send the user to different places: one is
-    // retry, the other is select less text.
-    #expect(ValidationFailure.empty.message != ValidationFailure.lengthRatio(9).message)
+    // The rejection has to say something the user can act on; an empty panel
+    // is worse than a vague sentence.
+    #expect(ValidationFailure.empty.message.isEmpty == false)
 }
 
 /// `PanelState.autoDismissAfter` is decided and tested in `Overlay`, and until
@@ -469,6 +475,30 @@ func aMissingSnapshotReadsAsRetryable() {
     #expect(missing.localizedCaseInsensitiveContains("download"))
 }
 
+/// A generation that ran out of budget has its own sentence, and it must
+/// reach both surfaces.
+///
+/// The generic one is not wrong here, it is unhelpful: "try again, or pick a
+/// different model" invites the user to repeat an attempt that will hit the
+/// same ceiling on the same passage, and it never says the document was left
+/// alone. `GenerationError.truncated.message` says both — shorten the
+/// selection, nothing was changed — and it already existed with nothing
+/// reading it.
+///
+/// `.error` and not `.refused`: the model did not decline, it ran out of
+/// room. `.refused` is for output the validator threw out and for Apple's
+/// guardrail, and using it here would blame the model for an arithmetic
+/// limit this app set.
+@Test("a truncated generation is reported in its own words, on the panel and in the test box")
+func truncationGetsItsOwnSentence() {
+    let words = GenerationError.truncated.message
+
+    #expect(EngineFailure.reason(for: GenerationError.truncated) == words)
+    #expect(EngineFailure.state(for: GenerationError.truncated) == .error(reason: words))
+    // Distinct from the catch-all, which is the whole point.
+    #expect(words != EngineFailure.reason(for: UnexpectedFailure.somethingElse))
+}
+
 /// Five refusals with five different remedies. Folding them into one "could not
 /// read the selection" sends the user looking in the wrong place four times out
 /// of five: granting a permission they already granted, hunting for a selection
@@ -510,4 +540,78 @@ func everyCaptureRefusalHasItsOwnMessage() {
         CaptureFailure.message(for: CaptureError.excludedApp("com.1password.1password"))
             .contains("com.1password.1password")
     )
+}
+
+/// Escape during a first-run download has to actually stop it, and the
+/// download must not go on painting a panel that has been taken down.
+///
+/// The prepare loop had no generation check and nothing cancelled the task
+/// behind it. So a user who pressed Escape four minutes into a 2.3 GB fetch
+/// got the panel dismissed and then re-presented by the next percentage —
+/// re-presented, crucially, *after* teardown had released the key monitors,
+/// leaving a panel on screen that Escape could no longer close. The download
+/// itself carried on.
+@Test("escape during a download stops it, and no later percentage re-opens the panel")
+@MainActor
+func cancellingADownloadStopsItAndLeavesThePanelDown() async {
+    let log = CallLog()
+    let (panel, _) = makePanel(log: log)
+    let engine = StubEngine(progressSteps: [0.1, 0.9], prepareGated: true)
+    let coordinator = makeCoordinator(
+        panel: panel,
+        settings: makeSettings(),
+        engine: engine,
+        apply: ApplyRecorder(log: log)
+    )
+
+    let running = Task { await coordinator.quickImprove() }
+    await engine.waitUntilPreparing()
+
+    await coordinator.cancel()
+    _ = await running.value
+
+    // The engine was told to stop — that half already worked.
+    #expect(engine.cancels == 1)
+
+    // And nothing re-presented the panel after it came down. `0.9` arrives
+    // from the download on its way out; it belongs to a transaction that no
+    // longer owns the panel.
+    let afterHide = Array(log.entries.drop(while: { $0 != "hide" }).dropFirst())
+    #expect(afterHide.contains { $0.hasPrefix("present") } == false, "entries: \(log.entries)")
+}
+
+/// A stream that ends without producing a rewrite still has to end the
+/// transaction.
+///
+/// The early return here assumed "no `.finished`" meant a newer generation
+/// had taken over — but the generation check immediately above has already
+/// established that this transaction is the current one. So a stream that
+/// stopped for any *other* reason returned silently and left the panel
+/// sitting on "Rewriting" with nothing coming: no terminal state, no
+/// auto-dismiss, and the only way out is force-quitting.
+///
+/// Both auditors reached this through the Settings test box, which shares one
+/// cached engine with the hotkey path and so cancels an in-flight rewrite
+/// through the shared `TransactionBox`. That trigger belongs to
+/// `EngineFactory`, but the hang does not: whatever ends a stream early, the
+/// coordinator owns reaching a terminal state.
+@Test("a stream that ends without a rewrite still reaches a terminal state")
+@MainActor
+func anEmptyStreamDoesNotHangThePanel() async {
+    let log = CallLog()
+    let (panel, surface) = makePanel(log: log)
+    let coordinator = makeCoordinator(
+        panel: panel,
+        settings: makeSettings(),
+        engine: StubEngine(events: []),
+        apply: ApplyRecorder(log: log)
+    )
+
+    await coordinator.quickImprove()
+
+    // Nothing was written — there was nothing to write.
+    #expect(log.entries.contains("apply") == false)
+    // But the panel is not left mid-flight.
+    let last = surface.presented.last
+    #expect(last?.kind == .error, "ended on \(String(describing: last?.kind))")
 }

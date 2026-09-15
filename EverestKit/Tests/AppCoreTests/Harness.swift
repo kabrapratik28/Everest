@@ -39,6 +39,13 @@ final class SpySurface: PanelSurface {
 
     func refreshAppearance() {}
 
+    /// Empty, like `refreshAppearance`. *When* the panel announces itself is
+    /// `FloatingPanelController`'s decision and `OverlayTests` owns it;
+    /// recording it into the shared `CallLog` here would insert an entry
+    /// between every state and the assertions in this suite are about the
+    /// order of capture, present, apply and hide.
+    func announce(_ value: String) {}
+
     func contentHeight(for state: PanelState, width: CGFloat) -> CGFloat { 120 }
 
     func present(_ state: PanelState, layout: PanelLayout, followsTail: Bool, acceptsKey: Bool) {
@@ -235,6 +242,15 @@ final class StubEngine: RewriteEngine {
     private let gate = AsyncStream<Void>.makeStream()
     private let gated: Bool
 
+    /// The same trick for `prepare`, so a test can press Escape partway
+    /// through a download. `prepare` reports the first progress step, waits
+    /// here, then reports the rest — which is the interleaving that matters:
+    /// the question is what the coordinator does with a percentage that
+    /// arrives *after* the transaction it belongs to has been cancelled.
+    private let prepareGate = AsyncStream<Void>.makeStream()
+    private let preparingSignal = AsyncStream<Void>.makeStream()
+    private let prepareGated: Bool
+
     init(
         id: EngineID = .qwen4B,
         events: [RewriteEvent] = [],
@@ -242,7 +258,8 @@ final class StubEngine: RewriteEngine {
         availability: EngineAvailability = .ready,
         prepareFailure: (any Error)? = nil,
         failure: (any Error)? = nil,
-        gated: Bool = false
+        gated: Bool = false,
+        prepareGated: Bool = false
     ) {
         self.id = id
         self.events = events
@@ -251,6 +268,7 @@ final class StubEngine: RewriteEngine {
         self.prepareFailure = prepareFailure
         self.failure = failure
         self.gated = gated
+        self.prepareGated = prepareGated
     }
 
     var cancels: Int { state.withLock(\.cancels) }
@@ -270,8 +288,24 @@ final class StubEngine: RewriteEngine {
 
     func prepare(progress: @escaping @Sendable (Double) -> Void) async throws {
         state.withLock { $0.prepares += 1 }
-        for step in progressSteps { progress(step) }
+        guard prepareGated else {
+            for step in progressSteps { progress(step) }
+            if let prepareFailure { throw prepareFailure }
+            return
+        }
+        // First step, then hold, then the rest: a download the user cancels
+        // halfway reports more progress on its way out.
+        if let first = progressSteps.first { progress(first) }
+        preparingSignal.continuation.yield(())
+        for await _ in prepareGate.stream {}
+        for step in progressSteps.dropFirst() { progress(step) }
         if let prepareFailure { throw prepareFailure }
+    }
+
+    /// Returns once `prepare` has reported its first step and is holding.
+    func waitUntilPreparing() async {
+        var iterator = preparingSignal.stream.makeAsyncIterator()
+        _ = await iterator.next()
     }
 
     func stream(_ request: RewriteRequest) -> AsyncThrowingStream<RewriteEvent, Error> {
@@ -302,6 +336,7 @@ final class StubEngine: RewriteEngine {
     func cancel() async {
         state.withLock { $0.cancels += 1 }
         gate.continuation.finish()
+        prepareGate.continuation.finish()
     }
 }
 

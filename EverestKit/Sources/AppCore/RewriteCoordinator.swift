@@ -53,14 +53,16 @@ public actor RewriteCoordinator {
 
     // MARK: - Entry points
 
-    /// `⌘I`.
+    /// The Quick Improve hotkey. Deliberately not written out here — the
+    /// defaults moved once and every glyph in the codebase went stale with
+    /// them; `HotkeyManager` owns what it is bound to.
     public func quickImprove() async {
         guard let snapshot = await begin() else { return }
         let preset = await MainActor.run { settings.quickImprove }
         await run(snapshot: snapshot, preset: preset)
     }
 
-    /// `⌘⇧I`. Reads the selection, *then* offers the styles.
+    /// The Choose Style hotkey. Reads the selection, *then* offers the styles.
     ///
     /// The ordering is the whole guard, and it is the coordinator's alone.
     /// `Overlay`'s key monitor observes keystrokes without consuming them, so
@@ -128,7 +130,7 @@ public actor RewriteCoordinator {
         await MainActor.run { panel.show(.preparing(progress: nil)) }
 
         do {
-            try await prepare(engine)
+            try await prepare(engine, generation: mine)
         } catch {
             guard mine == generation else { return }
             await settle(EngineFailure.state(for: error), generation: mine)
@@ -150,9 +152,20 @@ public actor RewriteCoordinator {
         }
 
         guard mine == generation else { return }
-        // No `.finished` means the stream was cancelled mid-decode. There is
-        // nothing to validate and nothing to write.
-        guard let finished else { return }
+        // No `.finished` means the stream ended without producing a rewrite.
+        // Nothing to validate and nothing to write — but this transaction is
+        // still the current one, established one line above, so returning
+        // silently strands the panel on "Rewriting" with nothing coming and
+        // no auto-dismiss. The observed route in is the Settings test box
+        // cancelling a hotkey rewrite through the engine they share, and the
+        // only way out for the user was force-quitting.
+        guard let finished else {
+            await settle(
+                .error(reason: "The rewrite stopped before it produced anything. Try again."),
+                generation: mine
+            )
+            return
+        }
 
         switch OutputValidator.validate(finished, source: snapshot.text) {
         // `.refused` and not `.error`: the model really did decline, in the
@@ -176,13 +189,25 @@ public actor RewriteCoordinator {
     /// to *run* in sequence, and a percentage that goes backwards reads as a
     /// download that is failing. On a first run this is several minutes and
     /// 2.3 GB, so the difference is not cosmetic.
-    private func prepare(_ engine: any RewriteEngine) async throws {
+    /// Superseded mid-download, it stops the download and paints nothing.
+    ///
+    /// Both halves were missing and both were visible to the user. Without the
+    /// generation check, a percentage arriving after Escape re-presents a
+    /// panel that has already been torn down — and teardown has released the
+    /// key monitors, so the panel that comes back cannot be closed with
+    /// Escape again. Without the cancel, a 2.3 GB fetch the user abandoned
+    /// four minutes in carries on to the end with nothing waiting for it.
+    private func prepare(_ engine: any RewriteEngine, generation mine: Int) async throws {
         let progress = AsyncStream<Double>.makeStream()
         let preparing = Task {
             defer { progress.continuation.finish() }
             try await engine.prepare { progress.continuation.yield($0) }
         }
         for await fraction in progress.stream {
+            guard mine == generation else {
+                preparing.cancel()
+                return
+            }
             await MainActor.run { panel.update(.preparing(progress: fraction)) }
         }
         try await preparing.value
