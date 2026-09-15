@@ -10,7 +10,13 @@ The model runs on your Mac. Nothing is sent to a server, and it works with netwo
 
 ## Install
 
-Download the latest `.dmg` from [Releases](../../releases), drag Everest to Applications, and launch it.
+Download the latest `.dmg` from [Releases](../../releases), open it, and drag Everest to Applications.
+
+**The first launch needs one extra step.** Everest is signed but not notarised — notarisation requires Apple's $99/year Developer Program, and this app is not earning that yet. So macOS will refuse the first launch and say *"Apple could not verify Everest is free of malware."* Click **Done**, then:
+
+> **System Settings ▸ Privacy & Security**, scroll to Security, and next to *"Everest was blocked to protect your Mac"* click **Open Anyway**.
+
+Since macOS 15 that pane is the only route — the old right-click ▸ Open shortcut no longer works. You do this once; every later launch is normal.
 
 On first run Everest asks for Accessibility permission (System Settings ▸ Privacy & Security ▸ Accessibility) and then downloads the rewrite model — about 2.3 GB, with a progress bar. **The model is not bundled in the app.**
 
