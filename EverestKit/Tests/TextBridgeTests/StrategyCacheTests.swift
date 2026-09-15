@@ -147,6 +147,42 @@ struct StrategyCacheTests {
         #expect(snapshot.isRangeDerived == false)
     }
 
+    /// The cache is keyed by app, and an app is not one text engine. Chrome is
+    /// one bundle identifier for both Google Docs, which paints its document
+    /// into a canvas and can only be read through ⌘C, and Gmail, which is
+    /// ordinary DOM and can be read *and written back* in place. Recording the
+    /// Docs reading against the whole app costs Gmail its in-place rewrite for
+    /// the next ten minutes, and a copy-only result where a replacement was
+    /// possible is a downgrade the user can neither see nor undo.
+    ///
+    /// So what is remembered is the app being dark, not the route being
+    /// convenient. The cache exists to skip re-proving that an app answers
+    /// nothing, which costs a `AXManualAccessibility` write and a settle on
+    /// every press; an app that handed over a focused element on the first ask
+    /// has already proved it is not that app, and probing it again is cheap.
+    @Test("a clipboard capture in an app whose tree answers does not pin the app to ⌘C")
+    func clipboardCaptureDoesNotPinAnAppWhoseTreeAnswers() throws {
+        let ax = FakeAccessibility()
+        ax.focused = testElement()  // the tree is alive and answers at once
+        ax.range = CFRange(location: 0, length: 0)  // ... but focus is in the canvas editor's
+        ax.characters = 0  // ... empty offscreen input
+        let clipboard = FakeClipboardCapture()
+        clipboard.result = "the sentence painted on the canvas"
+        let subject = coordinator(ax, clipboard: clipboard)
+
+        _ = try subject.capture()
+        #expect(clipboard.attempts == 1)
+
+        // The next press lands in an ordinary DOM view of the same app.
+        ax.range = CFRange(location: 4, length: 15)
+        ax.selected = "quick brown fox"
+
+        let snapshot = try subject.capture()
+
+        #expect(snapshot.text == "quick brown fox")
+        #expect(clipboard.attempts == 1, "the remembered route did not pre-empt the real one")
+    }
+
     /// Every clipboard borrow exposes the selection to any clipboard history
     /// app, so a stale entry must cost *one* wasted copy, not one per hotkey
     /// press forever. Falling through has to replace what we learned.

@@ -113,7 +113,18 @@ public enum CaptureLimits {
 public enum CaptureError: Error, Equatable {
     case accessibilityNotGranted
     case secureField
+
+    /// The app's own answer: an element that holds text reported none of it
+    /// selected. A claim about the user, and safe to act on as one.
     case noSelection
+
+    /// Ours: every rung came back empty, including ⌘C. Deliberately *not*
+    /// folded into `.noSelection`, which would tell a user looking at text
+    /// they have selected to go and select some text. Which of the two it was
+    /// is exactly what could not be determined, and the sentence has to say so
+    /// rather than pick one and send half the users to reselect forever.
+    case nothingCaptured
+
     case tooLong(Int)
     case excludedApp(String)
 }

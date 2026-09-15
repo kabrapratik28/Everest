@@ -137,11 +137,25 @@ public final class SelectionCoordinator {
         }
 
         if !clipboardTried, let snapshot = readViaClipboard(app: app) {
-            record(.clipboard, for: app)
+            // Remembered only for an app that stayed dark. The cache is keyed
+            // by app and an app is not one text engine: Chrome is one bundle
+            // identifier for Google Docs, readable only through ⌘C, and for
+            // Gmail, which can be written back in place. Learning ⌘C from
+            // Docs would cost Gmail its in-place rewrite for the next ten
+            // minutes, a downgrade nobody can see or undo. What the cache is
+            // for is skipping the re-proof that an app answers nothing, and
+            // an app that resolved focus on the first ask is not that app.
+            if focused == nil { record(.clipboard, for: app) }
             return snapshot
         }
 
-        throw CaptureError.noSelection
+        // Not `.noSelection`. Nothing along the way told us the user had made
+        // no selection; we simply ran out of ways to ask, and an app that
+        // answers nothing over accessibility *and* copies nothing on ⌘C has
+        // left us unable to tell an empty selection from text we cannot
+        // reach. Saying "select some text" here picks one of those and sends
+        // the other half of the users to reselect forever.
+        throw CaptureError.nothingCaptured
     }
 
     private func record(_ strategy: CaptureStrategy, for app: FrontmostApp) {
@@ -181,7 +195,23 @@ public final class SelectionCoordinator {
         // disambiguate an empty `AXSelectedText`, and because a zero-length
         // range is authoritative even when the text is non-empty. Reading it
         // early costs nothing: a range is not the user's characters.
-        if let range, range.length == 0 { throw CaptureError.noSelection }
+        //
+        // What it is authoritative *about* is this element, and only that. An
+        // element holding characters and reporting none of them selected is
+        // the app saying plainly there is nothing to rewrite. An element
+        // holding none at all cannot be the one the selection lives in — see
+        // the canvas fact in `AGENTS.md` — so the honest reading there is "ask
+        // the next rung", not "stop". A *missing* count is not a zero one.
+        //
+        // Neither branch reads anything beside the range: non-empty
+        // `AXSelectedText` next to a zero-length range is a contradiction, and
+        // text reconstructed through a zero-length range is not a selection.
+        if let range, range.length == 0 {
+            guard accessibility.characterCount(of: element) == 0 else {
+                throw CaptureError.noSelection
+            }
+            return nil
+        }
 
         // Rung 5. The app's own answer, preferred over anything reconstructed
         // from the range.

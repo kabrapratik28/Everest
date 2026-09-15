@@ -71,6 +71,13 @@ public final class AXSelectionAdapter: AccessibilityReading, AccessibilityWritin
         return range
     }
 
+    /// `AXNumberOfCharacters`, asked rather than measuring `AXValue`. The only
+    /// question is whether this element holds any text at all, and `AXValue`
+    /// would drag an entire document across the process boundary to answer it.
+    public func characterCount(of element: AXUIElement) -> Int? {
+        copyValue(element, kAXNumberOfCharactersAttribute as String) as? Int
+    }
+
     public func string(of element: AXUIElement, in range: CFRange) -> String? {
         var mutable = range
         guard let parameter = AXValueCreate(.cfRange, &mutable) else { return nil }

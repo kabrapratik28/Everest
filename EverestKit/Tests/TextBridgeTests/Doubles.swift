@@ -44,6 +44,11 @@ final class FakeAccessibility: AccessibilityReading, AccessibilityWriting {
     var selected: String?
     var range: CFRange?
     var stringForRange: String?
+
+    /// `AXNumberOfCharacters`. `nil` models an element that does not implement
+    /// the attribute at all, which is the same state of knowledge as zero.
+    var characters: Int?
+
     var editable = true
 
     private(set) var focusResolutions = 0
@@ -68,6 +73,8 @@ final class FakeAccessibility: AccessibilityReading, AccessibilityWriting {
     }
 
     func selectedRange(of element: AXUIElement) -> CFRange? { range }
+
+    func characterCount(of element: AXUIElement) -> Int? { characters }
 
     func string(of element: AXUIElement, in range: CFRange) -> String? {
         rangeStringReads += 1

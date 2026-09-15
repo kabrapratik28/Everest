@@ -36,6 +36,14 @@ public protocol AccessibilityReading: AnyObject {
     func subrole(of element: AXUIElement) -> String?
     func selectedText(of element: AXUIElement) -> String?
     func selectedRange(of element: AXUIElement) -> CFRange?
+
+    /// How many characters the element holds, which is what decides whether a
+    /// zero-length selected range is an answer about the user's selection or
+    /// an answer about an element the selection was never in. `nil` when the
+    /// element does not implement the attribute, which is the same state of
+    /// knowledge as zero.
+    func characterCount(of element: AXUIElement) -> Int?
+
     func string(of element: AXUIElement, in range: CFRange) -> String?
     func enableManualAccessibility(pid: pid_t)
     func isEditable(_ element: AXUIElement) -> Bool

@@ -34,6 +34,13 @@ public enum CaptureFailure {
             "That is a secure field. Everest never reads passwords, and nothing was read here."
         case .noSelection:
             "Select the text you want rewritten, then press the shortcut again."
+        case .nothingCaptured:
+            // Reads as two remedies because the capture chain genuinely could
+            // not tell which one applies, and guessing costs the user more
+            // than saying so. Offering only "select some text" to somebody
+            // looking at their own highlighted paragraph sends them to
+            // reselect and press again, indefinitely, learning nothing.
+            "Everest tried every way it has to read this app — Accessibility, then a copy — and got nothing back. If your text is selected, this app draws it somewhere macOS cannot read it; Google Docs works that way. If it is not selected, select it and press the shortcut again."
         case let .tooLong(count):
             "That selection is \(grouped(count)) characters. Everest rewrites up to \(grouped(CaptureLimits.maxCharacters)) at a time — select a shorter passage."
         case let .excludedApp(bundleID):

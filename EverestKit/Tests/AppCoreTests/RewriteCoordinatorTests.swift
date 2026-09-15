@@ -479,6 +479,10 @@ func everyCaptureRefusalHasItsOwnMessage() {
         CaptureFailure.message(for: CaptureError.accessibilityNotGranted),
         CaptureFailure.message(for: CaptureError.secureField),
         CaptureFailure.message(for: CaptureError.noSelection),
+        // Sharing the `.noSelection` sentence would tell a user looking at
+        // text they have selected to go and select some text, which is the
+        // one remedy we know cannot help them.
+        CaptureFailure.message(for: CaptureError.nothingCaptured),
         CaptureFailure.message(for: CaptureError.tooLong(12_000)),
         CaptureFailure.message(for: CaptureError.excludedApp("com.1password.1password")),
         // `capture()` is declared with untyped `throws`, so something other
@@ -498,5 +502,12 @@ func everyCaptureRefusalHasItsOwnMessage() {
         CaptureFailure.message(for: CaptureError.tooLong(12_000))
             != CaptureFailure.message(for: CaptureError.tooLong(9_000))
     )
-    #expect(messages[4].contains("com.1password.1password"))
+    // Addressed by case rather than by index, like `tooLong` above: an index
+    // silently starts pointing at a different refusal the moment a case is
+    // added to the list, and the assertion goes on passing or failing about
+    // the wrong sentence.
+    #expect(
+        CaptureFailure.message(for: CaptureError.excludedApp("com.1password.1password"))
+            .contains("com.1password.1password")
+    )
 }
