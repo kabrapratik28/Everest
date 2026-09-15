@@ -71,7 +71,21 @@ struct TargetValidator {
         // for the same interface object are equal but not identical, so
         // pointer comparison would report a mismatch every time and no
         // rewrite would ever be written back.
-        guard CFEqual(live, snapshot.element) else { return .focusMoved }
+        //
+        // Skipped entirely for a rung-9 snapshot, because there the answer is
+        // manufactured: `readViaClipboard` stores the *application* element,
+        // and any app resolving a real focused element makes this false every
+        // time whether or not anything moved. Sublime does exactly that — its
+        // focus resolves to an `AXWindow` — so the comparison reported
+        // `.focusMoved` for a target that had not moved, one line before the
+        // secure check could run. **That ordering is why this is here rather
+        // than in the caller:** accepting `.focusMoved` as a paste signal
+        // would paste into a password field nothing had looked at. A rung-9
+        // snapshot now reaches one honest refusal, `.unverifiable`, by both
+        // routes — with or without a resolvable element.
+        if !snapshot.viaClipboard {
+            guard CFEqual(live, snapshot.element) else { return .focusMoved }
+        }
 
         // Focus can move inside the same element tree while a rewrite is in
         // flight, so this is not a capture-time-only concern.

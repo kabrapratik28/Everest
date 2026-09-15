@@ -394,6 +394,74 @@ struct ReplacementTests {
         }
     }
 
+    /// The Sublime shape, which every other clipboard fixture here missed.
+    ///
+    /// Rung 9 is reached two different ways and they look nothing alike to
+    /// the validator. A terminal resolves **no** focused element, so
+    /// `validate` stops at `.unverifiable`. Sublime resolves one — measured,
+    /// an `AXWindow` — and `CFEqual` against `readViaClipboard`'s application
+    /// element is then false, so `validate` stops one line *earlier* at
+    /// `.focusMoved`.
+    ///
+    /// Both are the same fact — a rung-9 snapshot has no element to compare —
+    /// arriving by whichever route the app happens to allow. Neither says
+    /// anything moved. Every fixture in this file modelled the first shape,
+    /// so the paste override looked right and never fired for the app it was
+    /// built for.
+    @Test("a clipboard target whose focus resolves to a different element is still pasted into")
+    func clipboardCaptureWithResolvedFocusIsStillPasted() throws {
+        withPrivatePasteboard { pasteboard in
+            pasteboard.clearContents()
+            pasteboard.setString("the user's own clipboard", forType: .string)
+
+            let ax = FakeAccessibility()
+            ax.focused = testElement(pid: 777)  // a window, not the app element
+            let clipboard = FakeClipboardCapture()
+            clipboard.result = "the original"
+            let keystroke = FakeKeystroke()
+            keystroke.onPaste = { clipboard.result = nil }
+
+            let outcome = service(
+                ax, keystroke: keystroke, pasteboard: pasteboard, clipboard: clipboard
+            ).apply(
+                "the rewrite", to: viaClipboardSnapshot(),
+                autoReplace: true, keepOutOfHistory: true)
+
+            #expect(outcome == .replaced)
+            #expect(keystroke.pastes == 1)
+            #expect(pasteboard.string(forType: .string) == "the user's own clipboard")
+        }
+    }
+
+    /// And the reason to fix this in the validator rather than by widening
+    /// the override's condition: `CFEqual` is checked *before* `isSecure`, so
+    /// a rung-9 snapshot whose focus resolves returns `.focusMoved` and the
+    /// secure check never runs. Accepting `.focusMoved` as a paste signal
+    /// would have pasted into a password field that nothing had looked at.
+    @Test("a clipboard target whose resolved focus is secure is refused as secure")
+    func clipboardCaptureWithSecureFocusIsRefusedAsSecure() throws {
+        withPrivatePasteboard { pasteboard in
+            let ax = FakeAccessibility()
+            ax.focused = testElement(pid: 777)
+            ax.subrole = "AXSecureTextField"
+            let clipboard = FakeClipboardCapture()
+            clipboard.result = "the original"
+            let keystroke = FakeKeystroke()
+
+            let outcome = service(
+                ax, keystroke: keystroke, pasteboard: pasteboard, clipboard: clipboard
+            ).apply(
+                "the rewrite", to: viaClipboardSnapshot(),
+                autoReplace: true, keepOutOfHistory: true)
+
+            #expect(keystroke.pastes == 0)
+            #expect(clipboard.attempts == 0, "refused before the re-read")
+            if case .copiedOnly(cause: .secureField, _) = outcome {} else {
+                Issue.record("expected a secure refusal, got \(outcome)")
+            }
+        }
+    }
+
     /// The re-read is the whole safety argument, so it has to be able to say
     /// no. A selection that moved while the model was working means the text
     /// we hold is not what is selected now, and pasting would replace the
