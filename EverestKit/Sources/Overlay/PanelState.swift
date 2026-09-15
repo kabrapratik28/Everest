@@ -140,7 +140,14 @@ public extension PanelState {
         case .capturing, .preparing, .generating, .applying: nil
         case .stylePicker:                                   nil
         case .heldForManualCopy:                             nil
-        case .success:                                       .milliseconds(1200)
+        // No wait at all. The rewrite is already in the user's document, so
+        // the document is the confirmation — the panel would be describing
+        // something they can see, on top of the thing they want to look at.
+        // The old 1200 ms dated from before in-place replacement was
+        // dependable. Still *presented* rather than skipped, because a
+        // screen reader user gets no confirmation from the document and this
+        // is the only announcement the replaced path makes.
+        case .success:                                       .zero
         case .readOnly, .targetChanged:                      .seconds(6)
         case .refused, .error:                               .seconds(8)
         }

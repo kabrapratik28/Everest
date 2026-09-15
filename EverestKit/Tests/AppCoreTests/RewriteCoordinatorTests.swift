@@ -796,3 +796,39 @@ func replacementSettingsAreReadFresh() async {
     await coordinator.quickImprove()
     #expect(recorder.options.last == .init(autoReplace: false, keepOutOfHistory: false))
 }
+
+/// Cancelling stops the preparation even when it has reported no progress.
+///
+/// The generation check lives inside `for await fraction in progress.stream`,
+/// so it only runs when a percentage arrives. A load that emits nothing, or a
+/// network request that stalls before its first byte, therefore never reaches
+/// a check — the user presses Escape, the panel goes, and the download runs
+/// on with nothing waiting for it. That is the whole of manual check 22, and
+/// it is reachable on first run, which is exactly when a download is slowest.
+///
+/// Asserting on cancellation of the *task* rather than on `engine.cancel()`:
+/// `supersede` already called that, and it is what the old code relied on.
+/// Whether `MLXEngine.cancel()` can abort an in-flight download is Engines'
+/// business; the coordinator's job is not to leave the task running.
+@Test("cancelling stops a preparation that has reported no progress at all")
+@MainActor
+func cancellingStopsASilentPreparation() async {
+    let log = CallLog()
+    let (panel, _) = makePanel(log: log)
+    // No progress steps: nothing ever enters the loop that held the check.
+    let engine = StubEngine(progressSteps: [], prepareGated: true)
+    let coordinator = makeCoordinator(
+        panel: panel,
+        settings: makeSettings(),
+        engine: engine,
+        apply: ApplyRecorder(log: log)
+    )
+
+    let running = Task { await coordinator.quickImprove() }
+    await engine.waitUntilPreparing()
+
+    await coordinator.cancel()
+    _ = await running.value
+
+    #expect(engine.prepareSawCancellation, "the download task outlived the transaction that started it")
+}

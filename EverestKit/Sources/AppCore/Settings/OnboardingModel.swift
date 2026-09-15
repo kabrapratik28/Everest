@@ -17,6 +17,13 @@ public final class OnboardingModel: ObservableObject {
     /// Read live rather than stored, because the user grants the permission in
     /// another process while this window is open.
     private let isAccessibilityTrusted: @Sendable () -> Bool
+    /// Whether a model download is in flight right now.
+    ///
+    /// Read live, like the permission. "Use and download" starts a transfer
+    /// and leaves this screen usable, so without a gate the user reaches the
+    /// practice step and the hotkey starts a *second* download of the same
+    /// gigabytes — `LoadOnce` deduplicates the load, not the download.
+    private let isPreparing: @MainActor @Sendable () -> Bool
     private let store: UserDefaults
 
     private enum Keys {
@@ -26,10 +33,12 @@ public final class OnboardingModel: ObservableObject {
 
     public init(
         store: UserDefaults = .standard,
-        isAccessibilityTrusted: @escaping @Sendable () -> Bool
+        isAccessibilityTrusted: @escaping @Sendable () -> Bool,
+        isPreparing: @escaping @MainActor @Sendable () -> Bool = { false }
     ) {
         self.store = store
         self.isAccessibilityTrusted = isAccessibilityTrusted
+        self.isPreparing = isPreparing
         // Resumed, not restarted. The window has a close button, so
         // abandoning setup partway is one click and entirely expected;
         // restarting at the permission step each time would put the model
@@ -69,6 +78,10 @@ public final class OnboardingModel: ObservableObject {
         // asked. The only way out of that is quitting an app they have not
         // finished setting up.
         if step == .accessibility, !isAccessibilityTrusted() { return }
+        // Gated on a transfer being *in flight*, not on a model being ready:
+        // ready would strand anyone whose download failed, or who meant to
+        // skip and choose later. In-flight is the condition that races.
+        if step == .model, isPreparing() { return }
         guard let next = Step(rawValue: step.rawValue + 1) else { return }
         step = next
         store.set(next.rawValue, forKey: Keys.step)

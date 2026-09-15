@@ -15,6 +15,9 @@ struct SettingsView: View {
     /// A closure rather than a value because the recorder on this very screen
     /// can change the answer while it is open.
     let collisionCaution: @MainActor () -> String?
+    /// Which character the binding costs, or nil. Separate from the caution
+    /// because it is information, not a problem — see `ShortcutNotice`.
+    let shortcutCostNote: @MainActor () -> String?
 
     var body: some View {
         TabView {
@@ -22,7 +25,8 @@ struct SettingsView: View {
                 settings: settings,
                 presence: presence,
                 isAccessibilityTrusted: isAccessibilityTrusted,
-                collisionCaution: collisionCaution
+                collisionCaution: collisionCaution,
+                shortcutCostNote: shortcutCostNote
             )
             .tabItem { Label("General", systemImage: "gearshape") }
             ModelTab(models: models)
@@ -43,9 +47,11 @@ private struct GeneralTab: View {
     @ObservedObject var presence: AppPresence
     let isAccessibilityTrusted: () -> Bool
     let collisionCaution: @MainActor () -> String?
+    let shortcutCostNote: @MainActor () -> String?
 
     @State private var isTrusted = false
     @State private var caution: String?
+    @State private var costNote: String?
     @State private var launchesAtLogin = SMAppService.mainApp.status == .enabled
     @State private var loginItemError: String?
 
@@ -67,6 +73,15 @@ private struct GeneralTab: View {
                 // the recorder that changes the answer is on this screen.
                 if let caution {
                     Text(caution).font(.callout).foregroundStyle(.secondary)
+                }
+                // Plain secondary text, deliberately not styled as the
+                // caution above: every printable binding costs a character,
+                // the default included, and that cost is why `⌥R` was chosen
+                // over `⌘I`. Dressed as a warning it would report the reason
+                // for the choice as a fault — and one that fires on the
+                // default teaches people to skip the two that matter.
+                if let costNote {
+                    Text(costNote).font(.callout).foregroundStyle(.secondary)
                 }
             }
 
@@ -139,6 +154,7 @@ private struct GeneralTab: View {
     private func refresh() {
         isTrusted = isAccessibilityTrusted()
         caution = collisionCaution()
+        costNote = shortcutCostNote()
     }
 
     /// `SMAppService` throws rather than returning a result, and the toggle
@@ -245,7 +261,9 @@ private struct ModelRow: View {
             // Still listed, and `installSummary` says why it is off. Hiding
             // the row sends someone who read about the model hunting for it,
             // and greying one out with no reason is its own dead end.
-            .disabled(!row.fitsInMemory)
+            // `isEligible`, not `fitsInMemory`: an engine that is available
+            // nowhere is no more choosable than one that does not fit.
+            .disabled(!row.isEligible)
             .accessibilityLabel("\(row.spec.displayName). \(row.spec.blurb). \(row.installSummary)")
             .accessibilityAddTraits(row.isSelected ? [.isSelected] : [])
             .accessibilityHint("Rewrites with this model")

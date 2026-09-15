@@ -43,9 +43,19 @@ struct PanelStateTests {
     /// `heldForManualCopy` is the path where the rewrite could not be written
     /// back and is not on the pasteboard either, so the panel is holding the
     /// user's only copy of it. A timer that closes that panel deletes their
-    /// work. `success` by contrast has already replaced the text and should get
-    /// out of the way on its own.
-    @Test("heldForManualCopy never auto-dismisses, success does")
+    /// work.
+    ///
+    /// `success` is the opposite, and goes further than "dismisses": it waits
+    /// **no time at all**. The text is already in the user's document, so the
+    /// document is the confirmation and the panel is describing something
+    /// they can see, on top of the thing they want to look at. It held the
+    /// screen for 1200 ms, which was a leftover from when in-place
+    /// replacement could not be relied on.
+    ///
+    /// Every other dismissing state does wait, and must: each is carrying a
+    /// reason, a refusal or a clipboard hand-off that has to be readable.
+    /// Zeroing one of those by accident is the failure this half guards.
+    @Test("heldForManualCopy never auto-dismisses; success dismisses at once and nothing else does")
     func autoDismissIsPerState() {
         let expectedToDismiss: Set<PanelStateKind> = [
             .success, .readOnly, .targetChanged, .refused, .error,
@@ -54,10 +64,16 @@ struct PanelStateTests {
         for state in Self.samples {
             let dismisses = state.autoDismissAfter != nil
             #expect(dismisses == expectedToDismiss.contains(state.kind), "\(state.kind)")
+
+            guard let delay = state.autoDismissAfter else { continue }
+            if state.kind == .success {
+                #expect(delay == .zero, "\(state.kind)")
+            } else {
+                #expect(delay > .zero, "\(state.kind)")
+            }
         }
 
         #expect(PanelState.heldForManualCopy(text: "rewritten", reason: "gone").autoDismissAfter == nil)
-        #expect(PanelState.success.autoDismissAfter != nil)
     }
 
     /// A Copy control only makes sense where the panel is holding a finished

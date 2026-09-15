@@ -108,3 +108,38 @@ func theLaunchAlertStaysItalicOnly() {
     // Positive control: the alert still fires for the case it is titled for.
     #expect(notice.warning(for: .init(key: "i", command: true)) != nil)
 }
+
+/// Every printable binding costs the user a character, and the recorder is
+/// where they should learn which one.
+///
+/// A Carbon global hotkey consumes the event, so while Everest runs `⌥R` no
+/// longer types `®` anywhere. That is true of any printable combination —
+/// `⌥J` costs `∆`, `⌥W` costs `∑` — so the useful thing is not to document
+/// `®` but to name whatever *this* binding costs.
+///
+/// **Information, not a caution.** `⌥R` is the recommended default and this
+/// cost is precisely why it was chosen over `⌘I`; styling it like the Italic
+/// warning would read as "you have done something wrong", and a warning that
+/// fires on the default is one people learn to skip. So it is a separate
+/// call from `caution` rather than another case inside it.
+@Test("a printable binding says which character it costs")
+func aPrintableBindingNamesItsCost() {
+    let note = ShortcutNotice.characterCost(for: "®")
+
+    #expect(note?.contains("®") == true)
+    // Not phrased as a problem: no "warning", no "instead", nothing to fix.
+    #expect(note?.localizedCaseInsensitiveContains("warning") == false)
+}
+
+/// Nothing to say when the chord produces nothing.
+///
+/// A function key, an arrow, a dead key — none of them cost a character the
+/// user could otherwise type. `nil` means the recorder shows no extra line at
+/// all, which is the common case and must stay silent: a note under every
+/// binding is noise, and noise is what teaches people to stop reading the
+/// one that matters.
+@Test("a binding that produces no character says nothing")
+func aNonPrintingBindingSaysNothing() {
+    #expect(ShortcutNotice.characterCost(for: nil) == nil)
+    #expect(ShortcutNotice.characterCost(for: "") == nil)
+}

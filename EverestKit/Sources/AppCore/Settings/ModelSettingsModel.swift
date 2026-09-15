@@ -43,11 +43,17 @@ public final class ModelSettingsModel: ObservableObject {
         /// still thrash. Deliberately a fixed margin rather than a ratio —
         /// what the rest of the system needs does not scale with the model.
         public var fitsInMemory: Bool {
-            UInt64(max(spec.approxBytes, 0)) + Self.memoryHeadroom <= physicalMemory
+            EngineEligibility.fits(spec, physicalMemory: physicalMemory)
         }
 
-        /// 4 GB left for everything that is not the weights.
-        static let memoryHeadroom: UInt64 = 4 * 1024 * 1024 * 1024
+        /// Whether this engine can be chosen at all: it must fit *and* be
+        /// available. Only `fitsInMemory` used to disable the row, so an
+        /// Apple Intelligence row reporting `.unavailable` stayed selectable.
+        public var isEligible: Bool {
+            guard fitsInMemory else { return false }
+            if case .unavailable = availability { return false }
+            return true
+        }
 
         /// Whether weights still have to be fetched before this can rewrite.
         ///
@@ -75,7 +81,7 @@ public final class ModelSettingsModel: ObservableObject {
             // thing the row could say.
             guard fitsInMemory else {
                 let needed = Measurement(
-                    value: Double(spec.approxBytes) + Double(Self.memoryHeadroom),
+                    value: Double(spec.approxBytes) + Double(EngineEligibility.memoryHeadroom),
                     unit: UnitInformationStorage.bytes
                 )
                 return "Needs about \(needed.formatted(.byteCount(style: .memory))) of memory — this Mac has less."
@@ -127,13 +133,23 @@ public final class ModelSettingsModel: ObservableObject {
         }
     }
 
+    /// Whether any model is downloading right now. Onboarding gates
+    /// Continue on this so the practice hotkey cannot start a second
+    /// transfer of the same weights.
+    public var isPreparing: Bool { !downloadProgress.isEmpty }
+
     /// Chooses the engine every rewrite will use.
     ///
     /// The row is the control, so this is what the row calls. There was a
     /// separate "Use" button beside a drawn circle, which meant the picture of
     /// a radio button and the thing that actually moved the setting were two
     /// different controls — and only one of them was clickable.
+    /// Refused here, not only on the row. `disabled` is a hint to whoever is
+    /// clicking; anything reaching this another way — onboarding, a keyboard
+    /// path, a later view — would otherwise persist a choice the machine
+    /// cannot honour, and `engineID` outlives every screen that offered it.
     public func select(_ id: EngineID) {
+        guard rows.first(where: { $0.id == id })?.isEligible == true else { return }
         settings.engineID = id
         rows = rows.map {
             Row(

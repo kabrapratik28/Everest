@@ -130,3 +130,44 @@ func theModelStoreIsPrivateToThisApp() {
     #expect(path.contains("Application Support"))
     #expect(!path.contains(".cache/huggingface"))
 }
+
+/// Only one MLX engine stays resident. Switching model releases the last.
+///
+/// The registry kept an entry per `EngineID` with no cap, and its only
+/// eviction was pull-based on the weights leaving the disk — which is
+/// *deletion*, not *switching*. So picking 30B after 4B retained both
+/// containers, and switching back retained 17.2 GB alongside.
+///
+/// **That is what defeats the memory gate.** `EngineEligibility` asks whether
+/// a model fits *in isolation*, so a 24 GB Mac is allowed to choose 17.2 GB —
+/// correct only if 2.3 GB is not still resident beside it. The gate and the
+/// registry each look right alone and are wrong together, which is why this
+/// is the registry's test and not the gate's.
+///
+/// Apple's engine is exempt: it holds no weights of ours, so evicting it
+/// frees nothing and rebuilding it costs nothing.
+@Test("switching model releases the previous engine, so two sets of weights are never resident")
+func switchingModelEvictsThePreviousEngine() throws {
+    let built = Mutex([EngineID]())
+    let registry = EngineRegistry(
+        build: { id in
+            built.withLock { $0.append(id) }
+            return StubEngine(id: id)
+        },
+        hasWeights: { _ in true }
+    )
+
+    _ = registry.engine(for: .qwen4B)
+    // Positive control: asking twice for the same id must *not* rebuild, or
+    // this test would pass against a registry that caches nothing at all —
+    // which is the regression the registry exists to prevent.
+    _ = registry.engine(for: .qwen4B)
+    #expect(built.withLock { $0 } == [.qwen4B], "the registry stopped caching")
+
+    _ = registry.engine(for: .qwen30B)
+    // Coming back must rebuild, which is the observable form of "the 4B
+    // container was released when 30B took its place".
+    _ = registry.engine(for: .qwen4B)
+
+    #expect(built.withLock { $0 } == [.qwen4B, .qwen30B, .qwen4B])
+}

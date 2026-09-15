@@ -24,9 +24,10 @@ engine told to stop **and** its late output discarded — or a buffered
 - **Every exit is terminal, including the empty stream.** The check above has
   already proved the transaction current, so a silent return on no
   `.finished` stranded the panel on "Rewriting" with nothing else coming.
-- **`prepare` checks the generation and cancels its task**, or a percentage
-  arriving after Escape re-presents a panel whose key monitors are already
-  released — unclosable — while the abandoned 2.3 GB fetch runs on.
+- **`prepare`'s task is held on the actor and cancelled by `supersede()`.**
+  Its generation check runs only when a percentage arrives, so a load that
+  emits none — or a request stalled before its first byte — never reached
+  one, and Escape took the panel away while the fetch ran on.
 - **Auto-dismiss reads `PanelState.autoDismissAfter`**, so a later state
   brings its own schedule; `nil` is `heldForManualCopy`, the only copy.
 - **Progress drains one `AsyncStream`**: tasks made in order do not run in
@@ -36,25 +37,19 @@ engine told to stop **and** its late output discarded — or a buffered
   so either cancels the other: a second engine doubles resident memory for
   2.3 GB and a queue holds work one keystroke retries. The silence was the bug.
 
-## `EngineFactory` returns the same engine every time
+## `EngineFactory` retains the active engine, and only it
 
 **A factory handing back one instance looks wrong; it is the fix.** A fresh
 `MLXTokenProducer`'s `LoadedModel` starts empty, so one engine per transaction
 gave that cache a one-rewrite lifetime: never a hit, 2.3 GB re-read per press.
 `.ready` short-circuits the download, never the load. **Eviction asks the
 disk**, or a delete frees gigabytes and no memory while `availability()` says
-`needsDownload` and the retained producer still generates. An entry is exempt
-until its weights are *seen*, or a press mid-download drops the engine that
-download spent minutes warming. **`supersede()` nils `active` at the *next*
-transaction's start** — held through idle, dropped as wanted, 1x not 2x peak.
+`needsDownload` and the retained producer still generates — exempt until the
+weights are *seen*, or a press mid-download drops the engine that download was
+warming. **Switching evicts too:** a map per id held 4B *and* 30B, defeating
+`EngineEligibility`, which asks whether a model fits *in isolation* — a 24 GB
+Mac may pick 17.2 GB, true only if 2.3 GB is not also loaded. Two guards right
+alone and wrong together. Apple's engine is exempt, holding none of our
+weights. **`supersede()` nils `active` at the *next* transaction's start** —
+held through idle, dropped as wanted, 1x not 2x peak.
 
-## Seams, and their one production type each
-
-| Protocol | Production type | Tested with |
-|---|---|---|
-| `Sleeping` | `TaskSleeper` | `RecordingSleeper` |
-| `capture` / `apply` | assigned in `AppDelegate` | closures |
-| `engineFor` | `EngineFactory.live(for:)` | `StubEngine` |
-
-`SystemProbing`'s conformer is **`TextBridge.SystemProbe`**: import it, never
-add a second — two public types with one name do not compile.

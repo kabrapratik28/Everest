@@ -7,7 +7,7 @@ import RewriteCore
 public final class FloatingPanelController {
     public var onCancel: (@MainActor () -> Void)?
     public var onPickStyle: (@MainActor (Preset) -> Void)?
-    public var onCopy: (@MainActor (String) -> Void)?
+    public var onCopy: (@MainActor (String) -> Bool)?
 
     private let surface: PanelSurface
     private let keyMonitor: KeyMonitoring
@@ -141,9 +141,18 @@ public final class FloatingPanelController {
 
     /// Hands the rewrite the panel is holding to the coordinator to put on the
     /// pasteboard. Silent when the current state has nothing finished to give.
+    ///
+    /// **The panel goes only once the clipboard demonstrably has the text.**
+    /// `onCopy` reports a read-back, not an attempt. Closing on the attempt is
+    /// how the rewrite gets lost: a write that silently did nothing, or one
+    /// that landed and was overwritten a moment later, leaves the user with
+    /// neither the clipboard nor the panel — and in `heldForManualCopy` the
+    /// panel was the only copy. A dismissal that never happens is recoverable;
+    /// the user presses ⌘C again. One that happens too early is not.
     public func copy() {
         guard let text = state?.copyableText else { return }
-        onCopy?(text)
+        guard onCopy?(text) == true else { return }
+        dismiss()
     }
 
     /// The single exit path. No early return above `disarmKeyMonitor()`, so
@@ -234,12 +243,11 @@ public final class FloatingPanelController {
     private func intercept(_ keystroke: Keystroke) -> Bool {
         guard let current = state else { return false }
         guard let action = PanelKeyMap.action(for: keystroke, in: current) else {
-            // Standing down here belongs to the picker alone. A panel holding
-            // a rewrite is not a question — it is the user's only copy, and
-            // `autoDismissAfter` is `nil` for that reason, so letting a stray
-            // keystroke anywhere cancel it would throw the rewrite away.
-            guard case .stylePicker = current else { return false }
-
+            // Standing down belongs to the picker alone, and `endPicker`
+            // enforces that itself: a panel holding a rewrite is not a
+            // question, it is the user's only copy, and letting a stray
+            // keystroke cancel it would throw the rewrite away.
+            //
             // Nothing the picker could answer, so the user has moved on —
             // most likely to another application, since the picker has no
             // timer and will otherwise sit there. Passed on rather than
@@ -272,9 +280,14 @@ public final class FloatingPanelController {
     /// The picker has produced its one outcome.
     ///
     /// Idempotent, so a run of keys arriving in the same gap is one
-    /// cancellation at the coordinator rather than one per keystroke.
+    /// cancellation at the coordinator rather than one per keystroke. And it
+    /// really does mean *the picker*: this used to be safe only because
+    /// `run` happened to fail for picker actions alone, which is an argument
+    /// one change away from cancelling `heldForManualCopy` and throwing the
+    /// user's only copy away. The state check belongs here, where it cannot
+    /// be forgotten by a new call site.
     private func endPicker() {
-        guard !pickerIsSpent else { return }
+        guard case .stylePicker = state, !pickerIsSpent else { return }
         pickerIsSpent = true
         cancel()
     }

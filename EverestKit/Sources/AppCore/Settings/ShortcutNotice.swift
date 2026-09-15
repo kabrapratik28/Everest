@@ -90,6 +90,32 @@ public struct ShortcutNotice {
         return nil
     }
 
+    /// What this binding costs the user, or `nil` when it costs nothing.
+    ///
+    /// A Carbon global hotkey consumes the event, so while Everest runs the
+    /// chord no longer types its character anywhere. `⌥R` costs `®`, `⌥J`
+    /// costs `∆` — every printable binding costs something, ours included,
+    /// and the honest thing is to name whichever one this is rather than
+    /// document a single default that will change again.
+    ///
+    /// **Deliberately not part of `caution`.** This is information, not a
+    /// problem: `⌥R` is the recommended default *because* `®` is a cheaper
+    /// loss than Italic, so styling it as a warning would report the reason
+    /// for the choice as a fault. A caution that fires on the default is
+    /// also one people learn to skip, and then the Italic and dead-key ones
+    /// go unread with it.
+    ///
+    /// `nil` for a chord that prints nothing — a function key, an arrow, a
+    /// dead key. Those cost no character, and a note under every binding is
+    /// the noise that makes the useful ones invisible. The character is
+    /// measured by the app target with `UCKeyTranslate`, the same call that
+    /// answers deadness, because which glyph a chord produces is a property
+    /// of the active layout.
+    public static func characterCost(for character: String?) -> String? {
+        guard let character, !character.isEmpty else { return nil }
+        return "While Everest is running, this shortcut will no longer type \(character)."
+    }
+
     private static let italic =
         "Everest uses ⌘I everywhere, which is Italic in most apps. Change it in Settings ▸ General if you would rather keep Italic."
 

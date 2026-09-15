@@ -152,3 +152,36 @@ func theExclusionCaveatNamesTheRealProtection() {
     // It has to name the case the list cannot cover, or it is not a caveat.
     #expect(caveat.localizedCaseInsensitiveContains("browser"))
 }
+
+/// Onboarding will not move off the model step while a download is running.
+///
+/// "Use and download" starts preparation and Continue stayed live, so the
+/// user could reach the practice step and press the hotkey while the first
+/// transfer was still going. `LoadOnce` deduplicates the *load*, not the
+/// *download*, so two `prepare` calls that both see no ready marker start
+/// two transfers of the same gigabytes.
+///
+/// Gated on *preparing*, deliberately, not on *ready*. Ready would strand
+/// anyone whose download failed, or who meant to skip and pick a model
+/// later; in-flight is the narrow condition that actually races.
+@Test("onboarding will not leave the model step while a download is in flight")
+@MainActor
+func onboardingWaitsForAnInFlightDownload() {
+    let downloading = Mutex(true)
+    let onboarding = OnboardingModel(
+        store: makeOnboardingStore(),
+        isAccessibilityTrusted: { true },
+        isPreparing: { downloading.withLock { $0 } }
+    )
+
+    onboarding.advance()
+    onboarding.advance()
+    #expect(onboarding.step == .model)
+
+    onboarding.advance()
+    #expect(onboarding.step == .model, "left the model step mid-download")
+
+    downloading.withLock { $0 = false }
+    onboarding.advance()
+    #expect(onboarding.step == .tryIt)
+}

@@ -251,6 +251,7 @@ final class StubEngine: RewriteEngine {
         var prepares = 0
         var streamed = 0
         var requests: [RewriteRequest] = []
+        var prepareSawCancellation = false
     }
 
     /// Signalled once the stream has yielded its first event, so a test can
@@ -293,6 +294,7 @@ final class StubEngine: RewriteEngine {
     var prepares: Int { state.withLock(\.prepares) }
     var streamed: Int { state.withLock(\.streamed) }
     var requests: [RewriteRequest] { state.withLock(\.requests) }
+    var prepareSawCancellation: Bool { state.withLock(\.prepareSawCancellation) }
 
     /// Returns once the stream is running and has emitted its first event.
     func waitUntilStreaming() async {
@@ -316,6 +318,11 @@ final class StubEngine: RewriteEngine {
         if let first = progressSteps.first { progress(first) }
         preparingSignal.continuation.yield(())
         for await _ in prepareGate.stream {}
+        // Records *why* the wait ended. `cancel()` finishes the gate, so the
+        // loop exits either way — but only a cancelled task reports it here,
+        // which is how a test tells "the engine was asked to stop" apart
+        // from "the task behind the download was actually cancelled".
+        state.withLock { $0.prepareSawCancellation = Task.isCancelled }
         for step in progressSteps.dropFirst() { progress(step) }
         if let prepareFailure { throw prepareFailure }
     }

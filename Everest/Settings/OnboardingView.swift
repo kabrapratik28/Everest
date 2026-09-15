@@ -161,7 +161,7 @@ struct OnboardingView: View {
                                 // `installSummary` above carries the reason
                                 // when this Mac has too little memory.
                                 Button("Use this") { models.select(row.spec.id) }
-                                    .disabled(!row.fitsInMemory)
+                                    .disabled(!row.isEligible)
                             }
                         }
                     }

@@ -3,13 +3,23 @@ import Foundation
 import RewriteCore
 import Synchronization
 
-/// Keeps one engine per `EngineID` alive across rewrites.
+/// Keeps the active engine alive across rewrites, and **only** the active one.
 ///
 /// An engine is not a cheap thing to rebuild, because its `MLXTokenProducer`
 /// carries the loaded weights. A new one starts with an empty `LoadedModel`,
 /// and `MLXEngine.prepare` then re-reads 2.3 GB from disk however recently
 /// that same model was loaded — the `.ready` marker short-circuits the
 /// download, never the load.
+///
+/// **At most one MLX engine is retained.** Keeping an entry per id looked
+/// harmless and was not: choosing 30B after 4B held both containers, so 2.3 GB
+/// stayed resident beside 17.2 GB. That defeats `EngineEligibility`, which
+/// asks whether a model fits *in isolation* — a 24 GB Mac may choose 17.2 GB,
+/// and that is only true if nothing else is still loaded. The gate and the
+/// registry each read correctly alone and were wrong together.
+///
+/// Apple's engine is exempt: it holds no weights of ours, so evicting it
+/// frees nothing and rebuilding it costs nothing.
 ///
 /// `build` runs inside the lock so that two hotkey presses half a second apart
 /// cannot both miss and both start a load, which is the same reason
@@ -29,6 +39,12 @@ final class EngineRegistry: Sendable {
     private let entries = Mutex<[EngineID: Entry]>([:])
     private let build: @Sendable (EngineID) -> any RewriteEngine
     private let hasWeights: @Sendable (EngineID) -> Bool
+
+    /// Whether this engine holds weights worth evicting for. Apple's has
+    /// none, so it never displaces anything and is never displaced.
+    private static func holdsWeights(_ id: EngineID) -> Bool {
+        ModelCatalog.all.first { $0.id == id }.map { !$0.repoID.isEmpty } ?? false
+    }
 
     init(
         build: @escaping @Sendable (EngineID) -> any RewriteEngine,
@@ -54,6 +70,15 @@ final class EngineRegistry: Sendable {
                     if onDisk { entries[id] = Entry(engine: entry.engine, sawWeights: true) }
                     return entry.engine
                 }
+            }
+
+            // Anything else with weights goes now. Deferring to "after the
+            // previous generation is cancelled" would mean both resident at
+            // once, which is the peak this exists to avoid — and by the time
+            // a new engine is asked for, the old transaction has already been
+            // superseded.
+            if Self.holdsWeights(id) {
+                entries = entries.filter { $0.key == id || !Self.holdsWeights($0.key) }
             }
 
             let engine = build(id)

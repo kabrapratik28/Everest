@@ -232,7 +232,7 @@ struct FloatingPanelControllerTests {
     func copyFiresOnlyWhenARewriteIsHeld() {
         let controller = makeController()
         let copied = Box<String>()
-        controller.onCopy = { copied.value = $0 }
+        controller.onCopy = { copied.value = $0; return true }
 
         controller.show(.generating(text: "half a par"))
         controller.copy()
@@ -448,7 +448,7 @@ struct FloatingPanelControllerTests {
         let monitor = SpyKeyMonitor()
         let controller = makeController(keyMonitor: monitor)
         let copied = Box<String>()
-        controller.onCopy = { copied.value = $0 }
+        controller.onCopy = { copied.value = $0; return true }
 
         controller.show(.generating(text: "half a par"))
         #expect(monitor.send(PanelKeyMapTests.commandC) == false)
@@ -793,6 +793,7 @@ struct FloatingPanelControllerTests {
         controller.onCopy = { [weak controller] text in
             copied.value = text
             controller?.dismiss()
+            return true
         }
 
         controller.show(.heldForManualCopy(text: "the whole rewrite", reason: "the window moved"))
@@ -818,7 +819,7 @@ struct FloatingPanelControllerTests {
         let tap = SpyKeyMonitor()
         let controller = makeController(keyInterceptor: tap)
         let copied = Box<String>()
-        controller.onCopy = { copied.value = $0 }
+        controller.onCopy = { copied.value = $0; return true }
 
         controller.show(.heldForManualCopy(text: "the whole rewrite", reason: "the window moved"))
         #expect(tap.isInstalled)
@@ -842,7 +843,7 @@ struct FloatingPanelControllerTests {
         let cancels = Counter()
         let copied = Box<String>()
         controller.onCancel = { cancels.bump() }
-        controller.onCopy = { copied.value = $0 }
+        controller.onCopy = { copied.value = $0; return true }
 
         controller.show(.heldForManualCopy(text: "the whole rewrite", reason: "the window moved"))
 
@@ -881,7 +882,7 @@ struct FloatingPanelControllerTests {
         let copied = Box<String>()
         let cancels = Counter()
         controller.onPickStyle = { picked.value = $0 }
-        controller.onCopy = { copied.value = $0 }
+        controller.onCopy = { copied.value = $0; return true }
         controller.onCancel = { cancels.bump() }
 
         // The tap could not be created at all.
@@ -909,6 +910,44 @@ struct FloatingPanelControllerTests {
         controller.show(.stylePicker(presets: PanelKeyMapTests.fiveStyles))
         monitor.send(PanelKeyMapTests.digit(3))
         #expect(picked.value == PanelKeyMapTests.fiveStyles[2])
+    }
+
+    /// The panel is the only copy until something says the clipboard has it.
+    ///
+    /// Copy used to dismiss on the *attempt*: the shell wrote to the
+    /// pasteboard and called `dismiss()` on the next line, so a write that
+    /// silently did nothing, or landed and was immediately overwritten, took
+    /// the panel away and the rewrite with it. `heldForManualCopy` exists to
+    /// be the last copy, so that is the one state where closing on an
+    /// unverified write loses the user's text outright.
+    ///
+    /// Read-back rather than the `Bool` from `writeObjects`, which `fix-docs`
+    /// could not make return false in five attempts and whose one documented
+    /// failure throws instead. Evidence the text is *there* catches all three
+    /// cases, including the throw — a dismissal that never happens is safe.
+    @Test("copy does not take the panel away until the clipboard is verified")
+    func copyDismissesOnlyOnAVerifiedWrite() {
+        let surface = SpySurface()
+        let controller = makeController(surface: surface)
+        let copied = Box<String>()
+        let clipboardHasIt = Box<Bool>()
+        clipboardHasIt.value = false
+        controller.onCopy = { text in
+            copied.value = text
+            return clipboardHasIt.value ?? false
+        }
+
+        controller.show(.heldForManualCopy(text: "the whole rewrite", reason: "the window moved"))
+
+        controller.copy()
+        // Positive control: it really did try, so the panel still being up is
+        // a verdict about the write and not a copy that never ran.
+        #expect(copied.value == "the whole rewrite")
+        #expect(surface.hides == 0)
+
+        clipboardHasIt.value = true
+        controller.copy()
+        #expect(surface.hides == 1)
     }
 
     /// Announcing is once per kind *per presentation*. What was last said

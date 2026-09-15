@@ -41,7 +41,8 @@ struct EverestApp: App {
                 models: delegate.modelSettings,
                 presence: delegate.presence,
                 isAccessibilityTrusted: { SystemProbe().isAccessibilityTrusted() },
-                collisionCaution: { AppDelegate.collisionCaution() }
+                collisionCaution: { AppDelegate.collisionCaution() },
+                shortcutCostNote: { AppDelegate.shortcutCostNote() }
             )
         }
     }

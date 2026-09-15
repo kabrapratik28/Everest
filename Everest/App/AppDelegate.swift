@@ -45,7 +45,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// One instance, so the launch check and the window agree about which
     /// step the user is on and reopening resumes rather than restarts.
     private lazy var onboardingModel = OnboardingModel(
-        isAccessibilityTrusted: { [probe] in probe.isAccessibilityTrusted() }
+        isAccessibilityTrusted: { [probe] in probe.isAccessibilityTrusted() },
+        // Continue stays shut while a transfer is running, or the practice
+        // step's hotkey starts a second download of the same weights.
+        isPreparing: { [weak self] in self?.modelSettings.isPreparing ?? false }
     )
 
     private lazy var accessibility = AXSelectionAdapter()
@@ -102,9 +105,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // preference has to be re-applied here or it silently resets.
         presence.start()
 
+        // `engineID` comes straight out of `UserDefaults` and goes straight
+        // to the coordinator, so it has met no gate: the disabled row is a
+        // view and does not exist yet. A 30B choice restored onto a machine
+        // that cannot hold it would load 17.2 GB on every hotkey press.
+        settings.engineID = EngineEligibility.resolved(
+            settings.engineID,
+            physicalMemory: ProcessInfo.processInfo.physicalMemory
+        )
+
         panel.onCancel = { [coordinator] in Task { await coordinator.cancel() } }
         panel.onPickStyle = { [coordinator] preset in Task { await coordinator.pickStyle(preset) } }
-        panel.onCopy = { [weak self] text in self?.copyToPasteboard(text) }
+        panel.onCopy = { [weak self] text in self?.copyToPasteboard(text) ?? false }
 
         statusItem = StatusItemController(
             quickImprove: { [coordinator] in Task { await coordinator.quickImprove() } },
@@ -129,13 +141,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     /// The panel's copy button, which for `heldForManualCopy` is the user's
-    /// only way to keep the rewrite. Dismissing afterwards is deliberate: that
-    /// state never closes itself, and once the text is safely on the clipboard
-    /// the panel has nothing left to protect.
-    private func copyToPasteboard(_ text: String) {
+    /// only way to keep the rewrite.
+    ///
+    /// **Reports a read-back, and does not dismiss.** `Overlay.copy()` owns
+    /// the dismissal now and does it only on `true`, so the panel closes on
+    /// evidence the text is on the clipboard rather than on having tried —
+    /// and the state this serves is the one holding the user's only copy.
+    /// Dismissing here as well would put it back on the attempt.
+    ///
+    /// `setString` rather than `writeObjects`, which throws and would leave
+    /// an error to swallow. The read-back narrows the overwrite window
+    /// without closing it: another app writing *different* text between the
+    /// two calls makes this return false, which keeps the panel up — the
+    /// safe direction. `changeCount` would also catch a rewrite to the same
+    /// value, which costs the user nothing, so it is not worth the state.
+    private func copyToPasteboard(_ text: String) -> Bool {
         pasteboard.clearContents()
         pasteboard.setString(text, forType: .string)
-        panel.dismiss()
+        return pasteboard.string(forType: .string) == text
     }
 
     private func warnAboutItalicOnce() {
@@ -165,7 +188,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// has to be true every time the recorder is looked at.
     static func collisionCaution() -> String? {
         guard var shortcut = HotkeyManager.quickImproveShortcut else { return nil }
-        if let live = KeyboardShortcuts.getShortcut(for: .quickImprove), isDeadKey(live) {
+        if let live = KeyboardShortcuts.getShortcut(for: .quickImprove), translate(live).isDeadKey {
             shortcut = ShortcutNotice.Shortcut(
                 key: shortcut.key,
                 command: shortcut.command,
@@ -178,46 +201,82 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return ShortcutNotice.caution(for: shortcut)
     }
 
-    /// Whether this chord starts an accent on the **active keyboard layout**.
+    /// Which character the Quick Improve binding costs, or nil.
     ///
-    /// Measured, never inferred from the letter. `⌥I ⌥E ⌥U ⌥N` are dead keys
-    /// on a US layout and ordinary keys on others, so a hardcoded set would
-    /// warn the wrong people and miss the right ones — the same reason
-    /// shortcut *rendering* lives in this target rather than in `AppCore`.
+    /// Separate from `collisionCaution` because it is information rather
+    /// than a problem: `⌥R` is the default *because* `®` is a cheaper loss
+    /// than Italic, and styling that as a warning would report the reason
+    /// for the choice as a fault.
+    static func shortcutCostNote() -> String? {
+        guard let live = KeyboardShortcuts.getShortcut(for: .quickImprove) else { return nil }
+        return ShortcutNotice.characterCost(for: translate(live).character)
+    }
+
+    /// What the **active keyboard layout** makes of a chord: the character
+    /// it uniquely types, and whether it starts an accent instead.
+    ///
+    /// One call answers both, because they are one question — and a second
+    /// mechanism answering half of it would hide the absence of a test for
+    /// the first (root §1).
+    ///
+    /// Measured, never inferred from the letter. `⌥I` is dead on US and
+    /// ordinary elsewhere, and `⌥R` types `®` only on layouts where Option
+    /// composes — the same reason shortcut *rendering* lives in this target.
     ///
     /// `UCKeyTranslate` reports a dead key by producing no characters and
-    /// leaving a non-zero `deadKeyState`. It is called with a zeroed state so
-    /// the answer is about this chord alone and not about whatever the user
-    /// pressed before it.
-    private static func isDeadKey(_ shortcut: KeyboardShortcuts.Shortcut) -> Bool {
+    /// leaving a non-zero `deadKeyState`, called with a zeroed state so the
+    /// answer is about this chord alone and not about what preceded it.
+    ///
+    /// **`character` is nil unless the chord produces something the key
+    /// alone does not.** Measured: `⌘R` translates to `"r"` and `⌘I` to
+    /// `"i"`, because Command does not compose characters — reporting those
+    /// as a cost would tell the user they can no longer type `r`, which is
+    /// false and alarming. Control characters are excluded for the same
+    /// reason: `⌃I` is a tab nobody types that way.
+    private static func translate(
+        _ shortcut: KeyboardShortcuts.Shortcut
+    ) -> (character: String?, isDeadKey: Bool) {
         guard
             let source = TISCopyCurrentKeyboardLayoutInputSource()?.takeRetainedValue(),
             let raw = TISGetInputSourceProperty(source, kTISPropertyUnicodeKeyLayoutData)
-        else { return false }
+        else { return (nil, false) }
 
         let data = Unmanaged<CFData>.fromOpaque(raw).takeUnretainedValue() as Data
-        // Carbon modifier bits sit in the high byte; `UCKeyTranslate` wants
-        // them in the low 8 as its own `modifierKeyState`.
-        let modifiers = UInt32(shortcut.carbonModifiers >> 8) & 0xFF
-        var deadKeyState: UInt32 = 0
-        var length = 0
-        var characters = [UniChar](repeating: 0, count: 4)
 
-        let status = data.withUnsafeBytes { buffer in
-            UCKeyTranslate(
-                buffer.bindMemory(to: UCKeyboardLayout.self).baseAddress!,
-                UInt16(shortcut.carbonKeyCode),
-                UInt16(kUCKeyActionDown),
-                modifiers,
-                UInt32(LMGetKbdType()),
-                0,  // dead keys reported, not suppressed — they are the question
-                &deadKeyState,
-                characters.count,
-                &length,
-                &characters
-            )
+        func typed(_ carbonModifiers: Int) -> (text: String, isDead: Bool) {
+            // Carbon modifier bits sit in the high byte; `UCKeyTranslate`
+            // wants them in the low 8 as its own `modifierKeyState`.
+            var deadKeyState: UInt32 = 0
+            var length = 0
+            var characters = [UniChar](repeating: 0, count: 8)
+            let status = data.withUnsafeBytes { buffer in
+                UCKeyTranslate(
+                    buffer.bindMemory(to: UCKeyboardLayout.self).baseAddress!,
+                    UInt16(shortcut.carbonKeyCode),
+                    UInt16(kUCKeyActionDown),
+                    UInt32(carbonModifiers >> 8) & 0xFF,
+                    UInt32(LMGetKbdType()),
+                    0,  // dead keys reported, not suppressed — they are the question
+                    &deadKeyState,
+                    characters.count,
+                    &length,
+                    &characters
+                )
+            }
+            guard status == noErr else { return ("", false) }
+            return (String(utf16CodeUnits: characters, count: length), length == 0 && deadKeyState != 0)
         }
-        return status == noErr && length == 0 && deadKeyState != 0
+
+        let chord = typed(shortcut.carbonModifiers)
+        if chord.isDead { return (nil, true) }
+
+        let printable = !chord.text.isEmpty
+            && chord.text.unicodeScalars.allSatisfy { !CharacterSet.controlCharacters.contains($0) }
+        let unmodified = typed(0).text
+        let shifted = typed(shiftKey).text
+        let unique = chord.text != unmodified && chord.text != shifted
+
+        return (printable && unique ? chord.text : nil, false)
     }
 
     /// Activate, *then* open — the order is load-bearing.

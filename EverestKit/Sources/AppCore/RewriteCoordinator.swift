@@ -35,6 +35,14 @@ public actor RewriteCoordinator {
     /// press can stop it.
     private var active: (any RewriteEngine)?
 
+    /// The in-flight preparation, kept so `supersede()` can stop it.
+    ///
+    /// The generation check inside the progress loop only runs when a
+    /// percentage arrives, so a load that emits nothing — or a request that
+    /// stalls before its first byte — never reaches one. Escape then takes
+    /// the panel away and leaves the download running.
+    private var preparing: Task<Void, Error>?
+
     /// One transaction's identity, bound the moment it begins.
     ///
     /// The generation travels *with* the transaction instead of being read
@@ -157,6 +165,8 @@ public actor RewriteCoordinator {
     private func supersede() async {
         generation &+= 1
         pending = nil
+        preparing?.cancel()
+        preparing = nil
         await active?.cancel()
         active = nil
     }
@@ -253,6 +263,10 @@ public actor RewriteCoordinator {
             defer { progress.continuation.finish() }
             try await engine.prepare { progress.continuation.yield($0) }
         }
+        // Held on the actor so `supersede()` can cancel it without waiting
+        // for a percentage to arrive and notice.
+        self.preparing = preparing
+        defer { self.preparing = nil }
         for await fraction in progress.stream {
             guard mine == generation else {
                 preparing.cancel()
