@@ -5,10 +5,9 @@ sandboxed, `AXUIElementSetAttributeValue` does nothing and `AXIsProcessTrusted()
 is permanently false (root `AGENTS.md` §7). So distribution and updates are ours
 to run.
 
-## Blocking today
+## What Gatekeeper does today
 
-**The signing certificate on this machine is `Apple Development`. That cannot
-ship.** Measured:
+The signing certificate on this machine is `Apple Development`. Measured:
 
 ```
 $ spctl -a -vvv -t exec /Applications/Everest.app
@@ -16,20 +15,14 @@ $ spctl -a -vvv -t exec /Applications/Everest.app
 origin=Apple Development: kabrapratik28@gmail.com
 ```
 
-`rejected` is what every downloader would hit. Gatekeeper refuses a
-development-signed app on any Mac but the one that built it.
+`rejected` is what every downloader hits. It does **not** mean the app cannot
+be distributed — it means the user must approve it once by hand. Whether that
+is acceptable is the $0 question below, not a technical blocker.
 
-**What is needed: a `Developer ID Application` certificate**, which requires
-the Apple Developer Program at **$99/year**. It is the same membership either
-way — the App Store is not an option here, so the fee buys notarisation and
-nothing else. There is no free path that avoids the "Apple could not verify"
-dialog; `xattr -d com.apple.quarantine` works but asking strangers to run it is
-not a distribution strategy.
-
-**Second blocker:** `project.yml` hardcodes one certificate's SHA-1, so a clean
-clone does not build elsewhere. Pinning is deliberate — Accessibility permission
-is bound to the code signature, and an ad-hoc signature changes every build — but
-the value must move out of the committed file before anyone else can contribute.
+**A real blocker either way:** `project.yml` hardcodes one certificate's SHA-1,
+so a clean clone does not build elsewhere. Pinning is deliberate — Accessibility
+permission is bound to the code signature — but the value must move out of the
+committed file before anyone else can contribute.
 
 ## The $0 route, and the one thing it must not get wrong
 
