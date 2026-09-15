@@ -28,7 +28,7 @@ Select text in any app, press `⌥R`, and a rewrite streams in and replaces it.
 - **It is fast to reach.** One keystroke, in the app you are already typing in. No window to switch to, nothing to paste into and back out of.
 - **Your text does not leave the machine.** Not "encrypted in transit", not "we do not train on it". It never goes anywhere. Unplug the network and it still works.
 - **It replaces the selection.** You are not handed a suggestion to copy; the text in your document changes, and `⌘Z` puts it back.
-- **It works where you already write.** Chrome and Safari, Sublime Text and VS Code, Slack, Mail, Messages, Notes, Google Docs, and ordinary macOS text fields. Terminals and PDFs hand you the clipboard instead, and the panel says so rather than failing quietly.
+- **It works where you already write.** Slack, Linear, Google Docs, ChatGPT, Chrome and Safari, Sublime Text and VS Code, Mail, Messages, Notes, and ordinary macOS text fields. Verified by hand in Sublime Text, Linear, ChatGPT, Google Chat and Google Docs; the rest follow the same rules rather than a per-app list. Terminals and PDFs hand you the clipboard instead, and the panel says so rather than failing quietly.
 - **Six styles, and they are yours.** Proofread, Professional, Friendly, Concise, Expand, Simplify — every prompt is editable in Settings, and you can add your own.
 - **It refuses password fields.** Before reading, and again immediately before any copy.
 - **Free and MIT.** No trial, no subscription, no upsell inside the app.
