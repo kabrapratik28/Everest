@@ -227,6 +227,55 @@ struct ReplacementTests {
         }
     }
 
+    /// The fallback must not destroy what the restore just refused to touch.
+    ///
+    /// `restoreIfUnchanged` declining means one thing: the clipboard holds
+    /// something newer than ours, because the user copied while the rewrite
+    /// ran. Handing off then writes the rewrite straight over it — their
+    /// fresh copy gone, and gone to the very mechanism that exists to protect
+    /// it.
+    ///
+    /// **This path was opened by the fix for the leaked borrow.** Before it,
+    /// the declined restore left the borrow held, `handOff` could not acquire,
+    /// and the user's copy survived behind a false "another rewrite is using
+    /// the clipboard". That fix was right — a false error is not a reason to
+    /// keep a leak — but it converted a wrong message into data loss, and
+    /// this is the half that was missing.
+    @Test("a clipboard the user changed mid-rewrite is not overwritten by the fallback")
+    func aClipboardChangedMidRewriteIsNotOverwritten() throws {
+        withPrivatePasteboard { pasteboard in
+            let ax = liveTarget()
+            ax.settable = false  // route one declines, so route two runs
+            pasteboard.clearContents()
+            pasteboard.setString("the user's clipboard", forType: .string)
+
+            let keystroke = FakeKeystroke()
+            keystroke.onPaste = {
+                // The user presses ⌘C in another window while the rewrite is
+                // in flight. The selection is untouched, so the paste is
+                // never observed as consumed.
+                pasteboard.clearContents()
+                pasteboard.setString("what the user just copied", forType: .string)
+            }
+
+            let outcome = service(ax, keystroke: keystroke, pasteboard: pasteboard)
+                .apply(
+                    "the rewrite", to: snapshot(),
+                    autoReplace: false, keepOutOfHistory: false)
+
+            #expect(
+                pasteboard.string(forType: .string) == "what the user just copied",
+                "their copy is newer than ours and survives")
+            #expect(
+                outcome
+                    == .heldForManualCopy(
+                        cause: .clipboardChanged,
+                        reason:
+                            "the target did not accept the paste, and something else was copied while it ran, so the rewrite is only in this panel"
+                    ))
+        }
+    }
+
     /// The precondition for auto-replace, pinned rather than reasoned about.
     ///
     /// A rung-9 snapshot carries no range and no real element — `element` is

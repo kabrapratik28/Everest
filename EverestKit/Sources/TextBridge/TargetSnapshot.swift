@@ -102,6 +102,10 @@ public enum HoldCause: Equatable, Sendable {
     case clipboardTooLarge
     /// Another rewrite is mid-transaction and holds the borrow.
     case clipboardBusy
+    /// The user copied something while the rewrite ran. Writing the rewrite
+    /// over it would destroy the newer thing, so nothing is written and the
+    /// panel keeps the only copy.
+    case clipboardChanged
 }
 
 public enum CaptureLimits {

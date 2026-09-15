@@ -183,26 +183,49 @@ struct StrategyCacheTests {
         #expect(clipboard.attempts == 1, "the remembered route did not pre-empt the real one")
     }
 
-    /// Every clipboard borrow exposes the selection to any clipboard history
-    /// app, so a stale entry must cost *one* wasted copy, not one per hotkey
-    /// press forever. Falling through has to replace what we learned.
-    @Test("once an app starts answering, the remembered clipboard route is replaced")
-    func recoveredAppStopsBorrowingTheClipboard() throws {
+    /// The existing fall-through only rescues an app whose clipboard route
+    /// has *stopped* working. An app where both routes now work never gets
+    /// there: the cached `.clipboard` hit returns first, and accessibility is
+    /// never asked again for up to ten minutes.
+    ///
+    /// That is the Gmail-after-Docs failure through a different door — not
+    /// one app standing in for another, but one app recovering. A Chrome
+    /// window whose tree was dark at the first press is served copy-only in
+    /// its editable fields for the rest of the interval, and copy-only where
+    /// a replacement was possible is a downgrade the user cannot see.
+    ///
+    /// The entry is only ever recorded when focus did not resolve, so focus
+    /// resolving now is the same signal saying the entry is about a state
+    /// that has passed.
+    ///
+    /// This replaces a weaker test that set `clipboard.result = nil` before
+    /// the second capture, so it could not tell "the cache was skipped" from
+    /// "the cache was tried and came up empty" — and it priced a stale entry
+    /// at *one* wasted copy. It now costs none, which matters because every
+    /// borrow exposes the selection to any clipboard-history app.
+    @Test("an app whose accessibility tree has come back is probed, not served from the cache")
+    func recoveredTreeIsPreferredOverAWarmClipboardEntry() throws {
         let (ax, clipboard) = opaqueApp()
         let subject = coordinator(ax, clipboard: clipboard)
 
         _ = try subject.capture()
-        #expect(clipboard.attempts == 1)
+        #expect(clipboard.attempts == 1, "cold: learned the clipboard route")
 
+        // The tree comes up — a screen reader, a relaunch, or the manual
+        // accessibility write finally taking effect. The clipboard route
+        // still works too, which is exactly the case the fall-through misses.
         ax.focused = testElement()
         ax.selected = "now readable"
         ax.range = CFRange(location: 0, length: 12)
-        clipboard.result = nil
+
+        let snapshot = try subject.capture()
+
+        #expect(snapshot.text == "now readable")
+        #expect(snapshot.range != nil, "and it can be written back in place")
+        #expect(clipboard.attempts == 1, "no second borrow, and no ⌘C leak")
 
         _ = try subject.capture()
-        #expect(clipboard.attempts == 2, "one wasted copy proving the stale entry is stale")
-
-        _ = try subject.capture()
-        #expect(clipboard.attempts == 2, "and never again")
+        #expect(clipboard.attempts == 1, "and never again")
     }
+
 }

@@ -108,8 +108,17 @@ public final class SelectionCoordinator {
         // attempt and the accessibility rungs can then fail on their own, and
         // what the user still needs told is that their clipboard is in the way.
         var clipboardRefused = false
-        if cache.strategy(for: app.bundleID ?? "", appVersion: app.appVersion, now: now())
-            == .clipboard
+        // Only while the app is still dark. The entry is recorded *only* when
+        // focus did not resolve, so focus resolving now is that same signal
+        // saying the reading has passed its sell-by. Without this the entry
+        // is self-sustaining: a cached hit returns before accessibility is
+        // asked, so the route that would replace it never runs, and an app
+        // whose tree came back stays copy-only for the rest of the interval.
+        // The existing fall-through does not cover it — that only rescues an
+        // app whose clipboard route stopped working, not one where both work.
+        if focused == nil,
+            cache.strategy(for: app.bundleID ?? "", appVersion: app.appVersion, now: now())
+                == .clipboard
         {
             clipboardTried = true
             if let snapshot = readViaClipboard(app: app, refused: &clipboardRefused) {

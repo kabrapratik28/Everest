@@ -181,9 +181,28 @@ public final class ReplacementService {
         // visible the instant it happens and fixed by copying again, which is
         // not true of the write it replaces.
         hold(until: deadline)
-        transaction.restoreIfUnchanged()
+        let restored = transaction.restoreIfUnchanged()
 
         guard consumed else {
+            // A declined restore means one thing here — the snapshot was
+            // faithful, so the only way back is a change count that moved:
+            // the user copied something while the rewrite ran. Handing off
+            // would write the rewrite straight over it, destroying a fresh
+            // copy with the mechanism that exists to protect it.
+            //
+            // This path was opened by giving the borrow back on a declined
+            // restore. Before that the leak blocked `handOff` and the user's
+            // copy survived behind a false "another rewrite is using the
+            // clipboard" — a wrong message is not worth a leak, but fixing
+            // the leak turned the wrong message into data loss, and this is
+            // the other half.
+            guard restored else {
+                return .heldForManualCopy(
+                    cause: .clipboardChanged,
+                    reason:
+                        "the target did not accept the paste, and something else was copied while it ran, so the rewrite is only in this panel"
+                )
+            }
             return handOff(
                 text, cause: .pasteNotConsumed,
                 reason: "the target did not accept the paste",
@@ -251,10 +270,14 @@ public final class ReplacementService {
         fidelity == .lossy ? .clipboardTooLarge : .clipboardBusy
     }
 
+    /// Switched on `Fidelity` rather than on the cause, so the two stay a
+    /// pair without `.clipboardChanged` having to appear as a case that
+    /// `heldCause` cannot return. That one is not a borrow refusal: it is
+    /// raised where the newer content is known, and carries its own sentence.
     private static func heldReason(_ reason: String, _ fidelity: Fidelity) -> String {
-        switch heldCause(fidelity) {
-        case .clipboardTooLarge: "\(reason), and your clipboard is too large to put back"
-        case .clipboardBusy: "\(reason), and another rewrite is using the clipboard"
+        switch fidelity {
+        case .lossy: "\(reason), and your clipboard is too large to put back"
+        case .notTaken, .faithful: "\(reason), and another rewrite is using the clipboard"
         }
     }
 
