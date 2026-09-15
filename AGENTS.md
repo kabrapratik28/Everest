@@ -132,7 +132,7 @@ xcodegen generate && open Everest.xcodeproj
 - A local package's `path:` in `project.yml` resolves relative to **the spec file**, not cwd.
 - An app target needs an explicit `info:` block or you get `Build input file cannot be found: Info.plist`.
 - Re-run `xcodegen generate` after any file rename.
-- Ignore the `DVTCoreDeviceCore` plug-in error and `CoreSimulator is out of date` warnings — iOS simulator only, harmless here. Compiling from an agent sandbox needs `dangerouslyDisableSandbox: true`.
+- **The app build needs `-skipPackagePluginValidation`** or it dies on `Validate plug-in "CudaBuild" in package "mlx-swift"` — a clean clone cannot build without it. Ignore the `DVTCoreDeviceCore` plug-in error and `CoreSimulator is out of date` warnings: iOS simulator only, harmless here. Compiling from an agent sandbox needs `dangerouslyDisableSandbox: true`.
 
 ## 9. Bundle id, entitlements, dependencies
 
