@@ -60,9 +60,12 @@ first, and suspicion is not a mechanism.
   reports, two invented commit hashes, an agent's wrong assertion about
   `StubKeyMonitor`, another generalising the lead's test-gating from one
   sentence — came from restating something rather than opening it. Nobody was
-  careless; they were accurate about a description of the thing. When you are
-  about to assert something about the tree, notice whether you last *read* it
-  or last *heard* it.
+  careless; they were accurate about a description of the thing. So:
+  **an assertion about the tree carries a `file:line`, or it is marked as
+  recalled.** Not "notice whether you read it" — there is no artefact proving
+  you noticed, and §8 has already shown what happens to a rule you comply with
+  by feeling careful. A citation is something you either typed or did not, and
+  every claim that survived scrutiny tonight had one.
 - **Claim new files in your report.** Three untracked files appeared —
   `LoadOnce.swift`, `PanelKeyWindowTests.swift`, `ShortcutCopy.swift` — that no
   report mentioned, so they sat uncommitted while the lead asked around. A file
