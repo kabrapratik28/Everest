@@ -17,8 +17,11 @@ final class SpySurface: PanelSurface {
     private(set) var presentedHighlights: [Int] = []
     private(set) var hides = 0
     private(set) var appearanceRefreshes = 0
+    private(set) var announced: [String] = []
 
     func refreshAppearance() { appearanceRefreshes += 1 }
+
+    func announce(_ value: String) { announced.append(value) }
 
     func contentHeight(for state: PanelState, width: CGFloat) -> CGFloat {
         measuredWidths.append(width)
@@ -602,18 +605,27 @@ struct FloatingPanelControllerTests {
         let picked = Box<Preset>()
         controller.onPickStyle = { picked.value = $0 }
 
-        controller.show(.stylePicker(presets: PanelKeyMapTests.fiveStyles))
+        let unclaimed = [
+            Keystroke(keyCode: 6, characters: "z", modifiers: []),
+            // ⌘3 switches a browser tab; ⇧3 types a `#`. Neither is a pick.
+            PanelKeyMapTests.digit(3, plain: false),
+            Keystroke(keyCode: 0, characters: "3", modifiers: .shift),
+            // The picker holds no rewrite, so ⌘C here is the user copying in
+            // the app underneath. Eating it would lose them their clipboard.
+            PanelKeyMapTests.commandC,
+            // A digit past the end of the list is not a row.
+            PanelKeyMapTests.digit(9),
+        ]
 
-        let bareZ = Keystroke(keyCode: 6, characters: "z", modifiers: [])
-        #expect(tap.send(bareZ) == false)
-        // ⌘3 switches a browser tab; ⇧3 types a `#`. Neither is a pick.
-        #expect(tap.send(PanelKeyMapTests.digit(3, plain: false)) == false)
-        #expect(tap.send(Keystroke(keyCode: 0, characters: "3", modifiers: .shift)) == false)
-        // The picker holds no rewrite, so ⌘C here is the user copying in the
-        // app underneath. Eating it would lose them their own clipboard.
-        #expect(tap.send(PanelKeyMapTests.commandC) == false)
-        // A digit past the end of the list is not a row.
-        #expect(tap.send(PanelKeyMapTests.digit(9)) == false)
+        // A fresh picker per key, because the first unclaimed key now ends the
+        // picker and disarms the tap. Sending them in a row would leave keys
+        // two onward hitting no handler at all and returning false for that
+        // reason, so the test would keep passing while testing nothing.
+        for keystroke in unclaimed {
+            controller.show(.stylePicker(presets: PanelKeyMapTests.fiveStyles))
+            #expect(tap.isInstalled)
+            #expect(tap.send(keystroke) == false, "\(keystroke.characters)")
+        }
 
         #expect(picked.value == nil)
     }
@@ -636,6 +648,67 @@ struct FloatingPanelControllerTests {
 
         #expect(tap.removals == 1)
         #expect(tap.isInstalled == false)
+    }
+
+    /// What bounds the tap's life, given the picker has no timer.
+    ///
+    /// `stylePicker.autoDismissAfter` is `nil`, so a picker the user walks away
+    /// from would hold a session-wide tap open indefinitely — and that tap
+    /// swallows digits, arrows and Return. Walk away, switch to Slack, type
+    /// "there at 3": the `3` never arrives, and it picks a style and starts
+    /// rewriting a selection captured minutes ago. So the picker is treated as
+    /// a question: anything that is not an answer to it means the user has
+    /// moved on. The tap goes at once rather than waiting for the coordinator
+    /// to come back and dismiss, because that round trip is more keystrokes.
+    @Test("a key the picker cannot answer ends the picker instead of holding the tap open")
+    func anUnclaimedKeyEndsThePicker() {
+        let tap = SpyKeyMonitor()
+        let controller = makeController(keyInterceptor: tap)
+        let cancels = Counter()
+        controller.onCancel = { cancels.bump() }
+
+        controller.show(.stylePicker(presets: PanelKeyMapTests.fiveStyles))
+        #expect(tap.isInstalled)
+
+        let bareZ = Keystroke(keyCode: 6, characters: "z", modifiers: [])
+        // Still passes through — ending the picker is not a reason to eat the
+        // keystroke the user was actually typing.
+        #expect(tap.send(bareZ) == false)
+        #expect(cancels.count == 1)
+        #expect(tap.isInstalled == false)
+    }
+
+    /// This app is built on the Accessibility API, and until now nothing it
+    /// showed was announced to a screen reader. A non-activating panel takes
+    /// no focus, so VoiceOver never visits it: every message, including every
+    /// refusal and error reason we wrote carefully, was silent. The labels in
+    /// `RewriteView` only pay off once something says the panel is there.
+    ///
+    /// Once per *kind*, not once per update, for the reason `accessibilityValue`
+    /// already omits the streaming text: snapshots arrive dozens of times a
+    /// second and VoiceOver restarts its utterance on each one, so announcing
+    /// per update would read the first three words over and over.
+    @Test("each new state is announced once, and a streaming burst is announced once in total")
+    func statesAreAnnouncedOncePerKind() {
+        let surface = SpySurface()
+        let clock = FakeClock()
+        let controller = makeController(surface: surface, clock: clock)
+
+        controller.show(.capturing)
+        #expect(surface.announced == ["Reading selection"])
+
+        for tick in 0 ..< 50 {
+            clock.now = clock.start + .milliseconds(tick)
+            controller.update(.generating(text: "snapshot \(tick)"))
+        }
+        clock.fire()
+        #expect(surface.announced == ["Reading selection", "Rewriting"])
+
+        // The reason has to be spoken, not just the headline — a reason nobody
+        // can hear is not a reason.
+        clock.now = clock.start + .seconds(1)
+        controller.update(.error(reason: "the model ran out of memory"))
+        #expect(surface.announced.last == "Rewrite failed. the model ran out of memory")
     }
 
     /// The coordinator drives the panel straight from engine events, so that

@@ -32,6 +32,9 @@ public final class FloatingPanelController {
         didSet { syncKeyInterceptor() }
     }
     private var coalescer = StreamCoalescer()
+    /// The last kind spoken to a screen reader, so each state is announced
+    /// once. See `render`.
+    private var announcedKind: PanelStateKind?
     /// Sampled once per presentation. See `screenIsCapturedAtShow`.
     private var anchorScreen: CGRect?
 
@@ -55,6 +58,7 @@ public final class FloatingPanelController {
         coalescer = StreamCoalescer()
         highlightedStyleIndex = 0
         followsTail = true
+        announcedKind = nil
         clock.cancel()
         surface.refreshAppearance()
         armKeyMonitor()
@@ -77,6 +81,17 @@ public final class FloatingPanelController {
             followsTail: followsTail,
             acceptsKey: state.acceptsKeyWindow
         )
+
+        // Keyed on the kind, so a streaming burst is announced once rather
+        // than per snapshot and an arrow key redrawing the picker is not
+        // announced at all. Announcing per render would restart VoiceOver's
+        // utterance at token rate and read the same three words forever —
+        // the same reason `accessibilityValue` leaves the streaming text out.
+        // After `present`, so the panel is up before anything describes it.
+        if announcedKind != state.kind {
+            announcedKind = state.kind
+            surface.announce(state.accessibilityValue)
+        }
     }
 
     /// Moves the panel to a new state without changing the armed monitors.
@@ -128,6 +143,7 @@ public final class FloatingPanelController {
         guard state != nil else { return }
         state = nil
         anchorScreen = nil
+        announcedKind = nil
         surface.hide()
     }
 
@@ -175,7 +191,19 @@ public final class FloatingPanelController {
     /// selection. It claims exactly what it acted on, so every other keystroke
     /// the user types passes through untouched.
     private func intercept(_ keystroke: Keystroke) -> Bool {
-        perform(keystroke)
+        if perform(keystroke) { return true }
+
+        // Not an answer to the question the picker is asking, so the user has
+        // moved on — most likely to another application, since the picker has
+        // no timer and will otherwise sit there. Holding the tap open past
+        // that point means swallowing their digits and Return somewhere else
+        // entirely. Dropped here rather than waiting for the coordinator to
+        // come back through `dismiss()`, because that round trip is more
+        // keystrokes. The key itself is not consumed: ending the picker is no
+        // reason to eat what the user was actually typing.
+        armedInterceptor = nil
+        cancel()
+        return false
     }
 
     /// Runs whatever this keystroke means in this state. Returns whether it

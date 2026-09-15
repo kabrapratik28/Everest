@@ -32,6 +32,16 @@ public protocol PanelSurface: AnyObject {
     /// taking focus no longer costs the user their selection.
     func present(_ state: PanelState, layout: PanelLayout, followsTail: Bool, acceptsKey: Bool)
 
+    /// Speak this to a screen reader.
+    ///
+    /// Separate from `present` because it happens far less often: the panel is
+    /// redrawn per streamed token and announced once per state. It exists at
+    /// all because a non-activating panel takes no focus, so VoiceOver never
+    /// visits it on its own and every label inside `RewriteView` goes unread —
+    /// the announcement is the only thing that reaches a screen reader user.
+    /// *When* to call it is a decision and lives in `FloatingPanelController`.
+    func announce(_ value: String)
+
     func hide()
 }
 

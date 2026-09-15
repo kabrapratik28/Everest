@@ -177,15 +177,50 @@ public final class NSPanelSurface: PanelSurface {
         panel.setFrame(layout.frame, display: true, animate: appearance.animatesStateChange)
 
         // Not `orderFront(_:)`: an inactive application's `orderFront` can be
-        // deferred until the app is next activated. Not
-        // `makeKeyAndOrderFront(_:)`: that reintroduces activation.
+        // deferred until the app is next activated.
         panel.orderFrontRegardless()
+
+        // `canBecomeKey` is permission, not action: it answers a question
+        // nobody was asking. Without this line the panel is never key, so the
+        // local monitor never runs, the global one cannot consume, and the
+        // frontmost app processes the same ⌘C — its Copy landing *after* ours
+        // and overwriting the rewrite we just put on the clipboard. Measured
+        // against TextEdit: the clipboard went from the rewrite to the source
+        // app's own selection. In `heldForManualCopy` the panel is the user's
+        // only copy, so that is the advertised keystroke destroying the thing
+        // it is advertised to save.
+        //
+        // `makeKey()`, not `makeKeyAndOrderFront(_:)` — ordering is done above.
+        // This does not activate us: a `.nonactivatingPanel` takes key status
+        // while the source app stays frontmost, which is what the style mask is
+        // for. Verified: frontmost stayed the source app across the call.
+        if acceptsKey { panel.makeKey() }
 
         if followsTail, layout.scrolls {
             // Pin to the newest text. Skipped once the user has scrolled up,
             // so re-reading is not interrupted every 16 milliseconds.
             hostingView.scroll(NSPoint(x: 0, y: max(0, layout.contentHeight - layout.frame.height)))
         }
+    }
+
+    /// Posted against `NSApp` rather than the panel: for most of a transaction
+    /// the panel is not key and is not in the accessibility focus chain, so an
+    /// announcement addressed to it has nowhere to land. The application is
+    /// always a valid announcement target.
+    ///
+    /// `.high` because this panel is on a timer — `success` is gone in 1.2s —
+    /// and a medium-priority announcement is dropped whenever VoiceOver is
+    /// already speaking, which would silently lose exactly the error and
+    /// refusal reasons that most need saying.
+    public func announce(_ value: String) {
+        NSAccessibility.post(
+            element: NSApp as Any,
+            notification: .announcementRequested,
+            userInfo: [
+                .announcement: value,
+                .priority: NSAccessibilityPriorityLevel.high.rawValue,
+            ]
+        )
     }
 
     public func hide() {
