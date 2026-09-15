@@ -18,7 +18,7 @@ REFACTOR → stay green
 
 Wrote code before the test? **Delete it and start over.** Not "keep as reference", not "adapt it". Code nobody watched fail is code nobody knows the test can catch.
 
-**Reports must paste real RED and GREEN output.** Claimed passes with no observed failure are rejected.
+**Reports must paste real RED and GREEN output.** Claimed passes with no observed failure are rejected. **A RED that is partly green is measuring something else** — read it as that, not as "nearly right". A test here asserted two things, one failed and one passed, and the passing half was the tell that the window it described had already been closed upstream; a single-assertion version would have gone fully RED and shipped a test proving nothing.
 
 Rationalizations already used on this project, all rejected: "already manually tested", "tests after achieve the same goal", "too simple to test", "deleting hours is wasteful", "spirit not ritual".
 
