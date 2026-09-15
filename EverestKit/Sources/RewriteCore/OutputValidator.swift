@@ -63,7 +63,7 @@ public enum OutputValidator {
             result.removeFirst(preamble.count)
             break
         }
-        if let unwrapped = unwrappedEnvelope(result) { result = unwrapped }
+        if let unwrapped = unwrappedEnvelope(result, source: source) { result = unwrapped }
         return unquoted(result, source: source)
     }
 
@@ -83,9 +83,21 @@ public enum OutputValidator {
     /// a second pattern. Two patterns would accept a close that carries a
     /// different id from the open — which is not an envelope at all, just two
     /// tag-shaped things in someone's text.
-    private static func unwrappedEnvelope(_ text: String) -> String? {
+    ///
+    /// **And the source decides whose tag it is.** Matching the shape is not
+    /// enough: the cleaner accepts any well-formed id, so "the user's text
+    /// happens to contain one" is not a 2⁶⁴ event — it is ordinary for anyone
+    /// whose writing is *about* this app. Our id is drawn fresh for this one
+    /// prompt, so a selection made beforehand cannot contain it unless the
+    /// user typed that tag themselves. Asking the source is what turns the
+    /// shape match back into the 2⁶⁴ claim the comment above used to make for
+    /// free, and it needs nothing carried through from `PromptBuilder`.
+    private static func unwrappedEnvelope(_ text: String, source: String) -> String? {
         let opens = text.matches(of: openTag)
         guard opens.count == 1, let opening = opens.first else { return nil }
+
+        // Theirs, not ours.
+        guard !source.contains(text[opening.range]) else { return nil }
 
         let closes = text.ranges(of: "</selected_text_\(opening.output.1)>")
         guard closes.count == 1, let close = closes.first,
@@ -94,10 +106,16 @@ public enum OutputValidator {
 
         let open = opening.range
 
-        // Trimmed because the prompt puts the text on its own line, so the
-        // newlines either side belong to the envelope, not to the rewrite.
-        return String(text[open.upperBound ..< close.lowerBound])
-            .trimmingCharacters(in: .whitespacesAndNewlines)
+        // Exactly one newline each side, because that is exactly what
+        // `PromptBuilder` puts there. Trimming all whitespace instead took
+        // the indentation off the first line of an echoed code block and any
+        // blank line a rewrite legitimately ended on — the same mistake as
+        // trimming captured text, which root §6 forbids, and the reason
+        // `validate` refuses blank output rather than trimming it.
+        var inner = text[open.upperBound ..< close.lowerBound]
+        if inner.hasPrefix("\n") { inner = inner.dropFirst() }
+        if inner.hasSuffix("\n") { inner = inner.dropLast() }
+        return String(inner)
     }
 
     /// Removes a pair of quotes the *model* put around its answer, and leaves

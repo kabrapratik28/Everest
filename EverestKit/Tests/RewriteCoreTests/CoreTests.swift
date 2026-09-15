@@ -100,6 +100,43 @@ func outputValidatorCleanKeepsTheUsersOwnTags() {
     #expect(OutputValidator.clean(idShaped, source: idShaped.lowercased()) == idShaped)
 }
 
+/// Unwrapping removes the envelope, not the first line's indentation.
+///
+/// `PromptBuilder` puts the text on its own line, so there is **exactly one**
+/// newline inside each tag and those two belong to us. Trimming all
+/// whitespace instead took the leading spaces off an echoed code block and
+/// any blank line the rewrite legitimately ended on. Root §6 refuses to trim
+/// captured text for the same reason, and `validate` already refuses blank
+/// output rather than trimming it — this is that rule, one function along.
+@Test("OutputValidator.clean strips the envelope's own newlines and no other whitespace")
+func outputValidatorCleanKeepsIndentationInsideAnEnvelope() {
+    let raw = "<selected_text_3f2a19bb7c0d4e51>\n    let x = 1\n</selected_text_3f2a19bb7c0d4e51>"
+    let cleaned = OutputValidator.clean(raw, source: "    let x = 1")
+    #expect(cleaned == "    let x = 1")
+}
+
+/// **A well-formed envelope the *user* wrote is still the user's text.**
+///
+/// The id-width fix stopped `<selected_text_1>` being read as packaging, but
+/// left the real case: text containing a genuine 16-hex-shaped pair. That is
+/// not a 1-in-2⁶⁴ collision with this prompt's id, because the cleaner
+/// accepted *any* well-formed one — it is "does the selection contain a tag
+/// of that shape", and the people whose text does are the ones working on
+/// this app. The string below is copied from this very file.
+///
+/// Decided by asking the **source**, which `clean` already has, and which
+/// every other rule in it already consults. Our id is generated fresh per
+/// prompt, so it cannot appear in a selection the user made beforehand —
+/// unless they wrote the tag themselves, which is precisely the case to
+/// leave alone. That restores the 2⁶⁴ the earlier comment claimed, without
+/// carrying the real id through two engines and three modules.
+@Test("OutputValidator.clean keeps an envelope-shaped pair the user wrote themselves")
+func outputValidatorCleanKeepsAUserAuthoredEnvelope() {
+    let text =
+        "Keep this. <selected_text_3f2a19bb7c0d4e51>inner</selected_text_3f2a19bb7c0d4e51> And this."
+    #expect(OutputValidator.clean(text, source: text) == text)
+}
+
 /// **Quotes the user wrote are not packaging either.**
 ///
 /// Stripping any outer pair also contradicts the safety frame, which tells
