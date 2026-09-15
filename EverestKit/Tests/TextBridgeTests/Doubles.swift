@@ -180,3 +180,10 @@ final class FakeClipboardCapture: ClipboardCapturing {
         return .captured(result)
     }
 }
+
+/// Records the trail so a test can assert what was written down, rather than
+/// that something was.
+final class FakeTrace: Tracing {
+    private(set) var events: [TraceEvent] = []
+    func record(_ event: TraceEvent) { events.append(event) }
+}

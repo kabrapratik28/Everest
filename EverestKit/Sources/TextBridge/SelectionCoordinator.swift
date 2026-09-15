@@ -38,6 +38,11 @@ public final class SelectionCoordinator {
 
     private var cache = StrategyCache()
 
+    /// Not an init parameter: the public initialiser is wired from the app
+    /// target, which `swift test` never compiles, and a fourth break there
+    /// costs more than it buys. Tests assign it; production never does.
+    var trace: Tracing = OSLogTrace()
+
     /// Case-insensitive and exact. Deliberately not prefix or wildcard
     /// matching, which would let `com.apple` silently exclude every Apple app.
     private func isExcluded(_ bundleID: String) -> Bool {
@@ -59,13 +64,31 @@ public final class SelectionCoordinator {
     }
 
     public func capture() throws -> TargetSnapshot {
-        let snapshot = try runCaptureChain()
+        let snapshot: TargetSnapshot
+        do {
+            snapshot = try runCaptureChain()
+        } catch let error as CaptureError {
+            trace.record(.captureRefused(error))
+            throw error
+        }
+        trace.record(
+            .captured(
+                rung: snapshot.viaClipboard
+                    ? .clipboard : (snapshot.isRangeDerived ? .stringForRange : .selectedText),
+                length: snapshot.text.count,
+                hasRange: snapshot.range != nil,
+                isEditable: snapshot.isEditable,
+                isRangeDerived: snapshot.isRangeDerived,
+                role: snapshot.role))
 
         // One choke point, so a future rung cannot forget it. The length is
         // only knowable after the read, so this refuses to *proceed* rather
         // than refusing to look.
         let count = snapshot.text.count
-        guard count <= CaptureLimits.maxCharacters else { throw CaptureError.tooLong(count) }
+        guard count <= CaptureLimits.maxCharacters else {
+            trace.record(.captureRefused(.tooLong(count)))
+            throw CaptureError.tooLong(count)
+        }
         return snapshot
     }
 

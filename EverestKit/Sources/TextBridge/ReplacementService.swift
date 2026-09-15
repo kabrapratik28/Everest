@@ -10,6 +10,10 @@ public final class ReplacementService {
     private let pasteboard: NSPasteboard
     private let borrow: PasteboardBorrow
 
+    /// See `SelectionCoordinator.trace` for why this is a property rather
+    /// than an init parameter.
+    var trace: Tracing = OSLogTrace()
+
     /// Apps differ by more than an order of magnitude in how long they take
     /// to handle a synthetic paste. Any single sleep is either a visible
     /// stutter for fast apps or a false failure for slow ones, and it tells
@@ -43,7 +47,22 @@ public final class ReplacementService {
     /// stale the moment they change it, and nothing tells them it has. No
     /// default — the product default lives in `AppSettings`, and a default
     /// here would be a second place for it to disagree from.
+    /// One choke point for the outcome, so a new exit cannot forget to
+    /// record itself — the same reason the length check sits at the end of
+    /// the capture chain rather than in each rung. A trail with a hole in it
+    /// is worth nothing on the day it is read, and the hole is invisible
+    /// until then.
     public func apply(
+        _ text: String, to snapshot: TargetSnapshot,
+        autoReplace: Bool, keepOutOfHistory: Bool
+    ) -> ReplaceOutcome {
+        let outcome = decide(
+            text, to: snapshot, autoReplace: autoReplace, keepOutOfHistory: keepOutOfHistory)
+        trace.record(.outcome(outcome))
+        return outcome
+    }
+
+    private func decide(
         _ text: String, to snapshot: TargetSnapshot,
         autoReplace: Bool, keepOutOfHistory: Bool
     ) -> ReplaceOutcome {
@@ -85,10 +104,17 @@ public final class ReplacementService {
             // refusal rather than skipping the validator: the paste path
             // would otherwise post ⌘V at an app the user has left, and
             // `postToPid` delivers it there whether or not they are looking.
+            trace.record(.writeRefused(refusal))
             if autoReplace, snapshot.viaClipboard, refusal == .unverifiable {
+                trace.record(.pasteOverrideEntered)
                 return pasteUnverifiable(
                     text, to: snapshot, keepOutOfHistory: keepOutOfHistory)
             }
+            trace.record(
+                .pasteOverrideSkipped(
+                    !autoReplace
+                        ? .autoReplaceOff
+                        : (snapshot.viaClipboard ? .refusalIsReal : .notClipboardCapture)))
             return handOff(
                 text, cause: refusal.cause, reason: refusal.reason,
                 keepOutOfHistory: keepOutOfHistory)
@@ -186,11 +212,13 @@ public final class ReplacementService {
             return held("this app inserts a paste rather than replacing the selection")
         }
 
-        guard case let .captured(live) = clipboard.copySelection(pid: snapshot.pid),
-            live == snapshot.text
-        else {
+        let reRead = clipboard.copySelection(pid: snapshot.pid)
+        guard case let .captured(live) = reRead, live == snapshot.text else {
+            trace.record(.reRead(matched: false))
             return held("the selection changed while the rewrite was being written")
         }
+
+        trace.record(.reRead(matched: true))
 
         let transaction = PasteboardTransaction(pasteboard: pasteboard, borrow: borrow)
         guard transaction.snapshot() else {
@@ -215,8 +243,10 @@ public final class ReplacementService {
         // is not proof it worked, and claiming `.replaced` would lose the
         // rewrite entirely for a target that ignored the paste.
         guard case .nothingCopied = clipboard.copySelection(pid: snapshot.pid) else {
+            trace.record(.pasteConfirmed(false))
             return held("the target did not accept the paste")
         }
+        trace.record(.pasteConfirmed(true))
         return .replaced
     }
 
