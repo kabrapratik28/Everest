@@ -9,13 +9,17 @@ import TextBridge
 @testable import AppCore
 
 /// Reading the selection has to happen before anything is put on screen, and
-/// for the style picker that ordering is the only defence there is.
+/// for the style picker that ordering is what holds when nothing else does.
 ///
-/// A global key monitor observes keystrokes; it cannot consume them. So a `3`
-/// pressed to choose style 3 also types a `3` into whatever app is frontmost —
-/// which is the app whose text is about to be rewritten. Capturing first means
-/// the stray digit lands after the bytes we already hold. Nothing in `Overlay`
-/// can prevent this; it is the coordinator's job and only the coordinator's.
+/// `Overlay` now arms a consuming `CGEventTap` while the picker is up, so the
+/// `3` that picks style 3 no longer reaches the frontmost app. That is the
+/// first line and it is real — but tap creation is keyed to the code
+/// signature, and `tapCreate` returns nil without the grant. Then the digit
+/// lands in the very text about to be rewritten, and capturing first is what
+/// means it arrives after the bytes are already in hand.
+///
+/// So this ordering is not redundant with the tap; it is what the tap falls
+/// back to. One revoked permission and it is the only thing left.
 @Test("the selection is captured before the style picker is shown")
 @MainActor
 func capturesBeforeShowingTheStylePicker() async {
@@ -473,6 +477,65 @@ func aMissingSnapshotReadsAsRetryable() {
 
     #expect(missing != EngineFailure.reason(for: UnexpectedFailure.somethingElse))
     #expect(missing.localizedCaseInsensitiveContains("download"))
+}
+
+/// The panel and the test box must never disagree about the same error.
+///
+/// They were two independent lookups over the same errors, and they had
+/// already drifted: `readyMarkerWithoutWeights` had its own sentence in
+/// `reason(for:)` — with a comment calling the generic fallback "wrong twice
+/// here" — and no branch at all in `state(for:)`. `state` is the **panel**,
+/// which is every hotkey press, so the one case with a specific remedy was
+/// the case that almost never showed it. `GenerationError` had arrived the
+/// same way and had to be added to both by hand.
+///
+/// Fixed structurally rather than by adding the missing branch: `state` now
+/// derives its words from `reason`, so there is one sentence table and the
+/// next error added cannot land in one surface only. This test is over the
+/// class, not the instance — a new case is covered by adding it to the list.
+@Test("the panel and the test box never disagree about an error")
+func bothSurfacesReportTheSameWords() {
+    let errors: [any Error] = [
+        AppleEngineError.guardrailRefusal,
+        AppleEngineError.appleIntelligenceNotEnabled,
+        AppleEngineError.generationFailed("boom"),
+        GenerationError.truncated,
+        ModelStoreError.readyMarkerWithoutWeights("mlx-community/x"),
+        UnexpectedFailure.somethingElse,
+    ]
+
+    for error in errors {
+        #expect(
+            sentence(of: EngineFailure.state(for: error)) == EngineFailure.reason(for: error),
+            "\(error) reads differently on the panel than in the test box"
+        )
+    }
+}
+
+/// Only Apple's guardrail is reported as the model declining.
+///
+/// `.refused` says "the model looked at this and said no", which is true of
+/// a content filter and false of everything else — a missing download, a
+/// budget exhausted, an ineligible device. Getting it wrong sends the user to
+/// reword their own writing over a fault that has nothing to do with it.
+///
+/// Guarding the split explicitly because `state` no longer carries the
+/// sentences: all it decides now is this.
+@Test("only Apple's guardrail is reported as a refusal")
+func onlyTheGuardrailIsARefusal() {
+    #expect(EngineFailure.state(for: AppleEngineError.guardrailRefusal).kind == .refused)
+
+    #expect(EngineFailure.state(for: AppleEngineError.modelNotReady).kind == .error)
+    #expect(EngineFailure.state(for: GenerationError.truncated).kind == .error)
+    #expect(EngineFailure.state(for: UnexpectedFailure.somethingElse).kind == .error)
+}
+
+/// The sentence inside a terminal state, whichever kind it is.
+private func sentence(of state: PanelState) -> String? {
+    switch state {
+    case let .error(reason), let .refused(reason): reason
+    default: nil
+    }
 }
 
 /// A generation that ran out of budget has its own sentence, and it must

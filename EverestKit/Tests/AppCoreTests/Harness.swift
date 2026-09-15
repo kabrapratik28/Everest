@@ -18,8 +18,9 @@ import TextBridge
 /// Shared by every double, so `capture` and `present` land in the same list and
 /// their relative order is directly assertable. That order is a guard, not a
 /// detail: showing a panel before the selection is read perturbs accessibility
-/// focus, and for the style picker a global key monitor cannot consume digits,
-/// so a `3` typed at the picker also lands in the text about to be rewritten.
+/// focus, and for the style picker the tap that consumes digits is
+/// signature-keyed — without the grant a `3` typed at the picker also lands in
+/// the text about to be rewritten.
 @MainActor
 final class CallLog {
     private(set) var entries: [String] = []
@@ -129,10 +130,10 @@ func makeCoordinator(
 
 /// A selection that changes between reads.
 ///
-/// The second text models the stray digit: a global key monitor cannot consume
-/// the `3` that picks style 3, so it also lands in the app being rewritten. A
-/// coordinator that re-read the selection after the pick would rewrite the
-/// corrupted text.
+/// The second text models the stray digit: the tap that consumes the `3`
+/// picking style 3 needs a signature-keyed grant, and without it the digit
+/// also lands in the app being rewritten. A coordinator that re-read the
+/// selection after the pick would rewrite the corrupted text.
 @MainActor
 final class CaptureSource {
     private let texts: [String]

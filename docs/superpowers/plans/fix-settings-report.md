@@ -417,7 +417,53 @@ file. Now 89. Say if you would rather have it back and I will find another.
 **Behaviour:** a test run that produces nothing says so, rather than resetting
 to the placeholder.
 
-## 18. Three smaller ones
+## 18. The panel and the test box disagreed about errors
+
+**Files:** `AppCore/EngineFailure.swift`,
+`AppCoreTests/RewriteCoordinatorTests.swift`
+
+Round-2 finding. `reason(for:)` had a specific sentence for
+`readyMarkerWithoutWeights` — with a comment calling the generic fallback
+"wrong twice here" — and `state(for:)` had no branch for it at all. `state` is
+the **panel**, so every hotkey press got the generic sentence; the one case
+with real advice was the case that almost never showed it. `GenerationError`
+had arrived the same way in §16 and needed adding to both by hand.
+
+**Fixed as the class, not the instance**, which is what you asked for.
+`state(for:)` now derives its words from `reason(for:)`, so there is one
+sentence table and the next error added cannot reach one surface only. All
+`state` decides is `.refused` versus `.error`.
+
+The test is over the class too — a list of every error type, asserting the two
+surfaces agree on each. A new case is covered by adding one line to the list.
+A second test pins the refusal split, which `state` no longer gets for free
+now that it carries no sentences: only Apple's guardrail is the model
+declining, and calling a missing download or an exhausted budget a refusal
+sends the user to reword writing that was never the problem.
+
+**Behaviours:** the panel and the test box never disagree about an error; only
+Apple's guardrail is reported as a refusal.
+
+## 19. Stale justification for the capture-before-picker guard
+
+**Files:** `AppCoreTests/RewriteCoordinatorTests.swift`,
+`AppCoreTests/Harness.swift`
+
+The file header still said a global monitor cannot consume the picker's digit
+and that **"Nothing in `Overlay` can prevent this"**. The `CGEventTap` does
+prevent it now, so the file explaining why capture must precede the picker
+gave a reason that was no longer true.
+
+Guard and test unchanged; only the justification. The honest version is the
+one already in `RewriteCoordinator`: the tap consumes, but tap creation is
+signature-keyed and `tapCreate` returns nil without the grant — so the
+ordering is not redundant with the tap, it is what the tap falls back to.
+
+**You named one instance; there were three.** `Harness.swift:21` and `:132`
+carried the same claim, and both are load-bearing comments on the doubles that
+make the ordering assertable. Swept rather than spot-fixed.
+
+## 20. Three smaller ones
 
 - **The practice field could not be typed in.** `TextEditor(text: .constant(…))`
   on the step that says "type something below" — the one screen that would

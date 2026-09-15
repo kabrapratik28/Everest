@@ -32,24 +32,27 @@ public enum EngineFailure {
     private static let weightsMissing =
         "The model files are missing, so Everest cannot run it. Download it again from Settings ▸ Model."
 
+    /// The same sentence, in the state the panel ends on.
+    ///
+    /// Derived from `reason(for:)` rather than looking the words up a second
+    /// time. The two were independent and had already drifted:
+    /// `readyMarkerWithoutWeights` had a specific remedy here and no branch
+    /// there, and `state` is the *panel* — every hotkey press — so the one
+    /// case with real advice was the case that almost never showed it.
+    /// `GenerationError` arrived the same way and had to be added twice.
+    /// One table means the next error cannot reach one surface only.
+    ///
+    /// All this decides is whether the model declined. Apple's content filter
+    /// cannot be disabled and fires on ordinary prose — a paragraph about a
+    /// death, routine political writing — so `.refused` is accurate there and
+    /// nowhere else: a missing download, an exhausted budget or an ineligible
+    /// device are the app failing, and saying "the model declined" sends the
+    /// user to reword writing that was never the problem.
     public static func state(for error: any Error) -> PanelState {
-        // `.error`, not `.refused`: the model did not decline, it ran out of
-        // room. Blaming it for an arithmetic limit this app set would send
-        // the user looking for a better model instead of a shorter passage.
-        if let incomplete = error as? GenerationError {
-            return .error(reason: incomplete.message)
-        }
-        guard let apple = error as? AppleEngineError else {
-            return .error(reason: generic)
-        }
-        // Apple's content filter cannot be disabled and fires on ordinary
-        // prose — a paragraph about a death, routine political writing. That
-        // is the model declining, not the app breaking, and `refused` is the
-        // state that says so. Reporting it as a failure sends the user looking
-        // for a bug in Everest.
-        return apple == .guardrailRefusal
-            ? .refused(reason: apple.message)
-            : .error(reason: apple.message)
+        let words = reason(for: error)
+        return (error as? AppleEngineError) == .guardrailRefusal
+            ? .refused(reason: words)
+            : .error(reason: words)
     }
 
     private static let generic =
