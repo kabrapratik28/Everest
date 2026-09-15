@@ -1,42 +1,92 @@
 /* Everest — one-page site.
    No framework, no build step, no remote font, no JavaScript.
-   Colours are the plan's palette with the accent darkened: #146EF5 on the
-   light page background measures 4.35:1, under the 4.5:1 AA floor for body
-   text. #0B5ED7 measures 5.54:1 there and 5.84:1 on a white card. */
+
+   ── The alignment rule ──────────────────────────────────────────────────
+   Exactly one class owns the content width: .wrap. Every band is
+   <section class="band"><div class="wrap"> … </div></section>, and .wrap is
+   never combined with another class on the same element.
+
+   That is not tidiness, it is the fix for a real defect. The trust strip was
+   <ul class="wrap facts">, and .facts — declared later with the same
+   specificity — set `margin: 0`, whose longhands include margin-inline. It
+   silently overwrote .wrap's `margin-inline: auto`, so the list kept its
+   1120px width but lost its centring and sat flush against the left edge of
+   the viewport while every other section stayed inset. On a 2000px screen
+   that is an 880px error, and it looks like one section escaped the page.
+   Keeping .wrap alone on its element makes the collision impossible rather
+   than fixing one instance of it.
+
+   Colours: #146EF5 on the light page measures 4.35:1, under the 4.5:1 AA
+   floor for body text. #0B5ED7 measures 5.54:1 there and 5.84:1 on a white
+   card, so that is the accent. Every pair below is checked, including text
+   over the tinted hero glow and white over the gradient CTA panel. */
 
 :root {
   color-scheme: light dark;
 
   --page:      #f7f9fc;
   --surface:   #ffffff;
-  --sunken:    #eef2f8;
+  --tint:      #eef2f9;
+  --sunken:    #e9eef7;
   --text:      #0b1220;
-  --muted:     #526174;
+  --muted:     #4c5a6e;
   --accent:    #0b5ed7;
+  --accent-2:  #0e7490;
   --on-accent: #ffffff;
-  --border:    #d2dbe8;
-  --shadow:    0 1px 2px rgba(11, 18, 32, .05), 0 8px 24px rgba(11, 18, 32, .05);
+  --border:    #dce3ee;
+  --border-strong: #c7d2e3;
 
-  --wrap: 1120px;
-  --radius: 18px;
-  --radius-lg: 24px;
+  --grad-a: #0b5ed7;
+  --grad-b: #0e7490;
 
+  --glow-1: 16%;
+  --glow-2: 13%;
+
+  --shadow-sm: 0 1px 2px rgba(11, 18, 32, .05);
+  --shadow:    0 1px 2px rgba(11, 18, 32, .04), 0 6px 18px rgba(11, 18, 32, .05);
+  --shadow-lg: 0 2px 4px rgba(11, 18, 32, .05), 0 18px 40px rgba(11, 18, 32, .10);
+  --shadow-xl: 0 4px 10px rgba(11, 18, 32, .06), 0 32px 70px rgba(11, 18, 32, .16);
+
+  --wrap: 1160px;
+  --gutter: clamp(1.25rem, 4vw, 2.25rem);
+  --radius: 16px;
+  --radius-lg: 20px;
+  --radius-xl: 28px;
+
+  /* SF Pro Display is the macOS display face; it renders large headings
+     noticeably tighter than the text face. Both are local, neither is
+     downloaded, and the stack falls back everywhere else. */
   --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI",
           system-ui, Roboto, Helvetica, Arial, sans-serif;
+  --font-display: -apple-system, BlinkMacSystemFont, "SF Pro Display",
+          "Segoe UI", system-ui, Roboto, Helvetica, Arial, sans-serif;
   --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --page:      #07101f;
-    --surface:   #0d1a2f;
-    --sunken:    #0a1527;
-    --text:      #f5f8ff;
-    --muted:     #a9b7ca;
-    --accent:    #5a9cff;
-    --on-accent: #07101f;
-    --border:    #27395a;
-    --shadow:    0 1px 2px rgba(0, 0, 0, .3), 0 8px 24px rgba(0, 0, 0, .28);
+    --page:      #06101f;
+    --surface:   #0e1b2f;
+    --tint:      #0a1526;
+    --sunken:    #0a1728;
+    --text:      #eef4ff;
+    --muted:     #a7b6cc;
+    --accent:    #6aa5ff;
+    --accent-2:  #4fd1c5;
+    --on-accent: #051021;
+    --border:    #24374f;
+    --border-strong: #32486a;
+
+    --grad-a: #8ab6ff;
+    --grad-b: #5fe3d0;
+
+    --glow-1: 20%;
+    --glow-2: 14%;
+
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, .35);
+    --shadow:    0 1px 2px rgba(0, 0, 0, .3), 0 6px 18px rgba(0, 0, 0, .28);
+    --shadow-lg: 0 2px 4px rgba(0, 0, 0, .35), 0 18px 40px rgba(0, 0, 0, .42);
+    --shadow-xl: 0 4px 10px rgba(0, 0, 0, .4), 0 32px 70px rgba(0, 0, 0, .55);
   }
 }
 
@@ -60,6 +110,9 @@ body {
   line-height: 1.6;
   /* A long URL or bundle id must not push the page wider than 320px. */
   overflow-wrap: break-word;
+  /* Belt and braces for the decorative glows, which are already clipped by
+     their own section's overflow. */
+  overflow-x: hidden;
 }
 
 img { max-width: 100%; height: auto; }
@@ -69,14 +122,28 @@ a:hover { text-decoration-thickness: 2px; }
 
 :focus-visible {
   outline: 3px solid var(--accent);
-  outline-offset: 2px;
-  border-radius: 4px;
+  outline-offset: 3px;
+  border-radius: 6px;
 }
 
-h1, h2, h3 { line-height: 1.2; letter-spacing: -0.015em; margin: 0 0 .6em; }
-h1 { font-size: clamp(2rem, 1.3rem + 3vw, 3.1rem); font-weight: 700; }
-h2 { font-size: clamp(1.5rem, 1.15rem + 1.6vw, 2.1rem); font-weight: 650; max-width: 22ch; }
-h3 { font-size: 1.0625rem; font-weight: 650; }
+/* balance evens out the last line of a heading; pretty keeps a single-word
+   orphan off the end of a paragraph. Both are ignored where unsupported. */
+h1, h2, h3 { font-family: var(--font-display); margin: 0 0 .6em; text-wrap: balance; }
+p, figcaption, li { text-wrap: pretty; }
+h1 {
+  font-size: clamp(2.35rem, 1.2rem + 4.6vw, 4rem);
+  line-height: 1.04;
+  letter-spacing: -0.033em;
+  font-weight: 700;
+}
+h2 {
+  font-size: clamp(1.7rem, 1.15rem + 2.2vw, 2.6rem);
+  line-height: 1.12;
+  letter-spacing: -0.026em;
+  font-weight: 700;
+  max-width: 22ch;
+}
+h3 { font-size: 1.0625rem; line-height: 1.3; letter-spacing: -0.012em; font-weight: 650; }
 p  { margin: 0 0 1rem; max-width: 68ch; }
 
 code, pre { font-family: var(--mono); font-size: .875em; }
@@ -84,10 +151,16 @@ code, pre { font-family: var(--mono); font-size: .875em; }
 pre {
   background: var(--sunken);
   border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: .75rem 1rem;
-  /* Scrolls inside its own box rather than widening the page. */
+  border-radius: 12px;
+  padding: .8rem 1rem;
+  /* Scrolls inside its own box rather than widening the page. `overflow-x`
+     alone does not achieve that: white-space:pre makes the 56-character
+     xattr command one unbreakable line, so the <pre> still reports a
+     447px min-content to its ancestors. Inside a grid that becomes the
+     track's floor and the whole page measured 505px at a 320px viewport.
+     min-width:0 lets the box shrink and the scroll actually engage. */
   overflow-x: auto;
+  min-width: 0;
 }
 pre code { background: none; padding: 0; }
 code {
@@ -96,25 +169,60 @@ code {
   padding: .1em .35em;
 }
 
+/* Two adjacent <kbd> elements break at the gap between them like any other
+   inline pair, which put "⌥" at the end of one line and "N" at the start of
+   the next. Every multi-key shortcut in prose is wrapped in this. */
+.kbds { white-space: nowrap; }
+
 kbd {
   font-family: var(--font);
   font-size: .8125em;
   font-weight: 600;
   line-height: 1;
   display: inline-block;
-  min-width: 1.6em;
+  min-width: 1.65em;
   text-align: center;
-  padding: .28em .45em;
+  padding: .3em .45em;
   margin: 0 .05em;
   color: var(--text);
   background: var(--surface);
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-strong);
   border-bottom-width: 2px;
   border-radius: 6px;
+  box-shadow: var(--shadow-sm);
   white-space: nowrap;
 }
 
-.wrap { width: min(100% - 2.5rem, var(--wrap)); margin-inline: auto; }
+/* Inline SVG only. Nothing is fetched, and CSP's img-src never sees it. */
+.ico {
+  width: 22px;
+  height: 22px;
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* A grid item's automatic minimum size is its own min-content, so a single
+   unbreakable child sets a floor under the whole track and the page grows
+   past the viewport. Measured here: the xattr command in the install callout
+   made every track 487px wide and the document 505px at a 320px viewport.
+   Grid tracks are declared minmax(0, …) for the same reason. */
+.install-grid > *,
+.faq-grid > *,
+.split > *,
+.cards > *,
+.facts > li { min-width: 0; }
+
+/* The one element that owns the content width. See the header comment. */
+.wrap {
+  width: 100%;
+  max-width: var(--wrap);
+  margin-inline: auto;
+  padding-inline: var(--gutter);
+}
 
 .skip {
   position: absolute;
@@ -131,8 +239,47 @@ kbd {
 }
 .skip:focus { top: 0; }
 
-main > section { padding-block: clamp(3rem, 6vw, 5.5rem); }
-.section-lede { color: var(--muted); font-size: 1.0625rem; margin-bottom: 2rem; }
+/* ───────────────────────────── Bands ─────────────────────────────
+   One vertical rhythm for every section, and one content width inside. */
+
+.band { padding-block: clamp(3.5rem, 7vw, 6rem); }
+.band-tint {
+  background: var(--tint);
+  border-block: 1px solid var(--border);
+}
+
+.sec-head { margin-bottom: clamp(2rem, 3.6vw, 3rem); }
+.sec-head h2 { margin-bottom: .55rem; }
+.sec-head .section-lede { margin: 0; }
+
+/* Uppercase is safe here and only here: none of the kickers contain "macOS",
+   whose casing is the whole point and must never be flattened to "MACOS".
+   The hero eyebrow, which does contain it, is left alone below. */
+.kicker {
+  display: flex;
+  align-items: center;
+  gap: .55rem;
+  margin: 0 0 .85rem;
+  font-size: .78rem;
+  font-weight: 700;
+  letter-spacing: .09em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+.kicker::before {
+  content: "";
+  width: 22px;
+  height: 2px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, var(--grad-a), var(--grad-b));
+}
+
+.section-lede {
+  color: var(--muted);
+  font-size: 1.0625rem;
+  max-width: 62ch;
+  margin: 0 0 2rem;
+}
 
 /* ───────────────────────────── Header ───────────────────────────── */
 
@@ -140,53 +287,63 @@ main > section { padding-block: clamp(3rem, 6vw, 5.5rem); }
   position: sticky;
   top: 0;
   z-index: 50;
-  background: color-mix(in srgb, var(--page) 88%, transparent);
-  backdrop-filter: saturate(180%) blur(14px);
+  background: color-mix(in srgb, var(--page) 82%, transparent);
+  backdrop-filter: saturate(180%) blur(16px);
+  -webkit-backdrop-filter: saturate(180%) blur(16px);
   border-bottom: 1px solid var(--border);
 }
 
 .nav {
   display: flex;
   align-items: center;
-  gap: 1.25rem;
-  min-height: 60px;
+  gap: 1rem;
+  min-height: 64px;
   padding-block: .5rem;
 }
 
 .brand {
   display: inline-flex;
   align-items: center;
-  gap: .5rem;
+  /* Standalone link, so it carries the 44px target itself. */
+  min-height: 44px;
+  gap: .55rem;
+  font-family: var(--font-display);
   font-weight: 700;
   font-size: 1.0625rem;
-  letter-spacing: -0.01em;
+  letter-spacing: -0.018em;
   color: var(--text);
   text-decoration: none;
   margin-right: auto;
 }
-.brand img { display: block; }
+.brand img { display: block; border-radius: 7px; }
 
 .nav-links {
   display: flex;
-  gap: .25rem;
+  gap: .15rem;
   list-style: none;
   margin: 0;
   padding: 0;
 }
 .nav-links a {
-  display: inline-block;
-  padding: .6rem .7rem;
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 .7rem;
   color: var(--muted);
   font-size: .9375rem;
-  font-weight: 500;
+  font-weight: 550;
   text-decoration: none;
-  border-radius: 8px;
+  border-radius: 9px;
+  transition: color .15s ease, background-color .15s ease;
 }
-.nav-links a:hover { color: var(--text); background: var(--sunken); }
+.nav-links a:hover { color: var(--text); background: color-mix(in srgb, var(--text) 6%, transparent); }
 
 /* The logo and the Download button stay at every width; the rest of the nav
-   folds away, because the page is short enough to scroll. */
-@media (max-width: 800px) { .nav-links { display: none; } }
+   folds away, because the page is short enough to scroll and the footer
+   repeats every destination. Measured: the six links plus the brand plus the
+   button need ~712px, so 880px is the first width where they all fit with
+   room to spare. */
+@media (max-width: 880px) { .nav-links { display: none; } }
 
 /* ───────────────────────────── Buttons ───────────────────────────── */
 
@@ -194,36 +351,52 @@ main > section { padding-block: clamp(3rem, 6vw, 5.5rem); }
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  /* 44px minimum touch target. */
+  gap: .5rem;
+  /* 44px minimum touch target, everywhere, including the header. */
   min-height: 44px;
-  padding: .6rem 1.35rem;
-  border-radius: 11px;
+  padding: .6rem 1.25rem;
+  border-radius: 12px;
   border: 1px solid transparent;
   font-size: 1rem;
   font-weight: 600;
   text-decoration: none;
   text-align: center;
+  transition: transform .18s ease, box-shadow .18s ease,
+              background-color .18s ease, border-color .18s ease, color .18s ease;
 }
-.btn-sm { min-height: 38px; padding: .35rem 1rem; font-size: .9375rem; }
-@media (min-width: 801px) { .btn-sm { min-height: 44px; } }
+.btn .ico { width: 19px; height: 19px; stroke-width: 1.9; }
+.btn-sm { padding: .45rem 1rem; font-size: .9375rem; }
+.btn-lg { min-height: 52px; padding: .8rem 1.6rem; font-size: 1.0625rem; border-radius: 14px; }
 
-.btn-primary { background: var(--accent); color: var(--on-accent); }
-.btn-primary:hover { filter: brightness(1.08); }
+.btn-primary {
+  background-image: linear-gradient(135deg, #0b5ed7, #0e7490);
+  color: #fff;
+  box-shadow: 0 6px 16px rgba(11, 94, 215, .28);
+}
+.btn-primary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 26px rgba(11, 94, 215, .36);
+}
+.btn-primary:active { transform: translateY(0); }
 
 .btn-ghost {
   background: var(--surface);
   color: var(--text);
-  border-color: var(--border);
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow-sm);
+}
+.btn-ghost:hover {
+  transform: translateY(-1px);
+  border-color: var(--accent);
+  color: var(--accent);
   box-shadow: var(--shadow);
 }
-.btn-ghost:hover { border-color: var(--accent); color: var(--accent); }
 
 .cta-row {
   display: flex;
   flex-wrap: wrap;
   gap: .75rem;
-  max-width: none;
-  margin: 1.75rem 0 1rem;
+  margin: 1.75rem 0 0;
 }
 @media (max-width: 480px) {
   .cta-row { flex-direction: column; align-items: stretch; }
@@ -233,60 +406,206 @@ main > section { padding-block: clamp(3rem, 6vw, 5.5rem); }
 /* ───────────────────────────── Hero ───────────────────────────── */
 
 .hero {
-  display: grid;
-  gap: clamp(2rem, 4vw, 3.5rem);
-  align-items: center;
-  padding-block: clamp(2.5rem, 5vw, 4.5rem) clamp(2rem, 4vw, 3.5rem);
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  padding-block: clamp(3rem, 6.5vw, 5.5rem) clamp(3rem, 6vw, 5rem);
 }
-@media (min-width: 901px) {
-  .hero { grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); }
+
+/* Two soft colour fields behind the hero. They sit in the top corners,
+   outside the text column, and cap at 16% / 13% so the muted body copy
+   still clears 4.5:1 over the tint. */
+.hero::before {
+  content: "";
+  position: absolute;
+  inset: -30% -15% auto -15%;
+  height: 130%;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(38% 42% at 18% 18%,
+      color-mix(in srgb, var(--accent) var(--glow-1), transparent), transparent 72%),
+    radial-gradient(36% 40% at 84% 12%,
+      color-mix(in srgb, var(--accent-2) var(--glow-2), transparent), transparent 72%);
+}
+
+.hero-copy {
+  max-width: 860px;
+  margin-inline: auto;
+  text-align: center;
 }
 
 /* No text-transform: uppercase here. It renders "macOS" as "MACOS", and a
    brand whose casing is the whole point is not something to flatten. */
 .eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: .55rem;
+  margin: 0 0 1.15rem;
+  max-width: none;
+  padding: .4rem .9rem .4rem .75rem;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface) 72%, transparent);
+  box-shadow: var(--shadow-sm);
   font-size: .875rem;
-  font-weight: 650;
-  letter-spacing: .01em;
-  color: var(--accent);
-  margin-bottom: 1rem;
+  font-weight: 600;
+  color: var(--muted);
+  text-wrap: balance;
+}
+.pip {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--grad-a), var(--grad-b));
 }
 
-.lede { font-size: 1.125rem; color: var(--muted); }
-.lede kbd { font-size: .78em; }
+.hero h1 { max-width: 16ch; margin-inline: auto; }
+
+/* If background-clip: text is not supported the text must not vanish, so the
+   transparent fill is applied only where the clip is. */
+@supports ((-webkit-background-clip: text) or (background-clip: text)) {
+  .grad {
+    background-image: linear-gradient(100deg, var(--grad-a), var(--grad-b));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    -webkit-text-fill-color: transparent;
+  }
+}
+
+.lede {
+  font-size: 1.1875rem;
+  line-height: 1.55;
+  color: var(--muted);
+  max-width: 60ch;
+  margin-inline: auto;
+}
+.lede kbd { font-size: .74em; }
+
+.keyline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: .5rem;
+  max-width: none;
+  margin: 1.6rem 0 0;
+  font-size: .9375rem;
+  font-weight: 550;
+  color: var(--muted);
+}
+.keyline .kbds { display: inline-flex; gap: .4rem; }
+.keyline .cap {
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  font-weight: 700;
+  min-width: 2.5rem;
+  padding: .5rem .55rem;
+  border-radius: 10px;
+  border-bottom-width: 3px;
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow);
+}
+.keyline > span:last-child { padding-left: .35rem; }
+
+.hero .cta-row { justify-content: center; margin-top: 1.75rem; }
+
+.hero-meta {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: .4rem 1.5rem;
+  list-style: none;
+  margin: 1.5rem 0 0;
+  padding: 0;
+  font-size: .9375rem;
+  color: var(--muted);
+}
+.hero-meta li {
+  display: flex;
+  align-items: center;
+  gap: .45rem;
+}
+.hero-meta li::before {
+  content: "";
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--accent);
+}
 
 .note {
+  display: flex;
+  gap: .7rem;
+  max-width: 60ch;
+  margin: 1.75rem auto 0;
+  padding: .95rem 1.1rem;
+  text-align: left;
   font-size: .9375rem;
   line-height: 1.55;
   color: var(--muted);
-  background: var(--sunken);
+  background: color-mix(in srgb, var(--surface) 78%, transparent);
   border: 1px solid var(--border);
   border-radius: 14px;
-  padding: .9rem 1.1rem;
-  max-width: 62ch;
+}
+.note .ico { width: 18px; height: 18px; margin-top: .18rem; color: var(--accent); }
+
+/* ───────────────────────────── Demo ───────────────────────────── */
+
+.demo {
+  margin: clamp(2.5rem, 5vw, 3.75rem) auto 0;
+  max-width: 792px;
 }
 
-.demo { margin: 0; }
-.demo img {
+/* A tinted ring around the capture, not a fake window frame: the recording
+   already carries Sublime Text's own chrome, and drawing another one over it
+   would be inventing UI that does not exist. */
+.shot {
+  padding: 8px;
+  border-radius: 22px;
+  background: linear-gradient(150deg,
+    color-mix(in srgb, var(--accent) 30%, transparent),
+    color-mix(in srgb, var(--accent-2) 24%, transparent));
+  box-shadow: var(--shadow-xl);
+}
+.shot img {
   display: block;
   width: 100%;
   height: auto;
-  border-radius: var(--radius);
-  border: 1px solid var(--border);
-  box-shadow: var(--shadow);
+  border-radius: 15px;
   background: var(--surface);
 }
+
 .demo figcaption {
-  margin-top: .9rem;
-  font-size: .9375rem;
-  color: var(--muted);
+  margin: 1.1rem auto 0;
   max-width: 62ch;
+  font-size: .9375rem;
+  line-height: 1.55;
+  color: var(--muted);
+  text-align: center;
 }
+/* Solid, not a 12% tint: the tint measured 3.75:1 against accent-coloured
+   text where it overlapped the hero glow, under the 4.5:1 floor. Accent
+   behind on-accent text is the pair that is already measured. */
+.tag {
+  display: inline-block;
+  margin: 0 0 .5rem;
+  padding: .2rem .6rem;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: .75rem;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  vertical-align: 1px;
+}
+.cap-text { display: block; }
 
 /* ───────────────────── Trust / requirements strip ───────────────────── */
 
-/* Overrides the section rhythm above: the list supplies its own padding, and
-   taking both left a band of empty surface twice the height of its content. */
 .strip {
   padding-block: 0;
   border-block: 1px solid var(--border);
@@ -294,20 +613,27 @@ main > section { padding-block: clamp(3rem, 6vw, 5.5rem); }
 }
 .facts {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  grid-template-columns: minmax(0, 1fr);
   gap: 1.5rem 2rem;
   list-style: none;
   margin: 0;
   padding: 2.25rem 0;
 }
+.facts li { display: flex; align-items: flex-start; gap: .75rem; }
+.facts .ico { color: var(--accent); margin-top: .1rem; }
+.fact-text { display: block; }
 .facts strong { display: block; font-size: .9375rem; }
-.facts span { display: block; font-size: .9375rem; color: var(--muted); }
+.facts span span { display: block; font-size: .9375rem; color: var(--muted); }
+
+@media (min-width: 560px) { .facts { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (min-width: 900px) { .facts { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
 
 /* ───────────────────────────── Cards ───────────────────────────── */
 
 .cards {
   display: grid;
   gap: 1.25rem;
+  grid-template-columns: minmax(0, 1fr);
   list-style: none;
   margin: 0;
   padding: 0;
@@ -316,47 +642,81 @@ main > section { padding-block: clamp(3rem, 6vw, 5.5rem); }
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  padding: 1.5rem;
+  padding: 1.6rem;
   box-shadow: var(--shadow);
 }
-.cards p:last-child, .panel p:last-child { margin-bottom: 0; }
+.cards h3 { margin-bottom: .5rem; }
 .cards p, .panel p { color: var(--muted); font-size: .9375rem; }
-.panel h3 { margin-top: 1.4rem; }
+.cards p:last-child, .panel p:last-child { margin-bottom: 0; }
+.panel h3 { margin-top: 1.5rem; }
 .panel h3:first-child { margin-top: 0; }
 
-.steps { grid-template-columns: 1fr; counter-reset: none; }
-.features { grid-template-columns: 1fr; }
-.two { grid-template-columns: 1fr; }
-
-@media (min-width: 620px) {
-  .features { grid-template-columns: repeat(2, 1fr); }
-}
+@media (min-width: 640px) { .features { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (min-width: 980px) { .features { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 /* The step cards and the side-by-side panels need more room than the feature
-   cards: at 620px the shortcut table's action column wrapped to three lines
-   and the compatibility lists read as two narrow gutters. */
-@media (min-width: 760px) {
-  .steps { grid-template-columns: repeat(3, 1fr); }
-  .two   { grid-template-columns: repeat(2, 1fr); }
+   cards: narrower, the shortcut table's action column wraps to three lines
+   and the compatibility lists read as two thin gutters. */
+@media (min-width: 800px) { .steps { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (min-width: 820px) { .two   { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+.features > li {
+  transition: transform .2s ease, box-shadow .2s ease, border-color .2s ease;
 }
-@media (min-width: 960px) {
-  .features { grid-template-columns: repeat(3, 1fr); }
+.features > li:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-lg);
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
+}
+
+.ico-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  margin-bottom: 1.1rem;
+  border-radius: 13px;
+  background: color-mix(in srgb, var(--accent) 11%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 18%, transparent);
+  color: var(--accent);
+}
+.ico-badge-sm {
+  width: 28px;
+  height: 28px;
+  margin: 0 .55rem 0 0;
+  border-radius: 9px;
+  vertical-align: -0.45em;
+}
+.ico-badge-sm .ico { width: 16px; height: 16px; stroke-width: 2.1; }
+.ico-badge-neutral {
+  background: color-mix(in srgb, var(--text) 8%, transparent);
+  border-color: color-mix(in srgb, var(--text) 14%, transparent);
+  color: var(--muted);
 }
 
 .step-n {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 30px;
-  height: 30px;
-  margin-bottom: .75rem;
-  border-radius: 9px;
-  background: var(--accent);
-  color: var(--on-accent);
-  font-size: .9375rem;
+  width: 38px;
+  height: 38px;
+  margin-bottom: 1rem;
+  border-radius: 12px;
+  background-image: linear-gradient(135deg, #0b5ed7, #0e7490);
+  color: #fff;
+  font-family: var(--font-display);
+  font-size: 1.0625rem;
   font-weight: 700;
 }
-
-.aside { margin-top: 1.5rem; font-size: .9375rem; }
+.aside {
+  margin: 1.75rem 0 0;
+  font-size: .9375rem;
+  font-weight: 550;
+}
+.aside a { text-decoration: none; }
+.aside a:hover { text-decoration: underline; text-underline-offset: 3px; }
+.arrow { display: inline-block; transition: transform .18s ease; }
+.aside a:hover .arrow { transform: translateX(3px); }
 
 /* ───────────────────────────── Lists ───────────────────────────── */
 
@@ -369,8 +729,8 @@ main > section { padding-block: clamp(3rem, 6vw, 5.5rem); }
 }
 .ticks li, .dots li {
   position: relative;
-  padding-left: 1.5rem;
-  margin-bottom: .6rem;
+  padding-left: 1.6rem;
+  margin-bottom: .65rem;
 }
 .ticks li:last-child, .dots li:last-child { margin-bottom: 0; }
 /* The glyph is decoration; the column heading above it carries the meaning,
@@ -392,7 +752,7 @@ main > section { padding-block: clamp(3rem, 6vw, 5.5rem); }
   flex-wrap: wrap;
   gap: .1rem .6rem;
   align-items: baseline;
-  padding: .55rem 0;
+  padding: .6rem 0;
   border-bottom: 1px solid var(--border);
   font-size: .9375rem;
 }
@@ -400,23 +760,100 @@ main > section { padding-block: clamp(3rem, 6vw, 5.5rem); }
 .styles span { color: var(--muted); }
 
 .footnote {
-  margin-top: 1.25rem;
+  margin: 1.35rem 0 0;
+  max-width: 78ch;
   font-size: .875rem;
-  line-height: 1.55;
+  line-height: 1.6;
   color: var(--muted);
 }
 
+/* ─────────────────── Verified-by-hand chips ───────────────────
+   Only the five apps that were actually tried by hand appear here. The
+   general "works in" list in Features is a separate, weaker claim and the
+   two must not be merged into one support matrix. */
+
+.verified {
+  margin-top: 1.75rem;
+  padding: 1.5rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--surface) 60%, transparent);
+}
+.verified-label {
+  margin: 0 0 .85rem;
+  font-size: .9375rem;
+  font-weight: 700;
+}
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .5rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.chips li {
+  display: inline-flex;
+  align-items: center;
+  gap: .4rem;
+  padding: .42rem .85rem;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  background: var(--surface);
+  font-size: .875rem;
+  font-weight: 600;
+  box-shadow: var(--shadow-sm);
+}
+.chips li::before { content: "\2713"; color: var(--accent); font-weight: 700; }
+.verified .footnote { margin-top: 1.1rem; }
+
 /* ───────────────────────────── Install ───────────────────────────── */
 
-.steps-list {
-  margin: 0 0 2rem;
-  padding-left: 1.4rem;
-  max-width: 68ch;
+.install-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1.5rem;
+  align-items: start;
 }
-.steps-list li { margin-bottom: .75rem; padding-left: .25rem; }
+@media (min-width: 900px) {
+  .install-grid { grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: 2rem; }
+}
 
-.callout { max-width: 68ch; }
+.steps-list {
+  counter-reset: s;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-width: 62ch;
+}
+.steps-list li {
+  position: relative;
+  min-height: 2.25rem;
+  margin-bottom: 1.15rem;
+  padding-left: 3.15rem;
+}
+.steps-list li:last-child { margin-bottom: 0; }
+.steps-list li::before {
+  counter-increment: s;
+  content: counter(s);
+  position: absolute;
+  left: 0;
+  top: -0.1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 11px;
+  background: color-mix(in srgb, var(--accent) 11%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 20%, transparent);
+  color: var(--accent);
+  font-size: .875rem;
+  font-weight: 700;
+}
+
 .callout h3 { font-size: 1rem; }
+.callout pre { margin: 0 0 1rem; }
 
 /* ───────────────────────────── Keys table ───────────────────────────── */
 
@@ -427,14 +864,14 @@ main > section { padding-block: clamp(3rem, 6vw, 5.5rem); }
 }
 .keys th, .keys td {
   text-align: left;
-  padding: .55rem .5rem .55rem 0;
+  padding: .6rem .5rem .6rem 0;
   border-bottom: 1px solid var(--border);
   vertical-align: top;
 }
 .keys th {
   font-size: .75rem;
-  font-weight: 600;
-  letter-spacing: .05em;
+  font-weight: 700;
+  letter-spacing: .06em;
   text-transform: uppercase;
   color: var(--muted);
 }
@@ -444,61 +881,176 @@ main > section { padding-block: clamp(3rem, 6vw, 5.5rem); }
 
 /* ───────────────────────────── FAQ ───────────────────────────── */
 
+/* Wide screens get the heading in a column of its own beside the questions.
+   One column of 900px cards under a left-aligned heading left the right half
+   of a 1440px page empty, which read as a layout that had fallen over. */
+.faq-grid { display: grid; gap: 0; }
+@media (min-width: 900px) {
+  .faq-grid {
+    grid-template-columns: minmax(0, 320px) minmax(0, 1fr);
+    gap: 3rem;
+    align-items: start;
+  }
+  .faq-grid .sec-head { position: sticky; top: 6rem; margin-bottom: 0; }
+}
+
+.faq { display: grid; gap: .7rem; }
+
+/* Heading on the left, actions on the right, on one baseline. */
+.split { display: grid; gap: 1.5rem; }
+@media (min-width: 900px) {
+  .split {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 2.5rem;
+    align-items: end;
+  }
+  .split .sec-head { margin-bottom: 0; }
+  .split .cta-row { margin-top: 0; }
+}
+
 details {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 14px;
-  margin-bottom: .75rem;
+  border-radius: var(--radius);
   box-shadow: var(--shadow);
+  transition: border-color .18s ease, box-shadow .18s ease;
 }
+details:hover { border-color: var(--border-strong); }
+details[open] { box-shadow: var(--shadow-lg); }
+
 summary {
-  /* 44px target at the default font size. */
-  padding: .85rem 1.25rem;
-  font-weight: 600;
+  position: relative;
+  /* Comfortably past 44px at the default font size. */
+  padding: 1.05rem 3.4rem 1.05rem 1.35rem;
+  font-family: var(--font-display);
+  font-weight: 650;
+  letter-spacing: -0.012em;
   cursor: pointer;
-  /* Inside, not outside: an outside marker is laid out beyond the content
-     box and so renders past the card's rounded border, in the page gutter. */
-  list-style-position: inside;
-  border-radius: 14px;
+  border-radius: var(--radius);
+  /* The default triangle is replaced by the chevron below; an outside marker
+     is laid out beyond the content box and renders in the page gutter. */
+  list-style: none;
 }
-summary > * { display: inline; }
-summary::marker { color: var(--accent); }
+summary::-webkit-details-marker { display: none; }
 summary:hover { color: var(--accent); }
-details[open] summary { border-bottom: 1px solid var(--border); border-radius: 14px 14px 0 0; }
+summary::after {
+  content: "";
+  position: absolute;
+  right: 1.45rem;
+  top: 50%;
+  width: 9px;
+  height: 9px;
+  margin-top: -7px;
+  border-right: 2px solid var(--accent);
+  border-bottom: 2px solid var(--accent);
+  transform: rotate(45deg);
+  transition: transform .2s ease, margin-top .2s ease;
+}
+details[open] summary { color: var(--accent); }
+details[open] summary::after { transform: rotate(-135deg); margin-top: -2px; }
 details p {
   margin: 0;
-  padding: 1rem 1.25rem 1.15rem;
+  padding: .15rem 1.35rem 1.25rem;
+  max-width: 78ch;
   color: var(--muted);
   font-size: .9375rem;
-  max-width: 74ch;
 }
 
-/* ───────────────────────────── Final CTA ───────────────────────────── */
+/* ───────────────────────────── Final CTA ─────────────────────────────
+   The panel keeps one dark gradient in both colour schemes, so the white
+   text on it is a single measured pair: 9.7:1 at the blue end, 5.4:1 at the
+   teal end. The note and the outline button darken their own backdrop
+   rather than lightening it, which would drop them under 4.5:1. */
 
-.final { text-align: center; }
-.final img { display: block; margin: 0 auto 1.25rem; }
-.final h2 { max-width: 20ch; margin-inline: auto; }
+/* The FAQ band above it is untinted too, so the default rhythm stacked two
+   full paddings with no divider between them and opened a 190px hole. */
+.final-band { padding-block: clamp(2rem, 4vw, 3.25rem) clamp(3.5rem, 7vw, 6rem); }
+
+.final {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  padding: clamp(2.5rem, 5vw, 4rem) clamp(1.5rem, 4vw, 3rem);
+  border-radius: var(--radius-xl);
+  background-image: linear-gradient(135deg, #0b3f97 0%, #0b5ed7 52%, #0e7490 100%);
+  color: #fff;
+  text-align: center;
+  box-shadow: var(--shadow-xl);
+}
+/* Full-bleed, with the fade in the gradient's own stops. An inset box let
+   the radial reach the box edge before it reached transparent, which drew a
+   visible vertical seam down the panel at narrow widths. Capped at 10%
+   white: over the darkest corner of the gradient that still leaves white
+   body text at 5.2:1. */
+.final::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: radial-gradient(70% 90% at 12% 0%, rgba(255, 255, 255, .10), transparent 70%);
+}
+.final img { display: block; margin: 0 auto 1.35rem; border-radius: 20px; }
+.final h2 { max-width: 20ch; margin-inline: auto; color: #fff; }
+.final-lede {
+  max-width: 46ch;
+  margin: 0 auto;
+  color: rgba(255, 255, 255, .88);
+  font-size: 1.0625rem;
+}
 .final .cta-row { justify-content: center; }
-.final .note { margin-inline: auto; text-align: left; }
+
+.btn-invert { background: #fff; color: #0b3f97; box-shadow: var(--shadow); }
+.btn-invert:hover { transform: translateY(-1px); box-shadow: var(--shadow-lg); }
+.btn-outline {
+  background: transparent;
+  color: #fff;
+  border-color: rgba(255, 255, 255, .6);
+}
+.btn-outline:hover {
+  transform: translateY(-1px);
+  background: rgba(5, 16, 33, .3);
+  border-color: #fff;
+}
+
+.note-onDark {
+  color: rgba(255, 255, 255, .92);
+  background: rgba(5, 16, 33, .28);
+  border-color: rgba(255, 255, 255, .22);
+}
+.note-onDark .ico { color: #fff; }
+.note-onDark strong { color: #fff; }
+.note-onDark a { color: #fff; }
 
 /* ───────────────────────────── Footer ───────────────────────────── */
 
 .site-footer {
   border-top: 1px solid var(--border);
   background: var(--surface);
-  padding-block: 2.5rem 3rem;
+  padding-block: 2.75rem 3rem;
+}
+.foot-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .5rem 2rem;
+  margin-bottom: 1.5rem;
 }
 .foot-links {
   display: flex;
   flex-wrap: wrap;
-  gap: .25rem 1.5rem;
+  gap: 0 1.5rem;
   list-style: none;
-  margin: 0 0 1.25rem;
+  margin: 0;
   padding: 0;
   font-size: .9375rem;
 }
-.foot-links a { display: inline-block; padding: .35rem 0; }
-.colophon { font-size: .875rem; line-height: 1.7; color: var(--muted); margin: 0; }
+.foot-links a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+}
+.colophon { font-size: .875rem; line-height: 1.7; color: var(--muted); margin: 0; max-width: 60ch; }
 
 /* ───────────────────────── Reduced motion ─────────────────────────
    The animated demo is swapped for a still frame in the markup, with a
@@ -512,12 +1064,23 @@ details p {
     animation-iteration-count: 1 !important;
     transition-duration: .001ms !important;
   }
+  .btn:hover, .features > li:hover, .aside a:hover .arrow { transform: none; }
 }
 
 /* ───────────────────────── Narrow phones ───────────────────────── */
 
 @media (max-width: 380px) {
   body { font-size: 16px; }
-  .wrap { width: calc(100% - 1.75rem); }
-  .cards > li, .panel { padding: 1.15rem; }
+  :root { --gutter: 1.1rem; }
+  .cards > li, .panel, .verified { padding: 1.2rem; }
+  /* The pill wraps to two lines here and the dot, centred across both,
+     reads as a stray mark rather than a status light. */
+  .eyebrow { font-size: .8125rem; padding-inline: .85rem; }
+  .pip { display: none; }
+  .keyline .cap { min-width: 2.25rem; }
+  summary { padding: .95rem 3rem .95rem 1.1rem; }
+  details p { padding: .15rem 1.1rem 1.1rem; }
+  .final { padding: 2.25rem 1.15rem; border-radius: 22px; }
+  .shot { padding: 6px; border-radius: 18px; }
+  .shot img { border-radius: 13px; }
 }
