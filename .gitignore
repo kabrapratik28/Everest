@@ -8,3 +8,7 @@ xcuserdata/
 *.xcuserstate
 .swiftpm/
 __pycache__/
+
+# make_icon.py builds both renders; only the shipped one is committed. The
+# alt's source art in Artwork/ is what the script needs, not its output.
+Everest/Resources/AppIcon-alt.icns
