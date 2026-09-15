@@ -4,10 +4,24 @@ import KeyboardShortcuts
 extension KeyboardShortcuts.Name {
     /// `⌘I`. Shadows Italic almost everywhere; accepted, and warned about
     /// once — see `ShortcutNotice`.
-    static let quickImprove = Self("quickImprove", default: .init(.i, modifiers: [.command]))
+    /// `⌃⌥I`, not `⌘I`.
+    ///
+    /// `⌘I` was the originally requested default and it is a bad one: a global
+    /// hotkey wins over the frontmost app, so while Everest runs it takes
+    /// Italic away from every editor and Get Info from Finder. `⌘⇧I` is no
+    /// better — it is Web Inspector in Chrome, Safari and Firefox.
+    ///
+    /// Control+Option is the one modifier pair macOS and mainstream apps leave
+    /// almost entirely alone, so it collides with nothing common. Both remain
+    /// user-editable in Settings, and `⌘I` is still accepted if asked for; the
+    /// recorder warns once via `ShortcutNotice`.
+    static let quickImprove = Self("quickImprove", default: .init(.i, modifiers: [.control, .option]))
 
     /// `⌘⇧I`. Shift keeps it clear of Italic.
-    static let chooseStyle = Self("chooseStyle", default: .init(.i, modifiers: [.command, .shift]))
+    /// `⌃⌥⇧I`. Same reasoning, and deliberately the Quick Improve chord plus
+    /// Shift so the pair is one thing to remember rather than two.
+    static let chooseStyle = Self(
+        "chooseStyle", default: .init(.i, modifiers: [.control, .option, .shift]))
 }
 
 /// Registration, and nothing else.
