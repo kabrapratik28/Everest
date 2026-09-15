@@ -273,7 +273,9 @@ func aBlankInstructionIsRefused() {
 }
 
 /// The name is the only thing identifying a style in the picker: it is the row
-/// label and the VoiceOver label, and the picker is the whole of ⌘⇧I. A style
+/// label and the VoiceOver label, and that picker is the whole of the Choose
+/// Style hotkey — named by role, because a comment cannot render from the
+/// live binding the way `ShortcutCopy` makes the UI do. A style
 /// named "" is a blank row the user has to pick by position and a screen reader
 /// announces as nothing, and it cannot be told apart from the next blank one.
 ///

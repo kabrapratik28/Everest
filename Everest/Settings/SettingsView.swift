@@ -248,7 +248,7 @@ private struct PromptsTab: View {
     var body: some View {
         Form {
             // Instruction only, and deliberately. Quick Improve has no row in
-            // the ⌘⇧I picker — that picker lists `settings.styles` — so its
+            // the Choose Style picker — which lists `settings.styles` — so its
             // name and subtitle render nowhere in the app. Fields for them
             // were built and removed: one you can type in that changes
             // nothing on screen reads as a bug, which is worse than its

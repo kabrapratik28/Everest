@@ -14,14 +14,14 @@ is not. It is the prompt-injection guard, and a user-editable guard is not one
 **`PresetField` takes its rule as a parameter, because the three differ.** A
 blank instruction sends the frame, a blank line and the user's text, leaving
 the model to invent a task that lands in their document. A blank name leaves a
-style the ⌘⇧I picker cannot label or announce. A blank subtitle is fine — the
-Add button already makes one. The rules are `PresetEdit`, in `AppCore`.
+style the Choose Style picker cannot label or announce. A blank subtitle is
+fine — the Add button already makes one. The rules are `PresetEdit`, in
+`AppCore`.
 
 **The draft is kept apart from the stored value** so trimming does not fight
 typing: a trailing space stays visible mid-word, and emptying a field whose
 rule refuses blanks keeps the last good value. It re-syncs when the value moves
-from elsewhere, which is what makes "Reset to default" visible in a touched
-field.
+from elsewhere, which is what makes "Reset to default" visible in a touched one.
 
 **The Model tab's row is the radio button.** It used to draw one beside a
 separate "Use" button, so the control that looked like a radio was a picture.
