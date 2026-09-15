@@ -56,6 +56,8 @@ transaction's start** — held through idle, dropped as wanted, 1x not 2x peak.
   download is too late. `select(_:)` is the only mover, onboarding included.
 - **`download` does not throw.** Both call sites used `try?`, leaving a
   vanished bar and an unchanged status; the error's only consumer is a label.
+- **`runTest` ends by setting something**, like the coordinator: it clears
+  both fields up front, so a silent return blanked the box to its placeholder.
 - **Onboarding completion is stored, never inferred from the TCC grant**,
   which cannot say whether anyone chose an engine — so whoever granted the
   permission first never saw the model step. The step persists too, so
@@ -81,7 +83,6 @@ transaction's start** — held through idle, dropped as wanted, 1x not 2x peak.
 | `capture` / `apply` | assigned in `AppDelegate` | closures |
 | `engineFor` | `EngineFactory.live(for:)` | `StubEngine` |
 | `AppPresence.setPolicy` | `NSApp.setActivationPolicy` | `PolicyRecorder` |
-| `physicalMemory` | `ProcessInfo` | a literal byte count |
 
 `SystemProbing`'s conformer is **`TextBridge.SystemProbe`**: import it, never
 add a second — two public types with one name do not compile. Tests:

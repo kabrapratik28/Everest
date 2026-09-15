@@ -254,7 +254,23 @@ public final class ModelSettingsModel: ObservableObject {
             return
         }
 
-        guard let finished else { return }
+        // The mirror of the coordinator's empty-stream exit. Both fields were
+        // cleared at the top, so returning without setting either drops the
+        // box back to its "The rewrite appears here." placeholder — the
+        // user's test silently blanked. The way in is the hotkey: both paths
+        // share one memoised engine and one `TransactionBox`, so a rewrite
+        // started elsewhere cancels this stream mid-decode.
+        //
+        // The middle sentence is a general truth rather than a claim about
+        // this run. Any early end lands here, and only the interruption is
+        // worth explaining.
+        guard let finished else {
+            testFailure = """
+                The test stopped before it produced anything. Starting a rewrite with the \
+                hotkey while a test is running will interrupt it. Try again.
+                """
+            return
+        }
         switch OutputValidator.validate(finished, source: sample) {
         case let .success(text): testOutput = text
         case let .failure(failure): testFailure = failure.message

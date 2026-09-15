@@ -385,7 +385,39 @@ I did not extend `ValidationFailure`, so the no-`default` switch in
 **Behaviour:** a truncated generation is reported in its own words, on the
 panel and in the test box.
 
-## 17. Three smaller ones
+## 17. F4 — a hotkey press blanked the Settings test box
+
+**Files:** `AppCore/ModelSettingsModel.swift`,
+`AppCoreTests/SettingsModelTests.swift`, `AppCore/AGENTS.md`
+
+Round-2 finding, and the mirror of §9 with the same cause one level up.
+`runTest` clears `testOutput` and `testFailure` at the top — correct, a new
+run must not show the old answer — then returned setting neither when the
+stream produced nothing. The view fell through to its "The rewrite appears
+here." placeholder, so a user who pressed the hotkey mid-test came back to
+Settings and found the test silently reset.
+
+The way in is the shared memoised engine and its single `TransactionBox`: a
+rewrite started anywhere cancels this stream. Same silent class as the `try?`
+downloads, where the error's only consumer was a label.
+
+The message names the interruption as a general truth rather than a claim
+about this particular run, because any early end lands in the same branch and
+only the interruption is worth explaining.
+
+`RewriteCoordinator.swift` untouched, per your scope note.
+
+**Budget:** this needed a line and `AppCore/AGENTS.md` was at 88 of 90, so it
+bought one. I cut the `physicalMemory` row from the seams table. Root §0
+requires a row per seam **protocol** whose production conformer could be
+missing silently — the `SystemProbing` failure it was written for. A defaulted
+`UInt64` parameter cannot go missing, so that row was the weakest line in the
+file. Now 89. Say if you would rather have it back and I will find another.
+
+**Behaviour:** a test run that produces nothing says so, rather than resetting
+to the placeholder.
+
+## 18. Three smaller ones
 
 - **The practice field could not be typed in.** `TextEditor(text: .constant(…))`
   on the step that says "type something below" — the one screen that would

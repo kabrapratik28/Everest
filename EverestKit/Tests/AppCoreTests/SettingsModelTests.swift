@@ -237,6 +237,33 @@ func theTestBoxReportsFailure() async {
     #expect(model.testFailure == EngineFailure.reason(for: UnexpectedFailure.somethingElse))
 }
 
+/// A test run that produces nothing has to say so, not reset to its empty
+/// state.
+///
+/// The mirror of the coordinator's empty-stream hang, and the same silent
+/// class: `runTest` clears both fields up front and then returned without
+/// setting either, so the view fell through to the "The rewrite appears here."
+/// placeholder. The user presses the hotkey while a test is running — the two
+/// paths share one memoised engine and one `TransactionBox` — comes back to
+/// Settings, and finds their test blanked with nothing said.
+///
+/// Clearing at the start is right; a new run must not show the old answer.
+/// Ending with neither field set is what is wrong.
+@Test("a test run that produces nothing says so, rather than resetting to the placeholder")
+@MainActor
+func anInterruptedTestReportsItself() async {
+    let model = ModelSettingsModel(
+        settings: makeSettings(),
+        engineFor: { _ in StubEngine(events: []) }
+    )
+
+    await model.runTest(on: "a sentence")
+
+    #expect(model.testOutput == nil)
+    // Non-nil *and* non-empty: either would leave the placeholder showing.
+    #expect(model.testFailure?.isEmpty == false)
+}
+
 /// The side-by-side box has to go through the same prompt the hotkey does, or
 /// it is a demo of something the app does not do.
 @Test("the test box rewrites its sample through the selected engine and validates the result")
