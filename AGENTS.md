@@ -127,6 +127,7 @@ xcodegen generate && open Everest.xcodeproj
 
 - **Metal Toolchain is a separate download on Xcode 26+**: `xcodebuild -downloadComponent MetalToolchain`. MLX compiles ~40 `.metal` kernels, so without it the build dies before type-checking with `cannot execute tool 'metal'`. Misleading: `xcrun -f metal` still resolves.
 - **`swift test` builds *every* test target**, so one agent mid-RED breaks it for all. Isolate: `swift build --target XTests && xcrun xctest .build/out/Products/Debug/XTests.xctest`. `--skip-build` does not work. Same class: **edit `Package.swift` in one write** — adding a product and its target in two writes leaves a window where the graph is invalid (`target 'X' referenced in product 'X' could not be found`), and to anyone else building it reads as their own bug.
+- **`xcrun xctest` happily runs a stale bundle when the build failed.** It does not rebuild, so `swift build && xcrun xctest` with the `&&` dropped — or a build whose error you skimmed past — gives a confident pass or fail from the *previous* code. Always read the build result before believing the test result. This has produced two wrong conclusions on this project, including one where a lead accused an agent of falsely reporting green.
 - Don't `swift package clean` — it discards the cached ~5 min Metal compile.
 - A local package's `path:` in `project.yml` resolves relative to **the spec file**, not cwd.
 - An app target needs an explicit `info:` block or you get `Build input file cannot be found: Info.plist`.

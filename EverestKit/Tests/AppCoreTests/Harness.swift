@@ -81,6 +81,10 @@ func makePanel(log: CallLog) -> (FloatingPanelController, SpySurface) {
     let panel = FloatingPanelController(
         surface: surface,
         keyMonitor: StubKeyMonitor(),
+        // The consuming interceptor the style picker arms so its digits and
+        // arrows do not also reach the app being rewritten. AppCore's tests
+        // never exercise it; a second stub keeps them honest about that.
+        keyInterceptor: StubKeyMonitor(),
         clock: StubPanelClock(),
         visibleFrame: { CGRect(x: 0, y: 0, width: 1728, height: 1079) }
     )
