@@ -1,3 +1,8 @@
+> **Superseded fact:** this report repeats the claim that web and Electron password fields
+> do not set `IsSecureEventInputEnabled()`. Measured false on 2026-09-15 — Chrome 153 sets it,
+> and Blink refuses the copy outright. That claim produced a P0 (EVE-030) that did not exist.
+> Kept as a record of what was believed at the time.
+
 # TextBridge, rebuilt test-first
 
 Report for Task 2. Every behaviour below was driven RED first, run, watched to fail for the right reason, then made green with the least code and run again. The actual output of both runs is pasted.
