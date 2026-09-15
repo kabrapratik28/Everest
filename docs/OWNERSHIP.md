@@ -32,6 +32,12 @@ first, and suspicion is not a mechanism.
 
 ## Rules
 
+- **Commit by explicit pathspec, never `git add -A`.** Six agents write to one
+  tree, so a blanket add stages whatever three of them happened to have on
+  disk. `7334547` was titled for five Settings defects and in fact carried the
+  picker event tap and the Engines truncation work as well — two fixes with no
+  commit of their own and no message describing them. Stage the files the
+  commit is about and check `git status` afterwards for what you left behind.
 - **Reassigning a target means telling the outgoing owner.** Silence leaves
   them nominally responsible for work they cannot answer for.
 - **Route by this table, not by the last owner you remember.**
