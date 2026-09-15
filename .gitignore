@@ -12,3 +12,7 @@ __pycache__/
 # make_icon.py builds both renders; only the shipped one is committed. The
 # alt's source art in Artwork/ is what the script needs, not its output.
 Everest/Resources/AppIcon-alt.icns
+
+# Your own code-signing certificate SHA-1. Machine-specific by nature;
+# Everest/Signing.xcconfig explains what to put in it.
+Everest/Signing.local.xcconfig

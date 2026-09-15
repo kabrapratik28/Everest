@@ -43,10 +43,6 @@ settings:
     #     "swift-crypto_Crypto" requires a development team`, and the same for
     #     Cmlx, KeyboardShortcuts, swift-transformers and four others.
     #
-    # Cost of ad-hoc, and it is real: Accessibility permission is keyed to the
-    # code signature, and an ad-hoc signature changes on every rebuild, so macOS
-    # will ask the user to re-grant Accessibility after each build. Acceptable
-    # for a personal app. Joining the Developer Program at $99/year removes it.
     # Dependencies stay unsigned. Signing settings MUST NOT live here: anything
     # in `settings.base` reaches every SPM dependency target, and a real
     # identity here produces `Signing for "swift-crypto_Crypto" requires a
@@ -71,8 +67,13 @@ packages:
   # the workspace, which is gitignored, and no root `Package.resolved` is
   # tracked — so a range here means a clean checkout can silently resolve a
   # different 2.x and behave differently from the build that was tested.
-  # `EverestKit`'s own dependencies are locked by its tracked Package.resolved;
-  # this one had nothing holding it.
+  # `EverestKit`'s own dependencies are pinned with `exact:` in its Package.swift,
+  # which binds Xcode's root resolution too; this one had nothing holding it.
+  #
+  # Expect `EverestKit/Package.resolved` to churn: `swift build` drops the
+  # KeyboardShortcuts pin because the package does not depend on it, and an
+  # Xcode build writes it back. Harmless — the `exact:` requirements decide
+  # versions, not the lockfile. Commit whichever version you end up with.
   KeyboardShortcuts:
     url: https://github.com/sindresorhus/KeyboardShortcuts
     exactVersion: 2.4.0
@@ -94,20 +95,19 @@ targets:
     # tells the user to enable a permission they can see is already enabled.
     # That cost a real debugging session.
     #
-    # "Apple Development" is stable across rebuilds, so the grant survives.
-    # Scoped here, not in `settings.base`, so it cannot reach the dependencies.
-    # Identified by certificate SHA-1, and NOT by name, and with no
-    # DEVELOPMENT_TEAM. Setting either of those sends Xcode into automatic
-    # provisioning even under Manual style, which then fails with
-    # `No signing certificate "Mac Development" found` — the modern unified
-    # "Apple Development" cert is not the legacy per-platform one it looks for.
-    # The hash names the cert directly and skips provisioning entirely.
+    # A stable identity keeps the grant across rebuilds. It lives in an xcconfig
+    # and NOT here, because a certificate SHA-1 is machine-specific: hardcoding
+    # one in the committed spec means a clean clone fails to build on every Mac
+    # but this one. The xcconfig defaults to ad-hoc and optionally includes an
+    # untracked `Signing.local.xcconfig`, so contributors build and this machine
+    # keeps its grant. Everest/Signing.xcconfig has the details.
     #
-    # Check yours with: security find-identity -v -p codesigning
-    settings:
-      base:
-        CODE_SIGN_STYLE: Manual
-        CODE_SIGN_IDENTITY: "69E3EC2FC828A27A07095C58150F1A3D42C96BC0"
+    # Scoped to this target, not `settings.base`, so it cannot reach the
+    # dependencies. Target-level settings would override the xcconfig, so there
+    # must be no CODE_SIGN_* key below.
+    configFiles:
+      Debug: Everest/Signing.xcconfig
+      Release: Everest/Signing.xcconfig
     sources:
       - path: Everest
         excludes:
@@ -115,6 +115,8 @@ targets:
           # Icon build inputs and the unused alternate icon. Only the .icns
           # named by CFBundleIconFile belongs in the bundle.
           - "Resources/make_icon.py"
+          # Consumed via `configFiles:` above, not compiled or bundled.
+          - "*.xcconfig"
           - "Resources/Artwork"
           - "Resources/AppIcon-alt.icns"
           # Appears the moment anyone imports make_icon.py rather than running

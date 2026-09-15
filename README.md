@@ -14,6 +14,8 @@ Download the latest `.dmg` from [Releases](../../releases), drag Everest to Appl
 
 On first run Everest asks for Accessibility permission (System Settings ▸ Privacy & Security ▸ Accessibility) and then downloads the rewrite model — about 2.3 GB, with a progress bar. **The model is not bundled in the app.**
 
+The weights are [Qwen3-4B-Instruct-2507-4bit](https://huggingface.co/mlx-community/Qwen3-4B-Instruct-2507-4bit) (or [Qwen3-30B-A3B-Instruct-2507-4bit](https://huggingface.co/mlx-community/Qwen3-30B-A3B-Instruct-2507-4bit) if you pick it), pulled from Hugging Face at a pinned revision. They are Apache-2.0 and are **not** covered by Everest's MIT licence. Hugging Face availability and rate limits are outside Everest's control.
+
 ## Use
 
 | Key | Does |
@@ -44,7 +46,7 @@ If you rebind, avoid `⌥I`, `⌥E`, `⌥U` and `⌥N` — those are dead keys, 
 
 ```bash
 brew install xcodegen          # once
-git clone <this repo> && cd Everest
+git clone https://github.com/kabrapratik28/Everest.git && cd Everest
 xcodegen generate
 open Everest.xcodeproj         # then ⌘R
 ```
@@ -53,7 +55,7 @@ open Everest.xcodeproj         # then ⌘R
 cd EverestKit && swift test    # all logic, no app needed
 ```
 
-**Signing.** `project.yml` currently hardcodes one developer certificate, so a clean clone will not build on another Mac without editing it. This is a known limitation — see `docs/PUNCH-LIST.md`. The certificate is pinned rather than ad-hoc because macOS binds Accessibility permission to the code signature, and an ad-hoc signature changes on every build, forcing you to re-grant permission each time.
+**Signing.** A clean clone builds ad-hoc, with no certificate and no Apple Developer account. The catch: macOS binds Accessibility permission to the code signature, and an ad-hoc signature is a content hash, so you must re-grant Accessibility after every build. To avoid that, put your own certificate's SHA-1 (`security find-identity -v -p codesigning`) in an untracked `Everest/Signing.local.xcconfig` — `Everest/Signing.xcconfig` has the details.
 
 Xcode 26 needs the Metal toolchain: `xcodebuild -downloadComponent MetalToolchain`.
 

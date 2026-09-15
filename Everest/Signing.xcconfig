@@ -1,0 +1,25 @@
+// Code-signing identity for the Everest app target only. Never for the
+// dependencies — see project.yml's `settings.base` for why a real identity
+// there breaks eight SPM packages at once.
+//
+// The default below is ad-hoc, so a clean clone builds on any Mac with no
+// certificate and no Apple Developer account. It has a real cost: macOS binds
+// Accessibility permission to the code signature, an ad-hoc signature is a
+// content hash, and so every rebuild is a new identity — the switch in System
+// Settings stays on while `AXIsProcessTrusted()` returns false.
+//
+// To keep the grant across rebuilds, create an untracked `Signing.local.xcconfig`
+// next to this file (it is gitignored) containing one line:
+//
+//     CODE_SIGN_IDENTITY = <your certificate's SHA-1>
+//
+// Find the SHA-1 with: security find-identity -v -p codesigning
+//
+// The SHA-1, not the certificate's name. Naming it sends Xcode into automatic
+// provisioning even under Manual style, which then fails looking for a legacy
+// "Mac Development" certificate that a free account cannot be issued.
+
+CODE_SIGN_STYLE = Manual
+CODE_SIGN_IDENTITY = -
+
+#include? "Signing.local.xcconfig"

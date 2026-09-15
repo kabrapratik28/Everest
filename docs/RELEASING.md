@@ -19,10 +19,14 @@ origin=Apple Development: <your name> (<team id>)
 be distributed — it means the user must approve it once by hand. Whether that
 is acceptable is the $0 question below, not a technical blocker.
 
-**A real blocker either way:** `project.yml` hardcodes one certificate's SHA-1,
-so a clean clone does not build elsewhere. Pinning is deliberate — Accessibility
-permission is bound to the code signature — but the value must move out of the
-committed file before anyone else can contribute.
+**One thing the `rejected` line also gives away.** The designated requirement
+embeds the certificate's common name, and for an Apple Development certificate
+that is the Apple ID it was issued to — an email address. Anyone who downloads
+a release can read it with `codesign -d -r-`. Nothing in the build can strip
+it; only a different certificate changes it, and a Developer ID Application
+certificate carries the account holder's name instead. Worth knowing before a
+public release, and a second reason the $99 question is not purely cosmetic.
+*(Measured 2026-09-15 on the shipping build.)*
 
 ## The $0 route, and the one thing it must not get wrong
 
@@ -149,7 +153,6 @@ possible first impression. See `docs/MANUAL-CHECKS.md`.
 ## Before the first public release
 
 - `Developer ID Application` certificate and notarisation working.
-- Signing identity out of `project.yml`.
 - Everything in `docs/PUNCH-LIST.md` and the P0s in `docs/EXTERNAL-AUDIT.md`.
 - A first-run pass on a Mac that has never run Everest — the download path is
   invisible on a machine that already has the weights.

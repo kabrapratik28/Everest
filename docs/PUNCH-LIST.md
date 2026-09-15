@@ -8,7 +8,6 @@ the final commit.
 | Doc comment says "Five refusals with five different remedies, so five sentences" — there are now six | `EverestKit/Sources/AppCore/CaptureFailure.swift:6` | That comment is the thing warning the next person not to fold the messages together. A stale guard-comment undermines the guard. |
 | `AppIcon-alt.icns` regenerated, 1.5 MB, referenced by nothing | `Everest/Resources/` | §1: nothing unreferenced. One command to rebuild from `Artwork/` if ever wanted. |
 | `Match` is `public`, its only consumer `compare` is internal | `EverestKit/Sources/TextBridge/TargetValidator.swift:16` | Over-broad visibility. Cosmetic; deliberately not touched while the app was being tested. |
-| `CODE_SIGN_IDENTITY` hardcodes this machine's cert SHA-1 | `project.yml` | Repo will not build for anyone else. Fine while private; needs parameterising before sharing. |
 | Dead-code sweep was grep-based, not semantic | — | Periphery's Homebrew cask is broken. Grep flags protocol conformances as false positives, so it was reviewed by hand. Labelled honestly rather than implying semantic analysis. |
 
 ## Verified non-issues
