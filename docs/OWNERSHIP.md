@@ -10,7 +10,7 @@ Last updated: 2026-09-15 00:45 PDT
 | `EverestKit/Sources/TextBridge/` + tests | **fix-docs** | Was `tdd-bridge`. Reassigned without telling it, which caused three misroutes. Building the EVE-009 paste fix. |
 | `EverestKit/Sources/Engines/` + tests | **audit-correctness** | Truncation and `LoadOnce` both landed. Was `tdd-engines`. |
 | `EverestKit/Sources/RewriteCore/` | **audit-correctness** | `OutputValidator`, `EngineLimits`, and `PromptBuilder` — `audit-security` stood down and EVE-012 turned out to span both. |
-| `EverestKit/Sources/Overlay/` + tests | *unowned* | `fix-keys` finished. EVE-010's `PanelKeyWindowTests` landed from an unconfirmed author. |
+| `EverestKit/Sources/Overlay/` + tests | *unowned* | `fix-keys` finished. `PanelKeyWindowTests` is `fix-keys`', confirmed. |
 | `EverestKit/Sources/AppCore/` + tests | **fix-settings** | `EngineFactory.swift` was carved out to `fix-model`, now finished and returned. |
 | `Everest/App/`, `Everest/Settings/` | **fix-settings** | Except `HotkeyManager.swift`, which is the lead's — the *bindings* were, never the rendering. |
 | `project.yml`, `README.md`, root `AGENTS.md`, `docs/` | **lead** | |
