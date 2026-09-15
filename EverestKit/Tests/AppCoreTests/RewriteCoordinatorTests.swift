@@ -144,9 +144,12 @@ func rejectedOutputIsNeverWritten() async {
         // generations started reporting `GenerationError.truncated`, so
         // `.empty` is the only thing the validator still rejects. The guard
         // under test is unchanged — a rejection must not reach the document.
-        // Note `""` and not whitespace: `clean` trims only inside the
-        // envelope, so "   " is a non-empty rewrite as far as `validate` is
-        // concerned and would be written.
+        // `""` here, though whitespace would do as well now: `validate`
+        // refuses anything with no non-whitespace character, pinned by
+        // `outputValidatorValidateRejectsWhitespaceOnlyOutput`. It did not
+        // when this was written, and the comment saying so outlived the
+        // change — leaving prose that invited someone to "fix" a correct
+        // guard.
         engine: StubEngine(events: [.finished("")]),
         apply: recorder
     )
@@ -642,6 +645,12 @@ func cancellingADownloadStopsItAndLeavesThePanelDown() async {
     // And nothing re-presented the panel after it came down. `0.9` arrives
     // from the download on its way out; it belongs to a transaction that no
     // longer owns the panel.
+    // Positive control, and not optional: `drop(while:)` returns an *empty*
+    // collection when "hide" never appears, so without this the assertion
+    // below passes for the wrong reason — deleting `panel.dismiss()` from
+    // `cancel()` would sail through it.
+    #expect(log.entries.contains("hide"), "the panel was never dismissed: \(log.entries)")
+
     let afterHide = Array(log.entries.drop(while: { $0 != "hide" }).dropFirst())
     #expect(afterHide.contains { $0.hasPrefix("present") } == false, "entries: \(log.entries)")
 }
@@ -680,4 +689,71 @@ func anEmptyStreamDoesNotHangThePanel() async {
     // But the panel is not left mid-flight.
     let last = surface.presented.last
     #expect(last?.kind == .error, "ended on \(String(describing: last?.kind))")
+}
+
+/// A transaction's token is bound when it begins, never sampled later.
+///
+/// `run` used to read `generation` on entry, which is after `quickImprove`
+/// has already suspended once on the settings read. A second press landing in
+/// that window bumps the counter, the first resumes, and `run` samples the
+/// *new* value — so both transactions hold the same token and every guard
+/// compares it to itself. Two transactions, one generation, both reach the
+/// write. No picker and no cancellation needed; two hotkey presses do it.
+///
+/// Driven through `begin` and `run` directly rather than by racing two
+/// `quickImprove` calls: the decision under test is whether a transaction
+/// carrying an older token can write, and that is assertable without
+/// depending on a scheduler to interleave the way the bug needs.
+@Test("a transaction superseded before it runs never reaches the document")
+@MainActor
+func aSupersededTransactionNeverWrites() async throws {
+    let log = CallLog()
+    let (panel, _) = makePanel(log: log)
+    let recorder = ApplyRecorder(log: log)
+    let coordinator = makeCoordinator(
+        panel: panel,
+        settings: makeSettings(),
+        engine: StubEngine(events: [.finished("rewritten")]),
+        apply: recorder
+    )
+
+    // The first press reads the selection and takes its token.
+    let older = try #require(await coordinator.begin())
+    // A second press arrives before the first gets as far as `run`.
+    _ = await coordinator.begin()
+
+    await coordinator.run(older, preset: .quickImprove)
+
+    #expect(recorder.applied.isEmpty, "a superseded transaction wrote into the document")
+}
+
+/// Superseding releases the selection the picker was holding.
+///
+/// Root §6: only the current transaction's original stays in memory, because
+/// more than that is an undeclared history of the user's private selections.
+/// Nothing pinned it — both `pending = nil` sites could be deleted with every
+/// test still green.
+///
+/// Note what this is *not* protecting any more. It used to be the only thing
+/// stopping a stale snapshot from being picked and written against a target
+/// the user had moved on from; `Transaction` now carries its own generation,
+/// so that snapshot refuses itself. What is left here is the memory promise,
+/// which is reason enough on its own and needs its own test to survive.
+@Test("superseding releases the held selection, so no private text outlives its transaction")
+@MainActor
+func supersedingReleasesTheHeldSelection() async {
+    let log = CallLog()
+    let (panel, _) = makePanel(log: log)
+    let coordinator = makeCoordinator(
+        panel: panel,
+        settings: makeSettings(),
+        apply: ApplyRecorder(log: log)
+    )
+
+    await coordinator.chooseStyle()
+    #expect(await coordinator.pending != nil, "the picker had nothing to pick against")
+
+    await coordinator.cancel()
+
+    #expect(await coordinator.pending == nil)
 }

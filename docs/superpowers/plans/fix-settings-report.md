@@ -1,6 +1,6 @@
 # Settings, onboarding and menu — report
 
-**AppCore: 61 tests, all green.** Baseline when I started was 35; I added 21,
+**AppCore: 63 tests, all green.** Baseline when I started was 35; I added 23,
 other agents added the rest. Every app-target file is `swiftc -parse` only —
 see *Not type-checked*.
 
@@ -463,7 +463,75 @@ ordering is not redundant with the tap, it is what the tap falls back to.
 carried the same claim, and both are load-bearing comments on the doubles that
 make the ordering assertable. Swept rather than spot-fixed.
 
-## 20. Three smaller ones
+## 20. The generation token was never bound to its transaction
+
+**Files:** `AppCore/RewriteCoordinator.swift`,
+`AppCoreTests/RewriteCoordinatorTests.swift`, `AppCore/AGENTS.md`
+
+Reproduced exactly as you described. `run` sampled `generation` on entry,
+which is *after* `quickImprove` has already suspended on the settings read, so
+a second press in that window let the first resume and adopt the **newer**
+token. Both transactions then held one generation, every guard compared it to
+itself, and both reached the write. Two hotkey presses — no picker, no cancel.
+
+**Fixed by binding, not by adding guards.** `begin()` now reads `generation`
+once, before its first suspension, and returns a `Transaction` carrying it.
+`run` takes the transaction and refuses at entry if the token is stale —
+before it touches `active`, which a stale transaction would otherwise
+overwrite, leaving the next supersede cancelling the wrong engine. `pending`
+carries its token too, so both doors close together: a resurrected snapshot is
+refused on its own generation rather than stamped with whatever is current.
+The catch path in `begin` was re-reading `generation` for its `autoDismiss`
+too; that is bound now as well.
+
+**RED was a real double write**, not a compile error: `recorder.applied` held
+`"rewritten"` from a transaction that had already been superseded. I widened
+`begin` and `run` to internal first so the harness could bind a token and then
+supersede it, which is the decision under test — no scheduler race needed.
+
+**`TransactionBox` is no longer what prevents the second write.** It was the
+accidental containment, and only while both presses resolved the same
+`EngineID`; `TargetValidator` goes back to being defence in depth. The
+"known and bounded" note in `AppCore/AGENTS.md` is **removed, not softened** —
+its premise was that the invariant did not hold, and now it does.
+
+**Behaviour:** a transaction superseded before it runs never reaches the
+document.
+
+## 21. `pending` was never proved cleared
+
+**Files:** `AppCore/RewriteCoordinator.swift` (access only),
+`AppCoreTests/RewriteCoordinatorTests.swift`
+
+**Answering your question about whether this dissolves: the harm changes
+shape, the missing test does not.** With the token carried in `pending`, a
+stale snapshot refuses itself, so deleting `pending = nil` no longer produces
+a wrong-target write. What remains is root §6 — only the current
+transaction's original in memory, because more is an undeclared history of
+the user's private selections. That is reason enough on its own and it was
+unpinned, so it now has its own test asserting `pending` is released on
+supersede. The audit item closes as a memory guard, not as a write guard.
+
+## 22. Two test-quality items
+
+**Files:** `AppCoreTests/RewriteCoordinatorTests.swift`
+
+- **The vacuous `drop(while:)`.** `drop(while: { $0 != "hide" })` returns an
+  *empty* collection when "hide" is absent, so removing `panel.dismiss()` left
+  the assertion passing. Added the positive control root §1 now requires.
+  Proved by mutation: with `dismiss` removed the test fails on
+  `log.entries.contains("hide")`, which it previously sailed through.
+- **The stale whitespace comment.** It said `"   "` "would be written".
+  `validate` now refuses anything with no non-whitespace character, pinned by
+  `outputValidatorValidateRejectsWhitespaceOnlyOutput`. Verified against the
+  code before editing rather than taking the report's word.
+
+**Items 3 and 4 are not mine.** `coalescer`, `clock.cancel()` and
+`announcedKind` are all in `Overlay/FloatingPanelController.swift:34-63`, not
+AppCore. I have not touched them — they need dispatching to whoever owns
+`Overlay`.
+
+## 23. Three smaller ones
 
 - **The practice field could not be typed in.** `TextEditor(text: .constant(…))`
   on the step that says "type something below" — the one screen that would
@@ -498,8 +566,13 @@ existing test and exposed the `.standard`-store leak.
 **Final:**
 
 ```
-✔ Test run with 61 tests in 1 suite passed after 0.048 seconds.
+✔ Test run with 63 tests in 1 suite passed after 0.041 seconds.
 ```
+
+**Round 2 generation work** (§20-22), mutations on a copy: re-sampling
+`generation` in `run` instead of carrying it failed the supersession test;
+dropping `pending = nil` failed the §6 release test; removing
+`panel.dismiss()` failed the newly-added positive control. All three caught.
 
 **Round 2 mutations** (§17-18), on copies. Restoring `runTest`'s bare `return`
 failed the test-box test. Then, for `EngineFailure`, two mutations run

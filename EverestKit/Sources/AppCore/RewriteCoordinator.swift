@@ -29,11 +29,28 @@ public actor RewriteCoordinator {
     /// press can stop it.
     private var active: (any RewriteEngine)?
 
-    /// The selection the style picker is waiting on. Held here rather than
+    /// One transaction's identity, bound the moment it begins.
+    ///
+    /// The generation travels *with* the transaction instead of being read
+    /// again later, and that is the whole point. `run` used to sample
+    /// `generation` on entry — after `quickImprove` had already suspended on
+    /// the settings read — so a second press landing in that window bumped
+    /// the counter, the first resumed, and it adopted the *new* token. Two
+    /// transactions then held one generation and every guard compared it to
+    /// itself, so both reached the write. No picker and no cancel needed:
+    /// two hotkey presses did it.
+    struct Transaction {
+        let snapshot: TargetSnapshot
+        let generation: Int
+    }
+
+    /// The transaction the style picker is waiting on. Held here rather than
     /// passed through the panel because `TargetSnapshot` is `@unchecked
     /// Sendable` — the actor is its only owner, and it is never handed to a
-    /// second task.
-    private var pending: TargetSnapshot?
+    /// second task. It carries its own generation, so a snapshot that
+    /// outlived its transaction refuses itself rather than being stamped with
+    /// whatever token is current by the time it is picked.
+    private(set) var pending: Transaction?
 
     public init(
         panel: FloatingPanelController,
@@ -57,9 +74,11 @@ public actor RewriteCoordinator {
     /// defaults moved once and every glyph in the codebase went stale with
     /// them; `HotkeyManager` owns what it is bound to.
     public func quickImprove() async {
-        guard let snapshot = await begin() else { return }
+        guard let transaction = await begin() else { return }
+        // This read suspends, and a second press can land here. Harmless now
+        // only because the token above is already bound.
         let preset = await MainActor.run { settings.quickImprove }
-        await run(snapshot: snapshot, preset: preset)
+        await run(transaction, preset: preset)
     }
 
     /// The Choose Style hotkey. Reads the selection, *then* offers the styles.
@@ -73,8 +92,8 @@ public actor RewriteCoordinator {
     /// hand either way. A panel shown first can also move accessibility focus
     /// before it is read.
     public func chooseStyle() async {
-        guard let snapshot = await begin() else { return }
-        pending = snapshot
+        guard let transaction = await begin() else { return }
+        pending = transaction
         await MainActor.run { panel.show(.stylePicker(presets: settings.styles)) }
     }
 
@@ -90,20 +109,32 @@ public actor RewriteCoordinator {
     }
 
     /// The panel's `onPickStyle`, arriving with the selection already captured.
+    /// The panel's `onPickStyle`, arriving with the selection already
+    /// captured — and with the generation it was captured under, which is
+    /// checked here. `supersede()` also clears `pending`, but that is memory
+    /// hygiene (root §6: only the current transaction's original in memory),
+    /// not what makes this safe. What makes it safe is that a snapshot which
+    /// outlived its transaction carries a stale token and is refused.
     public func pickStyle(_ preset: Preset) async {
-        guard let snapshot = pending else { return }
+        guard let transaction = pending, transaction.generation == generation else { return }
         pending = nil
-        await run(snapshot: snapshot, preset: preset)
+        await run(transaction, preset: preset)
     }
 
     // MARK: - The transaction
 
     /// Supersedes any predecessor, then reads the selection. `nil` means the
     /// transaction cannot start and the user has been told why.
-    private func begin() async -> TargetSnapshot? {
+    /// Internal, not private, so a test can bind a token and then supersede
+    /// it without having to race two `quickImprove` calls into the one
+    /// window where the bug used to appear.
+    func begin() async -> Transaction? {
         await supersede()
+        // Bound here, before the first suspension, and never re-read.
+        let mine = generation
         do {
-            return try await MainActor.run { try capture(settings.excludedBundleIDs) }
+            let snapshot = try await MainActor.run { try capture(settings.excludedBundleIDs) }
+            return Transaction(snapshot: snapshot, generation: mine)
         } catch {
             // `.error`, not `.refused`. `PanelState.refused` reads "The model
             // declined", which is a false account of a refusal that happened
@@ -111,7 +142,7 @@ public actor RewriteCoordinator {
             // the validator threw out.
             let state = PanelState.error(reason: CaptureFailure.message(for: error))
             await MainActor.run { panel.show(state) }
-            await autoDismiss(state, generation: generation)
+            await autoDismiss(state, generation: mine)
             return nil
         }
     }
@@ -124,8 +155,13 @@ public actor RewriteCoordinator {
         active = nil
     }
 
-    private func run(snapshot: TargetSnapshot, preset: Preset) async {
-        let mine = generation
+    func run(_ transaction: Transaction, preset: Preset) async {
+        let mine = transaction.generation
+        let snapshot = transaction.snapshot
+        // Refused before it touches anything. A stale transaction that got
+        // this far would overwrite `active` — so the next supersede would
+        // cancel the wrong engine — and repaint a panel it no longer owns.
+        guard mine == generation else { return }
         let engine = engineFor(await MainActor.run { settings.engineID })
         active = engine
 
