@@ -97,3 +97,59 @@ permission is bound to the code signature, so an ad-hoc signature makes the
 user re-grant on every rebuild. The hardcoded SHA-1 is what stops that. It does
 block a clean checkout on another Mac, which is a real cost and is on the
 punch list — but it is a trade, not an oversight.
+
+---
+
+# Re-audit, 2026-09-15 — EVE-019…029
+
+Same auditor, same method, reading the tree after round 2 and the five items
+Pratik reported from using the app. It restatused the original eighteen and
+filed eleven new findings.
+
+**It earned its keep twice over, and one of its own restatuses was wrong in a
+way worth keeping.** It marked **EVE-010 "Fixed"** — *"terminal result panels
+now call `makeKey()`"* — in the same document where Pratik was reporting that
+⌘V no longer worked. That fix was the cause. A reader of the code and a user
+of the app disagreed, and the user was right.
+
+## Status
+
+| ID | Sev | What | State |
+|---|---|---|---|
+| EVE-019 | P0 | `clean` unwrapped **any** well-formed 16-hex envelope, so a user's own tag pair silently discarded the text around it — and auto-replace writes it | **Fixed.** `clean` already took `source`; if the tag is already there it is the user's. Two lines, not the threading I asked for |
+| EVE-020 | P1 | The event tap fails open: on `tapCreate` failure the picker still *acted* on keys it could not consume | **Fixed.** `isActive` asks the tap, which covers `.tapDisabledByUserInput` with no second branch |
+| EVE-021 | P1 | The registry can hold 4B and 30B at once, defeating the memory gate | In progress |
+| EVE-022 | P1 | Preparation neither single-flight nor cancellable without progress | In progress |
+| EVE-023 | P1 | Model eligibility enforced only by views; a persisted 30B bypasses the disabled row | In progress |
+| EVE-024 | P1 | Pasteboard write results discarded; the manual Copy button dismisses regardless | **Disputed in part** — see below. The severe half is being fixed differently |
+| EVE-025 | P1 | Copy/paste observation confuses other writers with our own event | **Part fixed** (the fallback no longer overwrites a newer clipboard); the rest documented as unfixable |
+| EVE-026 | P2 | A `.clipboard` cache entry was self-sustaining after AX recovered | **Fixed.** Consulted only while the app is still dark |
+| EVE-027 | P2 | The punctuation heuristic overrode an explicit `.endOfText` | **Fixed.** Runs only when the producer reports nothing |
+| EVE-028 | P2 | One output ceiling for every preset; `Expand` hits it | **Recorded, not built** — and worse than filed |
+| EVE-029 | P1 | `⌥R`/`⌥⇧R` globally take `®` and `‰` | **Pratik's decision**, made with that cost shown |
+
+## Where we did not do what it asked
+
+**EVE-024's Bool checks.** The audit said to check what `writeObjects` returns.
+`fix-docs` could not construct a state where it is `false` — five attempts, all
+`true` — and the one documented failure *throws* instead, so a Bool check would
+not catch it. Building it would add branches no test can enter, in the
+highest-risk file. The severe half is real and the remedy is different:
+**do not dismiss `heldForManualCopy` until a read-back proves the text is on
+the clipboard.** That catches a silent no-op, an immediate overwrite, and the
+throw case.
+
+**EVE-028's per-preset budget.** The ceiling tightens with length — `Expand` is
+capped near 3.0× at 500 characters and 1.6× at 4,000. A per-preset multiplier
+fails for the reason that retired the 3× ratio: intent is not in the length,
+and the only thing carrying it is free text the user edits. The one real lever
+is the global `outputScale`, which costs time and memory on every rewrite to
+make one preset reliable — a product call, left open.
+
+## The lesson this round produced
+
+**A fix that removes a wrong answer can hand the next stage a right of way it
+never had.** Before the leaked-borrow fix, `handOff` could not acquire the
+clipboard and the user's fresh copy survived behind a false "another rewrite is
+using the clipboard". Fixing the leak was right, and it converted a wrong
+*message* into data *loss*. Recorded in `TextBridge/AGENTS.md`.
