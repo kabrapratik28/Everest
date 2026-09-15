@@ -46,7 +46,7 @@ Rationalizations already used on this project, all rejected: "already manually t
 
 `AGENTS.md` holds decisions and **why** (canonical). `CLAUDE.md` is exactly one line, `@AGENTS.md`, never anything else.
 
-**Budget: this file ≤150 lines, per-directory ≤60 — except `AppCore` at ≤90**, which absorbs every branch in the app by design (§4), so it carries four modules' worth of decisions rather than its own. Over means cut, not append — a 500-line doc protects nothing because nobody reads it, so the guards get buried and removed anyway. That is the only exception and it is named here; declaring yourself the second one is how the rule dies.
+**Budget: this file ≤150 lines, per-directory ≤60 — except `AppCore` at ≤90**, which absorbs every branch in the app by design (§4), so it carries four modules' worth of decisions rather than its own. **It is at 90 with no headroom, so the next decision there splits the file rather than compressing a fifth time** — the coordinator and Settings-screens sections are already two documents under one heading, and merging is where a *why* quietly goes missing. Over means cut, not append — a 500-line doc protects nothing because nobody reads it, so the guards get buried and removed anyway. That is the only exception and it is named here; declaring yourself the second one is how the rule dies.
 
 Rationale, not inventory: "snapshots all types" is useless; "a fixed-delay restore races the user and eats what they copied, so restore is gated on `changeCount`" is the point. Skip anything readable from the code in ten seconds. Update a directory's `AGENTS.md` in the same change that alters its decisions; create both files in any new source directory.
 

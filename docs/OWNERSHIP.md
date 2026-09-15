@@ -71,6 +71,9 @@ first, and suspicion is not a mechanism.
   reasoning — the two regressions introduced here were both of that kind, and
   a citation habit would have caught neither. Only a second pair of eyes on
   the same code did. That is what round 2 was for, and why one exists.
+- **A test count is a required field in a report, not a habit.** The check
+  below is mechanical for the reader and depends entirely on the writer, and
+  its failure is silent — a report without a count reads completely normal.
 - **Put a test count in every report, and check it before replying.** If the
   count in your tree does not match the count in their last message, you are
   reading something older than their work — cheaper than a diff, and it is one
