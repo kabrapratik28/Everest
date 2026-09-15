@@ -32,11 +32,22 @@ so read it there rather than assuming. Note `⌘U` is Underline, the same class 
 collision the default was changed to escape, and `ShortcutNotice` only warns
 about `⌘I`.
 
-**Scripted keystrokes cannot test any of this.** Carbon global hotkeys
-(`RegisterEventHotKey`, which is what `KeyboardShortcuts` wraps) do not reliably
-fire for events synthesised by System Events, so an AppleScript harness measures
-what the *target app* does with the chord and never reaches Everest. An hour was
-lost to that; it produced one unreproducible scare and no information.
+**System Events keystrokes cannot test any of this — but a CGEvent can.**
+Carbon global hotkeys (`RegisterEventHotKey`, which is what
+`KeyboardShortcuts` wraps) do not fire for events synthesised by System
+Events, so an AppleScript harness measures what the *target app* does with
+the chord and never reaches Everest. An hour was lost to that; it produced
+one unreproducible scare and no information.
+
+The reason is the tap level, not the synthesis. **A `CGEvent` posted at
+`.cghidEventTap` does fire the hotkey** — measured 2026-09-15, and it is how
+`scripts/make_demo_gif.py` records a demo. `System Events` posts at the
+session tap, which is above where Carbon listens. So a harness is possible
+after all, and anything below that a scripted keystroke *did* seem to
+trigger was the target app reacting, not Everest.
+
+This does not make the checks below automatable: they are about what a real
+app does with a real selection, and the hotkey was only ever the first step.
 
 ## First run on fresh defaults — the highest-value pass
 
