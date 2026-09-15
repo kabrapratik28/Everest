@@ -71,15 +71,18 @@ nothing.
 
 ## Needs a second app
 
-11. **EVE-010 end to end.** Put a sentinel string on the clipboard. Select
-   *different* text in the source app, trigger a rewrite that lands in
-   `heldForManualCopy`, press ⌘C at the panel, read the clipboard. Expect the
-   rewrite. Before the fix this gave you the source app's own selection,
-   because its Copy ran after ours. Both halves are proven separately; the join
-   is not.
-12. **Key returns to the source app after dismiss.** Caret keeps blinking in the
-   source app once the panel goes. `orderOut` resigning key is standard AppKit
-   and was not tested; if it is wrong this is visible immediately.
+11. **EVE-010 end to end, plus ⌘V in the same run.** Put a sentinel string on
+   the clipboard. Select *different* text in the source app, trigger a rewrite
+   that lands in `heldForManualCopy`, press ⌘C at the panel, read the
+   clipboard — expect the rewrite, not the source app's own selection. **Then
+   press ⌘V while the panel is still up**: it must paste. Those are the two
+   halves of the same mechanism — the tap consumes ⌘C and passes everything
+   else — and one keystroke checks both.
+12. **With Accessibility revoked, ⌘C at the panel is no longer consumed.**
+   Stated rather than fixed: consumption now depends entirely on the event
+   tap, and `tapCreate` is signature-keyed. The key-window version used to
+   cover this case, at the cost of eating every other key. If you revoke the
+   grant mid-session, the source app's Copy can still overwrite the rewrite.
 13. **The event tap under Everest's own signature.** Tap creation is
    signature-keyed. Open the style picker, press `3`, and confirm no `3`
    appears in the source app. If `tapCreate` returns nil the picker silently
