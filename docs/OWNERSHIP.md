@@ -66,6 +66,11 @@ first, and suspicion is not a mechanism.
   you noticed, and §8 has already shown what happens to a rule you comply with
   by feeling careful. A citation is something you either typed or did not, and
   every claim that survived scrutiny tonight had one.
+  **Its boundary:** it catches wrong claims *about the tree*, which is where
+  all five landed. It does not catch correct readings followed by wrong
+  reasoning — the two regressions introduced here were both of that kind, and
+  a citation habit would have caught neither. Only a second pair of eyes on
+  the same code did. That is what round 2 was for, and why one exists.
 - **Claim new files in your report.** Three untracked files appeared —
   `LoadOnce.swift`, `PanelKeyWindowTests.swift`, `ShortcutCopy.swift` — that no
   report mentioned, so they sat uncommitted while the lead asked around. A file
