@@ -1,16 +1,53 @@
+<div align="center">
+
+<img src="docs/assets/icon.png" width="132" alt="Everest">
+
 # Everest
 
-Select text in any Mac app, press `⌥R`, and a locally-generated rewrite streams into a floating panel and replaces your selection.
+### Fix your writing anywhere on your Mac, with one keystroke.
 
-The model runs on your Mac. Nothing is sent to a server, and it works with networking off.
+Select text in any app, press `⌥R`, and a rewrite streams in and replaces it.
+**The model runs on your Mac.** No account, no server, no telemetry, and it works on a plane.
 
-**One honest exception, and it is about privacy rather than capability.** Some apps do not let macOS hand over a selection at all — terminals, PDFs, Google Docs, Sublime Text — so Everest reads it with a synthetic ⌘C instead. Most of those still get a normal in-place rewrite; see below for the two that do not. What they share is that the text passes through the system clipboard on the way, and anything on the system clipboard is eligible for Universal Clipboard if Handoff is on. There is no API to opt out of that. Turn Handoff off in System Settings ▸ General if it matters to you.
+<a href="https://github.com/kabrapratik28/Everest/releases/latest/download/Everest.dmg">
+<img src="docs/assets/download.png" width="300" alt="Download Everest for macOS">
+</a>
 
-**Requirements:** macOS 26 or later, Apple Silicon. Roughly 4 GB free for the model.
+<sub>macOS 26 or later · Apple Silicon · MIT licensed · ~2.3 GB model downloaded on first run</sub>
+
+<br><br>
+
+<img src="docs/assets/panel-rewriting.png" width="620" alt="Everest rewriting a sentence in a floating panel">
+
+</div>
+
+## Why you might want it
+
+- **It is fast to reach.** One keystroke, in the app you are already typing in. No window to switch to, nothing to paste into and back out of.
+- **Your text does not leave the machine.** Not "encrypted in transit", not "we do not train on it". It never goes anywhere. Unplug the network and it still works.
+- **It replaces the selection.** You are not handed a suggestion to copy; the text in your document changes, and `⌘Z` puts it back.
+- **Six styles, and they are yours.** Proofread, Professional, Friendly, Concise, Expand, Simplify — every prompt is editable in Settings, and you can add your own.
+- **It refuses password fields.** Before reading, and again immediately before any copy.
+- **Free and MIT.** No trial, no subscription, no upsell inside the app.
+
+<div align="center">
+<img src="docs/assets/panel-reading.png" width="330" alt="Reading selection">
+<img src="docs/assets/panel-preparing.png" width="330" alt="Preparing model">
+<br>
+<img src="docs/assets/panel-replaced.png" width="330" alt="Replaced">
+</div>
+
+## One honest exception
+
+Some apps do not let macOS hand over a selection at all — terminals, PDFs, Google Docs, Sublime Text — so Everest reads it with a synthetic ⌘C instead. Most of those still get a normal in-place rewrite; see [below](#use) for the two that do not. What they share is that the text passes through the system clipboard on the way, and anything on the system clipboard is eligible for Universal Clipboard if Handoff is on. There is no API to opt out of that. Turn Handoff off in System Settings ▸ General if it matters to you.
+
+[PRIVACY.md](PRIVACY.md) is the full account, including what is stored on disk and how to remove it.
 
 ## Install
 
-Download the latest `.dmg` from [Releases](../../releases), open it, and drag Everest to Applications.
+**[⬇ Download Everest.dmg](https://github.com/kabrapratik28/Everest/releases/latest/download/Everest.dmg)** — or pick a specific build from [Releases](../../releases).
+
+Open the disk image and drag Everest to Applications.
 
 **The first launch needs one extra step.** Everest is signed but not notarised — notarisation requires Apple's $99/year Developer Program, and this app is not earning that yet. So macOS will refuse the first launch and say *"Apple could not verify Everest is free of malware."* Click **Done**, then:
 
