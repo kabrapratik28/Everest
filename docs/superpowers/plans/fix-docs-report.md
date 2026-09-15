@@ -100,6 +100,20 @@ destroyed.
 
 GREEN: `✔ Test run with 70 tests in 10 suites passed after 0.571 seconds.`
 
+**Residual, stated because the doc used to imply there wasn't one.** Past
+`copyBudget + settleBudget` (520 ms) we have stopped watching, and a target
+answering then overwrites the clipboard we restored. This path cannot `hold`
+the way the paste path does — a target that never answers ⌘C would block
+forever — so the deadline is the most responsibility it can take. Three
+narrowings were considered and all are worse than the residual: a longer
+budget pays a certain main-thread freeze on every unreadable app to shrink a
+rare case; detecting the late write on the next transaction needs the previous
+snapshot kept in memory, which root §6 forbids; and watching in the background
+is the deferred restore rejected on the paste side for three separate reasons.
+What lands on the clipboard there is the user's own selection rather than
+something foreign, which is why this residual is tolerable and the paste-side
+one was not.
+
 **`abandon()` and its mutation check.** Restoring on the nothing-moved path
 would have been simpler, but it rewrites identical bytes, bumps `changeCount`,
 and leaves a duplicate clipboard-history entry for every hotkey press in an app

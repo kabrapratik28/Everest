@@ -100,7 +100,7 @@ Each caused a real defect. Each has a test.
 | Secure-field refusal (subrole `AXSecureTextField`, **not** role) | A password is read into an LLM prompt. Web/Electron fields don't set the global secure-input flag. |
 | Prompt-injection frame, not user-editable | Selected text saying "ignore previous instructions" changes app behaviour. |
 | Output validation before replacement | The user's email becomes "Sure! Here's an improved version:". |
-| Pasteboard restore gated on `changeCount` | Anything copied during a rewrite is destroyed. |
+| Pasteboard restore gated on `changeCount`, and **no suspension point inside a borrow** | Anything copied during a rewrite is destroyed. The process-wide exclusion holds only because every acquire/release pair sits in one synchronous main-actor body — nothing enforces that, and `hold(until:)` made the hitch someone would `await` away bigger. Read `PasteboardBorrow`'s comment before making `apply` async. |
 | Oversize clipboard → refuse before writing | "We dropped everything" read as "it was empty" clears the clipboard. |
 | Target revalidation before writing | 3s is long enough to click elsewhere. Wrong-target writes are unrecoverable. |
 | Range-derived capture → copy-only | A shifted range validates against itself; revalidation can't catch it. |
