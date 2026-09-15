@@ -73,16 +73,65 @@ func outputValidatorValidateRejectsEmpty() {
     #expect(failure == .empty)
 }
 
-@Test("OutputValidator.validate rejects output more than 3.0x the source length")
-func outputValidatorValidateRejectsExcessiveLengthRatio() {
-    let source = "1234567890" // 10 characters
-    let raw = String(repeating: "x", count: 40) // 40 characters -> 4.0x ratio
-    let result = OutputValidator.validate(raw, source: source)
+/// **Whitespace is not a rewrite, and writing it deletes the selection.**
+///
+/// `.empty` used to mean literally zero characters, so a model that returned
+/// `"   \n\t "` passed validation and `ReplacementService` wrote it over the
+/// user's text — a silent, unrecoverable deletion, which is the exact class
+/// this project spends its budget avoiding. It was reachable before the 3×
+/// ceiling came out (blank output is short, so the ratio never fired on it)
+/// and removing the ceiling did not change that either way.
+///
+/// The blank check lives in `validate`, not `clean`: refusing blank output
+/// costs the user nothing, whereas trimming everything that passes would
+/// silently edit rewrites that legitimately end in a newline.
+@Test("OutputValidator.validate rejects output that is only whitespace")
+func outputValidatorValidateRejectsWhitespaceOnlyOutput() {
+    let result = OutputValidator.validate("   \n\t ", source: "short")
+
     guard case .failure(let failure) = result else {
-        Issue.record("expected .failure for output more than 3x source length, got \(result)")
+        Issue.record("expected .failure for whitespace-only output, got \(result)")
         return
     }
-    #expect(failure == .lengthRatio(4.0))
+    #expect(failure == .empty)
+}
+
+/// **`Expand` is a built-in style, and the validator used to refuse it.**
+///
+/// `Presets.swift` ships "Expand this with more supporting detail and clarity
+/// while preserving the original meaning." On a short selection — the only
+/// input anyone expands — an honest expansion is five to fifteen times the
+/// source, so a 3× ceiling refused the thing the user had just asked for,
+/// every time.
+///
+/// It could not be tuned out. The band where a ratio still caught something
+/// (a hijack that stops cleanly at a few times the source) is the *same* band
+/// `Expand` lives in: same lengths, same multiples. Nothing separates them,
+/// because the difference between them is not the length.
+///
+/// What made the ceiling removable rather than merely inconvenient is that
+/// the thing it stood for now exists structurally: output is bounded by
+/// `EngineLimits.outputBudget` at `contextCap - inputTokens`, and a
+/// generation that reaches that bound is refused by `MLXEngine` as
+/// `GenerationError.truncated`. **A runaway generation is a budget-exhausted
+/// generation**, caught exactly, at the decoder.
+@Test("OutputValidator.validate accepts an expansion far longer than its source")
+func outputValidatorValidateAcceptsAnExpansion() {
+    let source = "we need to fix the login bug."
+    let raw = """
+        We need to fix the login bug. It is currently blocking sign-in for a \
+        subset of users, and until it is resolved those people cannot reach \
+        their accounts at all, so it should be treated as urgent.
+        """
+    #expect(Double(raw.count) / Double(source.count) > 3.0, "the case is only interesting above 3×")
+
+    let result = OutputValidator.validate(raw, source: source)
+
+    guard case .success(let value) = result else {
+        Issue.record("expected .success for an honest expansion, got \(result)")
+        return
+    }
+    #expect(value == raw)
 }
 
 @Test("OutputValidator.validate accepts a reasonable rewrite")
