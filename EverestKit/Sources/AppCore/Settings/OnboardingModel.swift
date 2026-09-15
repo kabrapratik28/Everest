@@ -128,6 +128,40 @@ public extension OnboardingModel {
     ///
     /// A user who believes the list is the defence adds their bank's name to
     /// it, gets nothing, and never finds out.
+    /// What Everest does about passwords, and the one case it has no way to
+    /// recognise.
+    ///
+    /// It used to say "Password and secure fields are never read. Everest
+    /// refuses before it looks." Both guards behind that are real — the
+    /// `AXSecureTextField` subrole refusal, and `IsSecureEventInputEnabled`
+    /// asked at the top of the capture chain and again immediately before a
+    /// clipboard read — but neither reaches an app that exposes **no**
+    /// accessibility tree *and* leaves the process-wide flag clear. There is
+    /// no element to classify and no flag to see.
+    ///
+    /// Chrome 153 sets the flag; nothing obliges an Electron host, a custom
+    /// control or a later Chrome to. A measurement of one host at one version
+    /// was standing in for an invariant covering every app forever, which is
+    /// the same shape as the capability-table row that cost a P0
+    /// investigation. **The behaviour is not the defect — the sentence is.**
+    /// Making no-tree clipboard capture opt-in was considered and refused: it
+    /// would disable Sublime, Google Docs and every terminal, which is the
+    /// whole copy-only column of root §3.
+    ///
+    /// Leads with what is enforced, because the guards have earned it and a
+    /// caveat that opens on doubt gets skipped. Ends on the excluded-apps
+    /// list, which is the one control that covers a whole app — and is not
+    /// in tension with `exclusionCaveat` below, which says the list cannot
+    /// protect a *field inside* an app it is not excluding.
+    nonisolated static let passwordPromise = """
+        Everest refuses any field macOS marks as a password, and stops entirely while macOS \
+        reports that one is being typed — checked again in the moment before any read that \
+        goes through the clipboard. What it has no way to recognise is an app exposing no \
+        accessibility information that also leaves that signal unset: browsers and password \
+        managers set it, a custom control might not. For an app you would rather it stayed \
+        out of altogether, the excluded list in Settings ▸ Privacy does that.
+        """
+
     nonisolated static let exclusionCaveat = """
         Everest refuses secure fields before it reads them, and that is what protects a \
         password — including in a browser or an Electron app, where the excluded-app list \

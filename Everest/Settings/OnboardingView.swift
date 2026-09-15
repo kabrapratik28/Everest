@@ -106,7 +106,12 @@ struct OnboardingView: View {
             }
             .font(.callout)
 
-            Text("Password and secure fields are never read. Everest refuses before it looks.")
+            // Pinned by a test in `AppCore`, and deliberately not absolute:
+            // the subrole refusal needs an element and the secure-input flag
+            // needs the host to set it, so an app exposing neither is a case
+            // the chain has no way to recognise. "Never read" was a
+            // measurement of one browser standing in for every app forever.
+            Text(OnboardingModel.passwordPromise)
                 .font(.callout)
                 .bold()
             // Not optional, and the wording is pinned by a test in `AppCore`.

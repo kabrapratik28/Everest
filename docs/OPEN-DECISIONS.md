@@ -70,17 +70,6 @@ need it most, to avoid a risk on your own hardware.
 
 ---
 
-## 2. Should I keep the scratch reports in the repo?
-
-~112 KB of agent reports in `docs/superpowers/plans/`. They are the RED/GREEN
-evidence and the reasoning behind every non-obvious decision, and they have
-already been useful twice for diagnosis. They are also noise in a repo you may
-later want to show someone.
-
-**Default:** kept for now, deleted once the reported bugs are confirmed fixed.
-
----
-
 ## 3. The repo will not build on any other machine
 
 `project.yml` hardcodes your signing certificate's SHA-1, which is what stops

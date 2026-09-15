@@ -173,8 +173,14 @@ final class FakeClipboardCapture: ClipboardCapturing {
 
     private(set) var attempts = 0
 
+    /// Lets a test move the world *during* a copy — focus leaving, a
+    /// password field taking it — which is the only way to exercise a window
+    /// that exists because the copy blocks.
+    var onCopy: (() -> Void)?
+
     func copySelection(pid: pid_t) -> ClipboardCapture {
         attempts += 1
+        onCopy?()
         if borrowRefused { return .unavailable }
         guard let result else { return .nothingCopied }
         return .captured(result)

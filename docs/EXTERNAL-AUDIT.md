@@ -3,7 +3,7 @@
 A second AI read the tree at commit `3954ef1` and filed EVE-001…018. Source:
 `08-AI-rewrite-app/01-Manual Code Audit.md` in the Obsidian vault. This file
 tracks disposition only; the reasoning behind each fix is in the owning
-directory's `AGENTS.md` and the agent reports under `docs/superpowers/plans/`.
+directory's `AGENTS.md`.
 
 **Its method was sound and worth copying.** It pinned a stable commit, read
 production Swift and tests without building, listed the dirty worktree

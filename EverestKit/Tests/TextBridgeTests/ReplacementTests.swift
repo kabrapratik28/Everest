@@ -24,11 +24,12 @@ struct ReplacementTests {
         text: String = "the original",
         pid: pid_t = 501,
         range: CFRange? = CFRange(location: 3, length: 12),
-        isRangeDerived: Bool = false
+        isRangeDerived: Bool = false,
+        bundleID: String = "com.example.editor"
     ) -> TargetSnapshot {
         TargetSnapshot(
             pid: pid,
-            bundleID: "com.example.editor",
+            bundleID: bundleID,
             appVersion: "1.0",
             element: AXUIElementCreateApplication(501),
             text: text,
@@ -628,6 +629,183 @@ struct ReplacementTests {
             if case .heldForManualCopy(cause: .notPasted, _) = outcome {} else {
                 Issue.record("expected the rewrite to be held, got \(outcome)")
             }
+        }
+    }
+
+    /// Validation ran, then up to 520 ms of blocking copy, then ⌘V, then a
+    /// 450 ms hold, then a third copy — and nothing re-asked whether the
+    /// world still looked the way the validator found it. The secure-input
+    /// window we closed at rung 9 an hour ago was still open twice over,
+    /// downstream of it.
+    ///
+    /// `observeConsumption` already re-checks frontmost every 8 ms on the
+    /// grounds that "still frontmost" is a live condition. This path took the
+    /// opposite view across more than a second of blocking work.
+    @Test("a password field taking focus during the re-read stops the paste")
+    func secureInputDuringTheReReadStopsThePaste() throws {
+        withPrivatePasteboard { pasteboard in
+            pasteboard.clearContents()
+            pasteboard.setString("the user's own clipboard", forType: .string)
+
+            let system = FakeSystem(
+                frontmost: FrontmostApp(pid: 501, bundleID: "com.sublimetext.4", appVersion: "1.0"))
+            let clipboard = FakeClipboardCapture()
+            clipboard.result = "the original"
+            // The copy blocks; the user clicks into a password field while it does.
+            clipboard.onCopy = { system.secureInputEnabled = true }
+            let keystroke = FakeKeystroke()
+
+            let outcome = service(
+                FakeAccessibility(), keystroke: keystroke, pasteboard: pasteboard,
+                clipboard: clipboard, system: system
+            ).apply(
+                "the rewrite", to: viaClipboardSnapshot(),
+                autoReplace: true, keepOutOfHistory: true)
+
+            #expect(keystroke.pastes == 0, "no ⌘V into a password field")
+            #expect(pasteboard.string(forType: .string) == "the user's own clipboard")
+            if case .heldForManualCopy = outcome {} else {
+                Issue.record("expected the rewrite to be held, got \(outcome)")
+            }
+        }
+    }
+
+    /// Same window, the other condition. Separable from the test above:
+    /// removing only the secure-input half leaves this one passing.
+    @Test("an app that stops being frontmost during the re-read is not pasted into")
+    func losingFrontmostDuringTheReReadStopsThePaste() throws {
+        withPrivatePasteboard { pasteboard in
+            pasteboard.clearContents()
+            pasteboard.setString("the user's own clipboard", forType: .string)
+
+            let system = FakeSystem(
+                frontmost: FrontmostApp(pid: 501, bundleID: "com.sublimetext.4", appVersion: "1.0"))
+            let clipboard = FakeClipboardCapture()
+            clipboard.result = "the original"
+            // They ⌘-Tab away while the copy blocks.
+            clipboard.onCopy = {
+                system.frontmost = FrontmostApp(
+                    pid: 999, bundleID: "com.other.app", appVersion: "1.0")
+            }
+            let keystroke = FakeKeystroke()
+
+            let outcome = service(
+                FakeAccessibility(), keystroke: keystroke, pasteboard: pasteboard,
+                clipboard: clipboard, system: system
+            ).apply(
+                "the rewrite", to: viaClipboardSnapshot(),
+                autoReplace: true, keepOutOfHistory: true)
+
+            #expect(keystroke.pastes == 0, "no ⌘V into a document they have left")
+            #expect(pasteboard.string(forType: .string) == "the user's own clipboard")
+            if case .heldForManualCopy = outcome {} else {
+                Issue.record("expected the rewrite to be held, got \(outcome)")
+            }
+        }
+    }
+
+    /// The confirm is a third synthetic ⌘C and it comes after a 450 ms hold,
+    /// so it has a window of its own. Posting it at an app the user has left
+    /// reads a selection out of a background document and disturbs the
+    /// clipboard to do it.
+    @Test("the confirming copy is not posted at an app the user has left")
+    func theConfirmIsNotPostedAtABackgroundedApp() throws {
+        withPrivatePasteboard { pasteboard in
+            let system = FakeSystem(
+                frontmost: FrontmostApp(pid: 501, bundleID: "com.sublimetext.4", appVersion: "1.0"))
+            let clipboard = FakeClipboardCapture()
+            clipboard.result = "the original"
+            let keystroke = FakeKeystroke()
+            keystroke.onPaste = {
+                system.frontmost = FrontmostApp(
+                    pid: 999, bundleID: "com.other.app", appVersion: "1.0")
+            }
+
+            _ = service(
+                FakeAccessibility(), keystroke: keystroke, pasteboard: pasteboard,
+                clipboard: clipboard, system: system
+            ).apply(
+                "the rewrite", to: viaClipboardSnapshot(),
+                autoReplace: true, keepOutOfHistory: true)
+
+            #expect(keystroke.pastes == 1, "the paste itself was legitimate")
+            #expect(clipboard.attempts == 1, "but the confirming ⌘C was not posted")
+        }
+    }
+
+    /// Terminal.app is captured at **rung 5**, not rung 9 — measured, it
+    /// supports `AXSelectedText` — so its snapshot is not `viaClipboard` and
+    /// never reaches `pasteUnverifiable`, where the terminal list used to
+    /// live. Meanwhile `kAXTextAreaRole` is in `editableRoles`, so
+    /// `isEditable` is true by role even though `AXValue` is not settable,
+    /// and route two posted ⌘V straight at the shell prompt.
+    ///
+    /// That predates auto-replace: it needed only route two, which has
+    /// existed throughout, and root §3 has claimed "copy only" for terminals
+    /// the whole time. The guard was in the wrong place, not missing.
+    ///
+    /// Ungated by `autoReplace`, because pasting into a prompt is wrong
+    /// whatever the setting says.
+    @Test("a terminal captured through accessibility is never pasted into either")
+    func aTerminalCapturedAtRungFiveIsNotPastedInto() throws {
+        withPrivatePasteboard { pasteboard in
+            pasteboard.clearContents()
+            pasteboard.setString("the user's own clipboard", forType: .string)
+
+            let ax = liveTarget()
+            ax.settable = false  // Terminal: AXValue not settable, so route one declines
+            ax.editable = true  // but AXTextArea is an editable role, so route two ran
+            let keystroke = FakeKeystroke()
+
+            let outcome = service(
+                ax, keystroke: keystroke, pasteboard: pasteboard,
+                system: FakeSystem(
+                    frontmost: FrontmostApp(
+                        pid: 501, bundleID: "com.apple.Terminal", appVersion: "1.0"))
+            ).apply(
+                "the rewrite",
+                to: snapshot(bundleID: "com.apple.Terminal"),
+                autoReplace: false, keepOutOfHistory: false)
+
+            #expect(keystroke.pastes == 0, "no ⌘V at a shell prompt")
+            #expect(pasteboard.string(forType: .string) == "the user's own clipboard")
+            if case .heldForManualCopy(cause: .notPasted, _) = outcome {} else {
+                Issue.record("expected the rewrite to be held, got \(outcome)")
+            }
+        }
+    }
+
+    /// The list was written from memory and one entry was wrong —
+    /// `io.alacritty` for an app whose `Info.plist` declares `org.alacritty`,
+    /// which meant an Alacritty user got a rewrite pasted at their prompt.
+    /// One wrong entry means the rest were produced the same way, so these
+    /// are the ones since checked against a real `Info.plist`:
+    /// Terminal, Ghostty and WezTerm read locally with `defaults read`,
+    /// Alacritty from the official repository plist.
+    ///
+    /// **iTerm2, Warp, kitty and Hyper remain unverified** and are not listed
+    /// here, because a test asserting a value nobody checked would launder a
+    /// guess into an assertion.
+    @Test(
+        "the verified terminal identifiers are refused",
+        arguments: [
+            "com.apple.Terminal", "com.mitchellh.ghostty",
+            "com.github.wez.wezterm", "org.alacritty",
+        ])
+    func verifiedTerminalIdentifiersAreRefused(bundleID: String) throws {
+        withPrivatePasteboard { pasteboard in
+            let clipboard = FakeClipboardCapture()
+            clipboard.result = "the original"
+            let keystroke = FakeKeystroke()
+
+            _ = service(
+                FakeAccessibility(), keystroke: keystroke, pasteboard: pasteboard,
+                clipboard: clipboard
+            ).apply(
+                "the rewrite", to: viaClipboardSnapshot(bundleID: bundleID),
+                autoReplace: true, keepOutOfHistory: true)
+
+            #expect(keystroke.pastes == 0, "\(bundleID) must never be pasted into")
         }
     }
 

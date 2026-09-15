@@ -131,9 +131,19 @@ public final class AXSelectionAdapter: AccessibilityReading, AccessibilityWritin
         kAXTextFieldRole as String,
     ]
 
-    /// Over-reports on purpose, because the failure modes are not symmetric.
-    /// Over-reporting costs an attempted paste the target ignores, which
-    /// consumption observation detects and reports as copy-only.
+    /// Over-reports on purpose, because the failure modes are *usually* not
+    /// symmetric: over-reporting normally costs an attempted paste the target
+    /// ignores, which consumption observation detects and reports as
+    /// copy-only.
+    ///
+    /// **That reasoning has one hole and it is a shell prompt.** A terminal
+    /// does not ignore a paste — it takes it to the command line — and
+    /// `kAXTextAreaRole` is in `editableRoles`, so `isEditable` returns true
+    /// for Terminal.app even though neither attribute is settable. The one
+    /// place over-reporting is unsafe was the one place this comment said it
+    /// was harmless, which is why nobody looked. `ReplacementService` now
+    /// refuses those apps by bundle id ahead of every write attempt; this
+    /// function is not the guard and must not be made into one.
     /// Under-reporting means refusing to help where help was possible, with
     /// no way for the user to override it. Real editors, WebKit
     /// `contenteditable` among them, accept typing while reporting neither

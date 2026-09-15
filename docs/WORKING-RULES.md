@@ -1,33 +1,12 @@
-# Who owns what, right now
+# Working rules
 
-**Operational state, not architecture.** Stale the moment work finishes — check
-the date, and ask the lead rather than trusting a name you remember.
+Hard-won during a multi-agent build of this app. Every one exists because
+something went wrong in a way that was invisible at the time, and every one
+asks you to produce an artefact rather than to be careful — a rule you satisfy
+by feeling principled catches nobody.
 
-Last updated: 2026-09-15 00:45 PDT
-
-| Target | Owner | Notes |
-|---|---|---|
-| `EverestKit/Sources/TextBridge/` + tests | **fix-docs** | Was `tdd-bridge`. Reassigned without telling it, which caused three misroutes. Building the EVE-009 paste fix. |
-| `EverestKit/Sources/Engines/` + tests | **audit-correctness** | Truncation and `LoadOnce` both landed. Was `tdd-engines`. |
-| `EverestKit/Sources/RewriteCore/` | **audit-correctness** | `OutputValidator`, `EngineLimits`, and `PromptBuilder` — `audit-security` stood down and EVE-012 turned out to span both. |
-| `EverestKit/Sources/Overlay/` + tests | *unowned* | `fix-keys` finished. `PanelKeyWindowTests` is `fix-keys`', confirmed. |
-| `EverestKit/Sources/AppCore/` + tests | **fix-settings** | `EngineFactory.swift` was carved out to `fix-model`, now finished and returned. |
-| `Everest/App/`, `Everest/Settings/` | **fix-settings** | Except `HotkeyManager.swift`, which is the lead's — the *bindings* were, never the rendering. |
-| `project.yml`, `README.md`, root `AGENTS.md`, `docs/` | **lead** | |
-| git — every command | **lead only** | Six agents, one tree. A stray `checkout` destroys uncommitted work. |
-
-## Why this file exists
-
-An agent stood down, its target was reassigned, and nobody told it. Three
-separate changes were then attributed to it, and it had to read the tree each
-time to find out what had actually happened.
-
-The cost is not the wasted minutes. On the third one it was asked to fix an
-assertion that was **already fixed, and fixed better** — had it complied it
-would have replaced a case-addressed assertion with a fragile index-addressed
-one, in a target it did not own, and made things worse while looking
-responsive. What caught it was the agent being suspicious enough to check
-first, and suspicion is not a mechanism.
+Read with root `AGENTS.md` §0 (the TDD Iron Law) and §8 (the five ways to get a
+false green).
 
 ## Rules
 

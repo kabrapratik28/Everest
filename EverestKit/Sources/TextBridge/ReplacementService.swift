@@ -95,6 +95,23 @@ public final class ReplacementService {
                 keepOutOfHistory: keepOutOfHistory)
         }
 
+        // Ahead of *every* write attempt, because both paste routes are
+        // downstream of here and they are reached by different doors: route
+        // two from the tail of this function, `pasteUnverifiable` from the
+        // validator refusal below. It used to sit inside the second one,
+        // which is why Terminal.app was never covered — measured, it
+        // supports `AXSelectedText`, so it is captured at rung 5 and its
+        // snapshot is not `viaClipboard`.
+        //
+        // Route one is collateral and costs nothing: `AXValue` is not
+        // settable in Terminal.app, so the accessibility write declines
+        // there anyway.
+        if let bundleID = snapshot.bundleID,
+            Self.insertsRatherThanReplaces.contains(bundleID.lowercased())
+        {
+            return held("this app inserts a paste rather than replacing the selection")
+        }
+
         let validator = TargetValidator(system: system, accessibility: accessibility)
         if let refusal = validator.validate(snapshot) {
             // Only "could not verify" is overridable, and only for a rung-9
@@ -177,14 +194,24 @@ public final class ReplacementService {
     /// The entry test is "paste succeeds but does not replace", and anything
     /// failing it belongs in the user's privacy exclusion list instead, which
     /// already stops Everest touching an app entirely.
+    /// **Verified against a real `Info.plist`**, because the first version of
+    /// this list was written from memory and `io.alacritty` was wrong — the
+    /// app declares `org.alacritty`, so an Alacritty user got a rewrite at
+    /// their shell prompt, which is the exact hazard the list exists for.
     static let insertsRatherThanReplaces: Set<String> = [
+        // Read locally with `defaults read <app>/Contents/Info`.
         "com.apple.terminal",
-        "com.googlecode.iterm2",
         "com.mitchellh.ghostty",
-        "dev.warp.warp-stable",
-        "io.alacritty",
-        "net.kovidgoyal.kitty",
         "com.github.wez.wezterm",
+        // Read from the project's own `Info.plist`.
+        "org.alacritty",
+        // **Unverified — recalled, not checked.** Not installed here and no
+        // authoritative plist to hand. Kept because a wrong entry is no worse
+        // than a missing one and a right one protects; do not promote any of
+        // these to "verified" without reading the plist.
+        "com.googlecode.iterm2",
+        "dev.warp.warp-stable",
+        "net.kovidgoyal.kitty",
         "co.zeit.hyper",
     ]
 
@@ -203,15 +230,26 @@ public final class ReplacementService {
     /// outright. The re-read happens before the transaction and the
     /// confirmation after it, and both block rather than suspend, so
     /// `pasteReplace`'s no-suspension-point invariant still holds.
+    /// Re-asked immediately before every synthetic keystroke, because
+    /// "still frontmost, still not secure" is a *live* condition and this
+    /// path spends over a second not asking. `observeConsumption` already
+    /// polls frontmost every 8 ms on exactly that reasoning; the blocking
+    /// copies here took the opposite view.
+    ///
+    /// The window that makes it a P0: the secure-input check at rung 9
+    /// closes the password gap at capture, and the re-read reopens it for up
+    /// to 520 ms downstream — a field taking focus in that time would be
+    /// pasted into, and a third ⌘C posted at it afterwards.
+    private func targetStillSafe(_ snapshot: TargetSnapshot) -> Bool {
+        guard !system.isSecureEventInputEnabled() else { return false }
+        guard system.frontmostApp()?.pid == snapshot.pid else { return false }
+        guard let live = accessibility.focusedElement(pid: snapshot.pid) else { return true }
+        return !accessibility.isSecure(live)
+    }
+
     private func pasteUnverifiable(
         _ text: String, to snapshot: TargetSnapshot, keepOutOfHistory: Bool
     ) -> ReplaceOutcome {
-        if let bundleID = snapshot.bundleID,
-            Self.insertsRatherThanReplaces.contains(bundleID.lowercased())
-        {
-            return held("this app inserts a paste rather than replacing the selection")
-        }
-
         let reRead = clipboard.copySelection(pid: snapshot.pid)
         guard case let .captured(live) = reRead, live == snapshot.text else {
             trace.record(.reRead(matched: false))
@@ -219,6 +257,12 @@ public final class ReplacementService {
         }
 
         trace.record(.reRead(matched: true))
+
+        // The re-read blocked. Nothing about the world is known to still
+        // hold, and the next statement posts a keystroke.
+        guard targetStillSafe(snapshot) else {
+            return held("focus moved while the selection was being checked")
+        }
 
         let transaction = PasteboardTransaction(pasteboard: pasteboard, borrow: borrow)
         guard transaction.snapshot() else {
@@ -236,6 +280,13 @@ public final class ReplacementService {
                 reason:
                     "something else was copied while the rewrite ran, so the rewrite is only in this panel"
             )
+        }
+
+        // The hold blocked too, and the confirm is a third synthetic ⌘C. A
+        // copy posted at an app they have left reads a background document
+        // and disturbs the clipboard to do it.
+        guard targetStillSafe(snapshot) else {
+            return held("focus moved before the paste could be confirmed")
         }
 
         // **The failure signal is the reliable one.** This used to accept only

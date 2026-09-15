@@ -1,5 +1,6 @@
 import Foundation
 import Synchronization
+import TextBridge
 import Testing
 
 @testable import AppCore
@@ -184,4 +185,56 @@ func onboardingWaitsForAnInFlightDownload() {
     downloading.withLock { $0 = false }
     onboarding.advance()
     #expect(onboarding.step == .tryIt)
+}
+
+/// The password promise must not be absolute, because the implementation is
+/// not.
+///
+/// It said "Password and secure fields are never read. Everest refuses before
+/// it looks." Two real guards stand behind that — the `AXSecureTextField`
+/// subrole refusal, and `IsSecureEventInputEnabled` checked at the top of the
+/// chain and again immediately before any clipboard read. Neither can reach
+/// an app that exposes no accessibility tree *and* leaves the process-wide
+/// flag clear: there is no element to classify and no flag to see.
+///
+/// Chrome 153 sets the flag. Nothing obliges an Electron host, a custom
+/// control, or a later Chrome to. **A measurement of one host at one version
+/// was standing in for a security invariant covering every app forever** —
+/// the same shape that cost a P0 investigation earlier today, in this area.
+///
+/// The absolutes are forbidden rather than merely avoided, because the
+/// pressure on copy like this is always back toward the reassuring version.
+@Test("the password promise names what is enforced and what is not, and claims nothing absolute")
+func thePasswordPromiseIsNotAbsolute() {
+    let promise = OnboardingModel.passwordPromise
+
+    // What is genuinely enforced has to survive, or honesty costs the user
+    // the reassurance the guards have actually earned.
+    #expect(promise.localizedCaseInsensitiveContains("password"))
+    #expect(promise.localizedCaseInsensitiveContains("refuses"))
+
+    // And the residual has to be named, specifically enough to picture.
+    #expect(promise.localizedCaseInsensitiveContains("accessibility"))
+
+    // No absolute claim, in any of the three forms it keeps coming back as.
+    for absolute in ["never", "always", "cannot"] {
+        #expect(
+            promise.localizedCaseInsensitiveContains(absolute) == false,
+            "\"\(absolute)\" is a guarantee the capture chain does not make"
+        )
+    }
+
+    // A residual the user can do nothing about is just anxiety, so it ends
+    // on the one control that does cover a whole app.
+    #expect(promise.localizedCaseInsensitiveContains("Settings"))
+
+    // The same rule, the other surface. The refusal message said "Everest
+    // never reads passwords" — the identical unprovable guarantee, reached
+    // by a different screen. One rule, so one test: a spot-fix here would
+    // have left the drift alive in whichever string was not being edited.
+    let refusal = CaptureFailure.message(for: CaptureError.secureField)
+    #expect(refusal.localizedCaseInsensitiveContains("never") == false)
+    // It still has to say the refusal *is* the app working, or the user
+    // reads a failure and tries somewhere less careful.
+    #expect(refusal.localizedCaseInsensitiveContains("nothing was read"))
 }

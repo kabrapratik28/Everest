@@ -32,7 +32,13 @@ public enum CaptureFailure {
             // them to do the thing they can see they already did.
             "Everest needs Accessibility permission to read your selection. Open System Settings ▸ Privacy & Security ▸ Accessibility and switch Everest on. If it is already on, remove Everest from that list with the − button and add it again — the permission goes stale when the app is updated."
         case .secureField:
-            "That is a secure field. Everest never reads passwords, and nothing was read here."
+            // Says the refusal *is* the app working, without the absolute
+            // that `OnboardingModel.passwordPromise` had to lose: "never
+            // reads passwords" is a guarantee the chain cannot make for an
+            // app exposing no accessibility tree. What is true here is what
+            // this sentence now claims — this field was recognised, and
+            // nothing was read.
+            "That is a secure field, so nothing was read. Everest refuses these before looking at them."
         case .noSelection:
             "Select the text you want rewritten, then press the shortcut again."
         case .nothingCaptured:
