@@ -20,18 +20,18 @@ ranked highest.
 | EVE-002 | P0 | Picker keys edit the source document | **Fixed** — consuming `CGEventTap`, measured against a live TextEdit |
 | EVE-003 | P1 | Engine reloads 2.3 GB per rewrite | **Fixed** — `EngineRegistry` memoises one per `EngineID`, evicts on delete (`2c94d16`) |
 | EVE-004 | P1 | Preparation is not cancellable | In progress |
-| EVE-005 | P1 | `LoadedModel` admits duplicate concurrent loads | In progress |
+| EVE-005 | P1 | `LoadedModel` admits duplicate concurrent loads | **Fixed** — `LoadOnce` caches the in-flight `Task`, not just the result (`00614ae`) |
 | EVE-006 | P1 | Onboarding cannot download the default model | In progress |
 | EVE-007 | P1 | Shortcut labels hardcoded, contradict the default | In progress |
 | EVE-008 | P1 | 30B offered on Macs that cannot run it | In progress |
-| EVE-009 | P1 | Posted ⌘C/⌘V can fire after their timeout | In progress |
+| EVE-009 | P1 | Posted ⌘C/⌘V can fire after their timeout | **Partly** — the copy half fixed (`302ff94`); the paste half approved and being built |
 | EVE-010 | P1 | Panel ⌘C not consumed, source app overwrites it | In progress |
 | EVE-011 | P2 | Google Docs rejected before clipboard fallback | **Fixed** (`fb76aa9`) |
-| EVE-012 | P2 | `clean()` corrupts legitimate content | **Open**, and worse than filed — see below |
+| EVE-012 | P2 | `clean()` corrupts legitimate content | **Fixed** — unwrap only the id-carrying envelope, quotes only if the source was unquoted (`56f671b`) |
 | EVE-013 | P2 | Onboarding keyed to permission, not completion | In progress |
 | EVE-014 | P2 | Model-management failures swallowed | In progress |
 | EVE-015 | P2 | Unusable style/privacy states | Partly fixed (blank names refused); rest in progress |
-| EVE-016 | P2 | AX per-app fallback skips the PID ownership check | In progress — failing test in the tree now, which is the RED |
+| EVE-016 | P2 | AX per-app fallback skips the PID ownership check | **Fixed** (`a704b56`) — and the audit understated it; that branch is the common one on macOS 26 |
 | EVE-017 | P2 | Prompt delimiter forgeable | **Fixed** — per-prompt 64-bit id in the tag name (`b52e822`) |
 | EVE-018 | P3 | Clean checkout is machine-specific | Partly — README and `Package.resolved` fixed (`f8fc86d`); signing cert is a deliberate open question |
 
@@ -65,6 +65,16 @@ Two correct fixes, landed weeks apart in the same pipeline, made a third bug.
 global hotkey outranks the frontmost app and Everest was taking Italic from
 every editor system-wide. Logged in `QUESTIONS-FOR-PRATIK.md` to be overruled,
 not defended.
+
+**EVE-009's paste half overturns a trade this project had made on purpose.**
+The clipboard was restored as soon as a paste looked consumed. A slow target
+then ran our ⌘V *after* the restore and pasted the user's old clipboard into
+their document — silently, automatically, unrecoverably. The fix is to restore
+only after the full consumption budget, costing up to ~450 ms during which a
+manual ⌘V would yield the rewrite instead. That second failure is visible, the
+user caused it, and copying again fixes it. Silent wrong writes outrank
+everything else here; the same reasoning bought a 75-second panel hold in
+EVE-001.
 
 **EVE-018's signing certificate is deliberate, not debt.** Accessibility
 permission is bound to the code signature, so an ad-hoc signature makes the
