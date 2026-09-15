@@ -48,10 +48,39 @@ struct ReplacementTests {
         return ax
     }
 
+    /// What the target app read off the pasteboard when its ⌘V finally
+    /// arrived. Written from a background thread while the main thread is
+    /// parked inside `apply`, so the access is genuinely cross-thread.
+    private final class LateReader: @unchecked Sendable {
+        private let lock = NSLock()
+        private var recorded: String?
+        private var done = false
+
+        func record(_ text: String?) {
+            lock.lock()
+            defer { lock.unlock() }
+            recorded = text
+            done = true
+        }
+
+        var hasRead: Bool {
+            lock.lock()
+            defer { lock.unlock() }
+            return done
+        }
+
+        var text: String? {
+            lock.lock()
+            defer { lock.unlock() }
+            return recorded
+        }
+    }
+
     private func service(
         _ ax: FakeAccessibility,
         keystroke: FakeKeystroke,
         pasteboard: NSPasteboard,
+        consumptionBudget: Duration = .milliseconds(40),
         system: FakeSystem = FakeSystem(
             frontmost: FrontmostApp(pid: 501, bundleID: "com.example.editor", appVersion: "1.0")
         )
@@ -61,13 +90,74 @@ struct ReplacementTests {
             accessibility: ax,
             keystroke: keystroke,
             pasteboard: pasteboard,
-            // Small but real. The budget is a ceiling on observation, not a
-            // delay: a consumed paste returns on the first poll, and an
-            // unconsumed one always exhausts, so both assertions are
-            // deterministic and neither costs the suite 450 ms.
-            consumptionBudget: .milliseconds(40),
+            // Small but real, and now the floor on how long `apply` takes on
+            // route two rather than a ceiling: the rewrite has to outlive an
+            // early consumption reading.
+            consumptionBudget: consumptionBudget,
             consumptionPollInterval: .milliseconds(4)
         )
+    }
+
+    /// `observeConsumption` takes **any** selection change as proof of paste,
+    /// so it can confirm a paste that has not happened — a reflow, a scroll,
+    /// an async relayout. That much is a known and accepted trade, because
+    /// the alternative false negative pastes the rewrite *and* copies it and
+    /// the user duplicates a paragraph.
+    ///
+    /// What is not acceptable is what used to follow. A false positive
+    /// restored the user's clipboard immediately, and the real ⌘V — still in
+    /// flight — then pasted *their old clipboard* into their document, while
+    /// Everest reported `.replaced`. A silent wrong write to a document,
+    /// which they may never notice and cannot undo from here.
+    ///
+    /// So the rewrite stays on the pasteboard for the whole budget however
+    /// early consumption is read. The residual cost is that for that window
+    /// the pasteboard holds our rewrite, so a user pressing ⌘V themselves
+    /// inside it gets the rewrite instead of what they copied — visible at
+    /// once, and fixed by copying again. This test is about the content a
+    /// late paste sees, not about the false positive, which stands.
+    @Test("a late paste reads the rewrite, never the clipboard we were about to restore")
+    func theRewriteOutlivesAnEarlyConsumptionReading() throws {
+        withPrivatePasteboard { pasteboard in
+            let ax = liveTarget()
+            ax.settable = false  // route one declines, so route two runs
+            pasteboard.clearContents()
+            pasteboard.setString("the user's clipboard", forType: .string)
+
+            let reader = LateReader()
+            nonisolated(unsafe) let board = pasteboard
+            let keystroke = FakeKeystroke()
+            keystroke.onPaste = {
+                // Not our paste: the selection moved but still holds the
+                // user's original text. Consumption is read on the first poll
+                // while the ⌘V is still in flight.
+                ax.range = CFRange(location: 9, length: 12)
+                ax.selected = "the original"
+
+                // The ⌘V lands later and reads whatever is on the pasteboard
+                // at that moment. That is the byte sequence which ends up in
+                // the user's document.
+                DispatchQueue.global().asyncAfter(deadline: .now() + 0.08) {
+                    reader.record(board.string(forType: .string))
+                }
+            }
+
+            _ = service(
+                ax, keystroke: keystroke, pasteboard: pasteboard,
+                consumptionBudget: .milliseconds(300)
+            ).apply("the rewrite", to: snapshot())
+
+            let deadline = ContinuousClock.now + .seconds(2)
+            while !reader.hasRead, ContinuousClock.now < deadline {
+                Thread.sleep(forTimeInterval: 0.01)
+            }
+
+            #expect(reader.text == "the rewrite")
+            #expect(
+                pasteboard.string(forType: .string) == "the user's clipboard",
+                "and the clipboard is still given back afterwards"
+            )
+        }
     }
 
     /// Route one. The app performs the replacement itself, so it lands in one

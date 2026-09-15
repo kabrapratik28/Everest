@@ -122,7 +122,28 @@ public final class ReplacementService {
         transaction.writeTransient(text)
         keystroke.postPaste(pid: snapshot.pid)
 
-        let consumed = observeConsumption(of: snapshot)
+        // One deadline, shared by the observation and the hold below.
+        let deadline = ContinuousClock.now + consumptionBudget
+        let consumed = observeConsumption(of: snapshot, until: deadline)
+
+        // The rewrite stays on the pasteboard for the whole budget, however
+        // early consumption was read. `observeConsumption` accepts *any*
+        // selection change as proof, so it can confirm a paste that has not
+        // happened — and restoring on that reading put the user's clipboard
+        // back while our ⌘V was still in flight, so the target then pasted
+        // *their old clipboard* into their document and we reported
+        // `.replaced`. A silent wrong write they may never notice.
+        //
+        // A budget bounds how long we wait, never how long we stay
+        // responsible. The posted event is ours until the budget we chose for
+        // it runs out.
+        //
+        // The cost is the other side of the same window: the pasteboard holds
+        // our rewrite for up to the budget, so a user pressing ⌘V themselves
+        // inside it gets the rewrite instead of what they copied. That is
+        // visible the instant it happens and fixed by copying again, which is
+        // not true of the write it replaces.
+        hold(until: deadline)
         transaction.restoreIfUnchanged()
 
         guard consumed else {
@@ -139,9 +160,10 @@ public final class ReplacementService {
     /// accessibility API is inconsistent about whether those offsets count
     /// UTF-16 units or composed characters, so any text containing an emoji
     /// would fail the prediction while having pasted perfectly.
-    private func observeConsumption(of snapshot: TargetSnapshot) -> Bool {
+    private func observeConsumption(
+        of snapshot: TargetSnapshot, until deadline: ContinuousClock.Instant
+    ) -> Bool {
         let validator = TargetValidator(system: system, accessibility: accessibility)
-        let deadline = ContinuousClock.now + consumptionBudget
 
         while ContinuousClock.now < deadline {
             // A user who switches away clears the selection by losing focus,
@@ -164,6 +186,23 @@ public final class ReplacementService {
         // consumed, and we fall back rather than claim an edit the user
         // cannot see.
         return false
+    }
+
+    /// Spends whatever is left of the budget with the rewrite still on the
+    /// pasteboard. Blocking, and it has to be.
+    ///
+    /// Handing the tail to a task would keep the borrow held past the return,
+    /// so a second hotkey press inside the window would be refused with
+    /// "another rewrite is using the clipboard" — false, where blocking makes
+    /// it simply wait. It would also leave the restore owed by a task nobody
+    /// awaits, so quitting inside the window strands the user's clipboard
+    /// holding our rewrite. Doing it properly means giving the transaction a
+    /// process-wide owner, which is the same design change `pasteReplace`
+    /// already says is needed before this method may suspend.
+    private func hold(until deadline: ContinuousClock.Instant) {
+        while ContinuousClock.now < deadline {
+            Thread.sleep(forTimeInterval: consumptionPollInterval.timeInterval)
+        }
     }
 
     /// Two ways a borrow can be refused, and the user deserves to be told
