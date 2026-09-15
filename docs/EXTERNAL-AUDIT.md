@@ -51,12 +51,13 @@ unchanged. The prediction and the fix are independent and they agree.
 
 **EVE-012 was understated.** Filed as `clean()` stripping tags too broadly,
 which is true. What it could not see is that `b52e822` then changed the
-delimiter to carry a per-prompt random id, and `clean()` still strips the old
-literal `<selected_text>`. The two no longer match, so the unwrap is dead: a
-model that echoes its wrapper now writes `<selected_text_3f9a…>` into the
-document, and the only surviving effect of that code is deleting the tag from
-content a user legitimately wrote. It has lost its purpose and kept its damage.
-Two correct fixes, landed weeks apart in the same pipeline, made a third bug.
+delimiter to carry a per-prompt random id while `clean()` went on stripping the
+old literal `<selected_text>`. The two stopped matching, so the unwrap was dead
+— a model echoing its wrapper would write `<selected_text_3f9a…>` into the
+document, and the only surviving effect of that code was deleting the tag from
+content a user legitimately wrote. It had lost its purpose and kept its damage.
+Two correct fixes, landed separately in one pipeline, made a third bug. Fixed
+in `56f671b`; the rule it produced is in `RewriteCore/AGENTS.md`.
 
 ## Where we diverged
 
