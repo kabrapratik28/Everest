@@ -62,7 +62,15 @@ public final class FloatingPanelController {
         followsTail = true
         announcedKind = nil
         pickerIsSpent = false
-        clock.cancel()
+        // No `clock.cancel()` here. A pending flush from the transaction just
+        // superseded is harmless once the coalescer is fresh: it finds nothing
+        // held and renders nothing, or it releases this presentation's own
+        // snapshot a few milliseconds early. Cancelling as well stopped the
+        // stale render a second way, which by §1 made one of the two
+        // redundant — and it was the cancel, because dropping the snapshot
+        // also stops the panel holding a finished transaction's text. It also
+        // hid the test: a timer that cannot fire proves nothing about the
+        // coalescer. `dismiss()` still cancels, where nothing resets it.
         surface.refreshAppearance()
         armKeyMonitor()
         render(state)

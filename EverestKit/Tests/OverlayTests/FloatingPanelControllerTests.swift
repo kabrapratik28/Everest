@@ -816,6 +816,61 @@ struct FloatingPanelControllerTests {
         #expect(copied.value == "the whole rewrite")
     }
 
+    /// Announcing is once per kind *per presentation*. What was last said
+    /// carries no meaning into the next transaction: a second rewrite opening
+    /// on the state the previous one opened on is still news, and without the
+    /// reset a screen reader user gets silence exactly where the panel
+    /// appeared. The other announce test cannot catch this — it ends on
+    /// `.error`, so a stale `announcedKind` would differ from `.capturing`
+    /// and it would announce anyway.
+    @Test("a new presentation announces itself even when it opens on the last one's state")
+    func showResetsTheAnnouncedKind() {
+        let surface = SpySurface()
+        let controller = makeController(surface: surface)
+
+        controller.show(.capturing)
+        controller.show(.capturing)
+
+        #expect(surface.announced == ["Reading selection", "Reading selection"])
+    }
+
+    /// A superseded transaction leaves a snapshot held in the coalescer and a
+    /// timer pending to release it. The next presentation has to drop that
+    /// snapshot: otherwise the timer flushes the *old* rewrite over the new
+    /// panel, and in the meantime the panel is holding text from a
+    /// transaction that has ended, which root §6 forbids on its own.
+    ///
+    /// `show()` also used to call `clock.cancel()`, which stopped the same
+    /// stale render a second way — and made this test vacuous, because a
+    /// timer that cannot fire proves nothing about the coalescer. Either
+    /// reset alone was sufficient, so by §1 one was redundant; the cancel
+    /// went, because dropping the snapshot is the one with a reason of its
+    /// own. `dismiss()` still cancels, where nothing resets the coalescer.
+    @Test("a new presentation drops the snapshot the last one was holding")
+    func showDropsTheHeldSnapshot() {
+        let surface = SpySurface()
+        let clock = FakeClock()
+        let controller = makeController(surface: surface, clock: clock)
+
+        // Transaction A gets far enough to hold a snapshot back.
+        controller.show(.capturing)
+        clock.now = clock.start + .seconds(1)
+        controller.update(.generating(text: "rendered"))
+        clock.now = clock.start + .seconds(1) + .milliseconds(1)
+        controller.update(.generating(text: "the superseded rewrite"))
+        #expect(clock.hasPending)
+
+        // A is superseded and B begins, with no dismiss in between.
+        controller.show(.capturing)
+        let rendersAfterShow = surface.presented.count
+
+        // Positive control: the timer is genuinely still armed, so the
+        // assertion below is about the coalescer and not about a dead clock.
+        #expect(clock.hasPending)
+        clock.fire()
+        #expect(surface.presented.count == rendersAfterShow)
+    }
+
     /// The coordinator drives the panel straight from engine events, so that
     /// entry point has to go through the same throttle. A second, unthrottled
     /// path would put the per-token relayout back.
