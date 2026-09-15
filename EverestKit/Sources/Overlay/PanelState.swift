@@ -140,14 +140,27 @@ public extension PanelState {
         case .capturing, .preparing, .generating, .applying: nil
         case .stylePicker:                                   nil
         case .heldForManualCopy:                             nil
-        // No wait at all. The rewrite is already in the user's document, so
-        // the document is the confirmation — the panel would be describing
-        // something they can see, on top of the thing they want to look at.
-        // The old 1200 ms dated from before in-place replacement was
-        // dependable. Still *presented* rather than skipped, because a
-        // screen reader user gets no confirmation from the document and this
-        // is the only announcement the replaced path makes.
-        case .success:                                       .zero
+        // Long enough to see the tick, short enough not to sit on the thing
+        // it is confirming. The tick is *wanted* — it acknowledges that the
+        // replacement happened rather than merely reporting what the
+        // document already shows — but at `.zero` it renders for a frame and
+        // nobody sees it, and at the old 1200 ms it covered the text the user
+        // had just asked to look at.
+        //
+        // 500 and not 1000, which was the other candidate: the tick is a
+        // state *change* on a panel that has been streaming for seconds, and
+        // the eye catches the flip rather than the duration — something
+        // appearing cold would need longer. It also lands at the same instant
+        // as the text changing, so there are two signals, not one. And 1000
+        // is within 200 ms of the 1200 that prompted the complaint, so it
+        // would nearly undo the change. **1 second is the sanctioned fallback**
+        // if the manual check says 500 reads as too quick; the test pins the
+        // relations rather than the number, so that swap needs no test change.
+        //
+        // Presented rather than skipped for a separate reason: a screen
+        // reader user gets no confirmation from the document changing, so
+        // this is the only announcement the replaced path makes.
+        case .success:                                       .milliseconds(500)
         case .readOnly, .targetChanged:                      .seconds(6)
         case .refused, .error:                               .seconds(8)
         }

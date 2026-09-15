@@ -45,32 +45,38 @@ struct PanelStateTests {
     /// user's only copy of it. A timer that closes that panel deletes their
     /// work.
     ///
-    /// `success` is the opposite, and goes further than "dismisses": it waits
-    /// **no time at all**. The text is already in the user's document, so the
-    /// document is the confirmation and the panel is describing something
-    /// they can see, on top of the thing they want to look at. It held the
-    /// screen for 1200 ms, which was a leftover from when in-place
-    /// replacement could not be relied on.
+    /// `success` is the opposite, and is pinned by two relations rather than
+    /// by its number, because the number is a taste call that has already
+    /// moved twice.
     ///
-    /// Every other dismissing state does wait, and must: each is carrying a
-    /// reason, a refusal or a clipboard hand-off that has to be readable.
-    /// Zeroing one of those by accident is the failure this half guards.
-    @Test("heldForManualCopy never auto-dismisses; success dismisses at once and nothing else does")
+    /// **Above zero**: the tick is wanted. It acknowledges the replacement,
+    /// and at zero it renders for a frame and nobody sees it. **Below every
+    /// other dismissing state**: it is the only one whose message the user
+    /// can already read off their own document, so it is the only one that
+    /// should get out of the way rather than be read. It sat at 1200 ms,
+    /// which was long enough to be in the way of the thing it was confirming.
+    ///
+    /// The others must each stay longer: every one is carrying a reason, a
+    /// refusal or a clipboard hand-off that has to be readable, and shrinking
+    /// one of those towards `success` is the failure this guards.
+    @Test("heldForManualCopy never auto-dismisses; success is visible but the briefest of those that do")
     func autoDismissIsPerState() {
         let expectedToDismiss: Set<PanelStateKind> = [
             .success, .readOnly, .targetChanged, .refused, .error,
         ]
+        guard let success = PanelState.success.autoDismissAfter else {
+            Issue.record("success must dismiss itself")
+            return
+        }
+
+        #expect(success > .zero)
 
         for state in Self.samples {
             let dismisses = state.autoDismissAfter != nil
             #expect(dismisses == expectedToDismiss.contains(state.kind), "\(state.kind)")
 
-            guard let delay = state.autoDismissAfter else { continue }
-            if state.kind == .success {
-                #expect(delay == .zero, "\(state.kind)")
-            } else {
-                #expect(delay > .zero, "\(state.kind)")
-            }
+            guard let delay = state.autoDismissAfter, state.kind != .success else { continue }
+            #expect(delay > success, "\(state.kind)")
         }
 
         #expect(PanelState.heldForManualCopy(text: "rewritten", reason: "gone").autoDismissAfter == nil)

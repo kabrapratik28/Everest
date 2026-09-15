@@ -1,11 +1,22 @@
 # Settings, onboarding and menu — report
 
-**AppCore: 65 tests, all green.** Baseline when I started was 35; I added 25,
-other agents added the rest. Every app-target file is `swiftc -parse` only —
-see *Not type-checked*.
+**AppCore: 78 tests, all green.** Baseline when I started was 35. Every
+app-target file **parses; none are type-checked** — `swiftc -parse` is syntax
+only and cannot see an argument type, a closure result type or memberwise-init
+order, which are three of the four app-target breaks I caused. Only an
+`xcodebuild` settles those.
 
 Organised per bug, for one commit each. Files listed are the files that commit
 should stage.
+
+> **Evidence standard, stated because it differs from §0.** The RED and GREEN
+> below §20 are *described in prose*, not pasted. They were accurate wherever
+> the lead checked them independently, but a description is a paraphrase and
+> this project has established that a paraphrase is never authoritative — so
+> read them as claims requiring trust, not as transcripts. Not retrofitted:
+> the work is landed and verified green, and re-running old cycles to
+> manufacture transcripts would be theatre. Cycles after this note paste the
+> runner's `✘` and `✔` lines.
 
 ---
 
