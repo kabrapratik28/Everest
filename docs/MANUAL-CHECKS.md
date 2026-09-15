@@ -167,6 +167,12 @@ that needs the running app.
     rewrites are out of history while they are in it. **A privacy toggle that
     lies is worse than no toggle**, so if yours ignores it, say so and the
     honest move is to name the limitation in the UI or drop the setting.
+    **Same run, second question:** restoring your clipboard is a *write*, not
+    a rollback — the contents come back byte for byte, but the manager sees a
+    write of your own content and may log a duplicate entry. Maccy dedupes
+    consecutive identical content; others may not. Not a broken promise — the
+    rewrite still never enters history — but worth knowing, and the same five
+    minutes answers both.
 29. **Does auto-replace ever fire?** It only does anything where
     Accessibility reports a target non-editable *and* a paste nonetheless
     lands — a WebKit `contenteditable`, which is the case the `isEditable`

@@ -276,6 +276,57 @@ struct ReplacementTests {
         }
     }
 
+    /// The two settings must compose: with both on — the shipped defaults —
+    /// a rewrite that lands in the document leaves the clipboard as the user
+    /// left it.
+    ///
+    /// Parameterised on the history setting because that is the composition
+    /// claim itself: a successful auto-replace never reaches `writeDurable`,
+    /// so `keepOutOfHistory` has no bearing on this path and the test says so
+    /// rather than leaving it to be assumed. The other two combinations
+    /// collapse into the same root cause — `autoReplace` only decides whether
+    /// route two is *attempted*, and once it runs it restores identically.
+    ///
+    /// Asserting the exact original rather than the absence of the rewrite:
+    /// restoring the *wrong* thing also satisfies "the rewrite is not there",
+    /// and the fallback overwriting a newer clipboard is a failure this
+    /// module has already produced once.
+    @Test(
+        "a successful auto-replace leaves the clipboard as it was, either history setting",
+        arguments: [true, false])
+    func autoReplaceLeavesTheClipboardUntouched(keepOutOfHistory: Bool) throws {
+        withPrivatePasteboard { pasteboard in
+            pasteboard.clearContents()
+            pasteboard.setString("the user's own clipboard", forType: .string)
+            let before = pasteboard.changeCount
+
+            let ax = liveTarget()
+            ax.settable = false  // route one declines
+            ax.editable = false  // and accessibility calls it read-only, so auto-replace runs it
+            let keystroke = FakeKeystroke()
+            keystroke.onPaste = {
+                ax.selected = ""
+                ax.range = CFRange(location: 15, length: 0)
+            }
+
+            let outcome = service(ax, keystroke: keystroke, pasteboard: pasteboard)
+                .apply(
+                    "the rewrite", to: snapshot(),
+                    autoReplace: true, keepOutOfHistory: keepOutOfHistory)
+
+            #expect(outcome == .replaced)
+            #expect(pasteboard.string(forType: .string) == "the user's own clipboard")
+
+            // The *contents* come back; the change count deliberately does
+            // not, and asserting it would pin a promise the design cannot
+            // keep. `writeTransient` moves it and the restore moves it again,
+            // so a clipboard manager sees a write either way — what it does
+            // with a write identical to the entry it already holds is its
+            // own business, and the same third-party unknown as the markers.
+            #expect(pasteboard.changeCount > before, "and the restore is a write, not a rollback")
+        }
+    }
+
     /// The precondition for auto-replace, pinned rather than reasoned about.
     ///
     /// A rung-9 snapshot carries no range and no real element — `element` is
