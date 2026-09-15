@@ -33,13 +33,6 @@ Select text in any app, press `⌥R`, and a rewrite streams in and replaces it.
 - **It refuses password fields.** Before reading, and again immediately before any copy.
 - **Free and MIT.** No trial, no subscription, no upsell inside the app.
 
-<div align="center">
-<img src="docs/assets/panel-reading.png" width="330" alt="Reading selection">
-<img src="docs/assets/panel-preparing.png" width="330" alt="Preparing model">
-<br>
-<img src="docs/assets/panel-replaced.png" width="330" alt="Replaced">
-</div>
-
 ## One honest exception
 
 Some apps do not let macOS hand over a selection at all — terminals, PDFs, Google Docs, Sublime Text — so Everest reads it with a synthetic ⌘C instead. Most of those still get a normal in-place rewrite; see [below](#use) for the two that do not. What they share is that the text passes through the system clipboard on the way, and anything on the system clipboard is eligible for Universal Clipboard if Handoff is on. There is no API to opt out of that. Turn Handoff off in System Settings ▸ General if it matters to you.
