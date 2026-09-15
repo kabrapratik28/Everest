@@ -6,6 +6,38 @@ not blockers.
 
 ---
 
+## 0. Read this first, or the app will look broken
+
+**Your stored shortcut is `⌘U` / `⌘⇧U`, not the `⌃⌥I` the docs describe.** Press
+`⌃⌥I` and nothing will happen.
+
+`KeyboardShortcuts` persists a binding the first time one is set, and a stored
+value beats a changed default — so the item-9 fix never reached this install.
+The menu bar now renders whatever is actually bound (that was EVE-007), so the
+truth is always one click away, but the README and onboarding describe the
+*default*, not your binding.
+
+`⌘U` is Underline in most editors, which is the same collision the default was
+changed to escape, and `ShortcutNotice` only warns about `⌘I`.
+
+**Fix, whichever you prefer:** re-record it in Settings ▸ General, or reset to
+the new defaults with
+
+```bash
+defaults delete com.kabrapratik.Everest KeyboardShortcuts_quickImprove
+defaults delete com.kabrapratik.Everest KeyboardShortcuts_chooseStyle
+```
+
+then relaunch. I did not do this for you: it is your setting, and silently
+rebinding someone's hotkey is worse than telling them about it.
+
+**Also:** Accessibility permission may need re-granting. The app bundle was
+replaced several times tonight, and this project's own refusal message warns
+that the grant goes stale on update — remove Everest from System Settings ▸
+Privacy ▸ Accessibility with the − button and add it back.
+
+---
+
 ## 1. Universal Clipboard breaks the "nothing leaves your Mac" promise
 
 **The finding.** Everest puts text on `NSPasteboard.general` in three places:
