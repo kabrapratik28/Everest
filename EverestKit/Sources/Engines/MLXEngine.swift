@@ -115,14 +115,42 @@ public struct MLXEngine: RewriteEngine {
                     let settings = EngineLimits.settings(forInputTokens: inputTokens)
 
                     var accumulated = ""
-                    for try await delta in producer.stream(prompt: prompt, settings: settings) {
-                        accumulated += delta
-                        continuation.yield(.outputSnapshot(accumulated))
+                    var stop: GenerationStop?
+                    for try await event in producer.stream(prompt: prompt, settings: settings) {
+                        switch event {
+                        case let .delta(text):
+                            accumulated += text
+                            continuation.yield(.outputSnapshot(accumulated))
+                        case let .stopped(reason):
+                            stop = reason
+                        }
                     }
                     // Without this, a stream cancelled mid-decode still
                     // emits a `.finished` carrying a half-written rewrite,
                     // which the replacement path would happily apply.
                     try Task.checkCancellation()
+
+                    // The budget ran out before the model reached the end of
+                    // its sentence, so `accumulated` is the first part of a
+                    // rewrite. Refused here rather than validated downstream:
+                    // a truncated rewrite is ordinary prose that stops, and
+                    // nothing reading only the text can tell.
+                    //
+                    // Only `.budgetExhausted` refuses. `.cancelled` is what
+                    // mlx-swift-lm falls back to whenever it cannot say why
+                    // the iterator ended, and a nil reason is a producer that
+                    // does not report one, so neither is evidence of anything.
+                    if stop == .budgetExhausted { throw GenerationError.truncated }
+
+                    // Second layer, over the text rather than the reason.
+                    // `stopReason` is a dependency's promise, and a version
+                    // that stopped keeping it would restore the original
+                    // defect invisibly — the only symptom is a rewrite that
+                    // ends early. See `OutputCompleteness`.
+                    if OutputCompleteness.looksTruncated(accumulated, source: request.text) {
+                        throw GenerationError.truncated
+                    }
+
                     continuation.yield(.finished(accumulated))
                     continuation.finish()
                 } catch is CancellationError {

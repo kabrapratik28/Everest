@@ -9,13 +9,14 @@ import SwiftUI
 struct SettingsView: View {
     @ObservedObject var settings: AppSettings
     @ObservedObject var models: ModelSettingsModel
+    @ObservedObject var presence: AppPresence
     let isAccessibilityTrusted: () -> Bool
 
     var body: some View {
         TabView {
-            GeneralTab(settings: settings, isAccessibilityTrusted: isAccessibilityTrusted)
+            GeneralTab(presence: presence, isAccessibilityTrusted: isAccessibilityTrusted)
                 .tabItem { Label("General", systemImage: "gearshape") }
-            ModelTab(settings: settings, models: models)
+            ModelTab(models: models)
                 .tabItem { Label("Model", systemImage: "cpu") }
             PromptsTab(settings: settings)
                 .tabItem { Label("Prompts", systemImage: "text.quote") }
@@ -29,7 +30,7 @@ struct SettingsView: View {
 // MARK: - General
 
 private struct GeneralTab: View {
-    @ObservedObject var settings: AppSettings
+    @ObservedObject var presence: AppPresence
     let isAccessibilityTrusted: () -> Bool
 
     @State private var isTrusted = false
@@ -71,6 +72,18 @@ private struct GeneralTab: View {
                     Text(loginItemError).font(.callout).foregroundStyle(.red)
                 }
             }
+
+            // The label names the Dock as well as the switcher because macOS
+            // does not separate them: ⌘Tab membership *is* the regular
+            // activation policy, which is also what puts an icon in the Dock.
+            // A switch labelled only "Show in ⌘Tab" would deliver something
+            // the user did not ask for and could not find the switch for.
+            Section("Appearance") {
+                Toggle("Show Everest in the Dock and app switcher", isOn: $presence.showsInDockAndSwitcher)
+                Text("Off, Everest lives only in the menu bar. There is no way to appear in ⌘Tab without also appearing in the Dock.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            }
         }
         .formStyle(.grouped)
         .onAppear { isTrusted = isAccessibilityTrusted() }
@@ -99,7 +112,6 @@ private struct GeneralTab: View {
 // MARK: - Model
 
 private struct ModelTab: View {
-    @ObservedObject var settings: AppSettings
     @ObservedObject var models: ModelSettingsModel
 
     @State private var sample = "we was hoping to maybe get your thoughts on the deck sometime this week if thats ok"
@@ -107,7 +119,7 @@ private struct ModelTab: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             ForEach(models.rows) { row in
-                ModelRow(row: row, settings: settings, models: models)
+                ModelRow(row: row, models: models)
                 Divider()
             }
 
@@ -137,30 +149,45 @@ private struct ModelTab: View {
     }
 }
 
+/// The row *is* the radio button.
+///
+/// It used to draw one and put the choosing on a "Use" button beside it, so
+/// the control that looked like a radio button was a picture and the control
+/// that worked was somewhere else. A plain-styled `Button` over the whole
+/// label keeps the two together, and carries the traits that make it a radio
+/// button to VoiceOver and a stop on the keyboard tour rather than a picture
+/// that happens to be clickable.
 private struct ModelRow: View {
     let row: ModelSettingsModel.Row
-    @ObservedObject var settings: AppSettings
     @ObservedObject var models: ModelSettingsModel
 
     var body: some View {
         HStack(alignment: .top) {
-            Image(systemName: isSelected ? "largecircle.fill.circle" : "circle")
-                .foregroundStyle(isSelected ? Color.accentColor : .secondary)
-                .accessibilityHidden(true)
+            Button { models.select(row.spec.id) } label: {
+                HStack(alignment: .top) {
+                    Image(systemName: row.isSelected ? "largecircle.fill.circle" : "circle")
+                        .foregroundStyle(row.isSelected ? Color.accentColor : .secondary)
 
-            VStack(alignment: .leading, spacing: 2) {
-                Text(row.spec.displayName).font(.headline)
-                // The blurb inline, which is the only place a user learns that
-                // Apple's engine has a content filter they cannot switch off
-                // before it cuts a rewrite in half.
-                Text(row.spec.blurb).font(.callout).foregroundStyle(.secondary)
-                Text(status).font(.caption).foregroundStyle(.secondary)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(row.spec.displayName).font(.headline)
+                        // The blurb inline, which is the only place a user
+                        // learns that Apple's engine has a content filter they
+                        // cannot switch off before it cuts a rewrite in half.
+                        Text(row.spec.blurb).font(.callout).foregroundStyle(.secondary)
+                        Text(status).font(.caption).foregroundStyle(.secondary)
+                    }
+
+                    // The blurb and the empty space beside it are part of the
+                    // target: a radio button whose label is not clickable is
+                    // the complaint this replaced.
+                    Spacer(minLength: 0)
+                }
+                .contentShape(Rectangle())
             }
-
-            Spacer()
-
-            Button(isSelected ? "In use" : "Use") { settings.engineID = row.spec.id }
-                .disabled(isSelected)
+            .buttonStyle(.plain)
+            .accessibilityLabel("\(row.spec.displayName). \(row.spec.blurb). \(status)")
+            .accessibilityAddTraits(row.isSelected ? [.isSelected] : [])
+            .accessibilityHint("Rewrites with this model")
 
             if let progress = models.downloadProgress[row.spec.id] {
                 ProgressView(value: progress).frame(width: 120)
@@ -177,8 +204,6 @@ private struct ModelRow: View {
             }
         }
     }
-
-    private var isSelected: Bool { settings.engineID == row.spec.id }
 
     private var status: String {
         switch row.availability {
@@ -201,12 +226,24 @@ private struct PromptsTab: View {
 
     var body: some View {
         Form {
-            // Only the instruction. `PromptBuilder.safetyFrame` is not
-            // reachable from this screen and must never become so: it is the
-            // prompt-injection frame, and a user-editable frame is not a
-            // frame. See RewriteCore/AGENTS.md.
+            // Name, subtitle and instruction — every field of the preset the
+            // user owns. `PromptBuilder.safetyFrame` is the one that is not
+            // theirs, and it is not reachable from this screen and must never
+            // become so: it is the prompt-injection frame, and a user-editable
+            // frame is not a frame. See RewriteCore/AGENTS.md.
             Section("Quick Improve") {
-                InstructionField(instruction: $settings.quickImprove.instruction)
+                PresetField("Name", text: $settings.quickImprove.name, validate: PresetEdit.name(from:))
+                PresetField(
+                    "Subtitle",
+                    text: $settings.quickImprove.subtitle,
+                    validate: { PresetEdit.subtitle(from: $0) as String? }
+                )
+                PresetField(
+                    "Instruction",
+                    text: $settings.quickImprove.instruction,
+                    validate: PresetEdit.instruction(from:),
+                    lineLimit: 2...6
+                )
                 Button("Reset to default") { settings.resetQuickImprove() }
             }
 
@@ -218,7 +255,7 @@ private struct PromptsTab: View {
                 ForEach(Array($settings.styles.enumerated()), id: \.element.id) { index, $style in
                     VStack(alignment: .leading, spacing: 4) {
                         HStack {
-                            TextField("Name", text: $style.name)
+                            PresetField("Name", text: $style.name, validate: PresetEdit.name(from:))
                             Button { move(index, by: -1) } label: { Image(systemName: "arrow.up") }
                                 .disabled(index == 0)
                                 .accessibilityLabel("Move \(style.name) up")
@@ -232,8 +269,17 @@ private struct PromptsTab: View {
                             }
                             .accessibilityLabel("Delete \(style.name)")
                         }
-                        TextField("Subtitle", text: $style.subtitle)
-                        InstructionField(instruction: $style.instruction)
+                        PresetField(
+                            "Subtitle",
+                            text: $style.subtitle,
+                            validate: { PresetEdit.subtitle(from: $0) as String? }
+                        )
+                        PresetField(
+                            "Instruction",
+                            text: $style.instruction,
+                            validate: PresetEdit.instruction(from:),
+                            lineLimit: 2...6
+                        )
                     }
                 }
 
@@ -254,28 +300,55 @@ private struct PromptsTab: View {
     }
 }
 
-/// Never lets an instruction be committed blank.
+/// One editable field of a `Preset`, which never commits a value its own rule
+/// refuses.
 ///
-/// A blank instruction sends the model the safety frame, an empty line and the
-/// user's text, leaving it to invent a task — and the invention lands in their
-/// document. The rule is `PresetEdit.instruction(from:)`, in `AppCore`, which
-/// is where it has a test.
+/// The rules are `PresetEdit`, in `AppCore`, where they have tests — and they
+/// differ per field, which is why the rule is passed in rather than assumed: a
+/// blank instruction leaves the model to invent a task that lands in the
+/// user's document, a blank name leaves an unpickable row in the style picker,
+/// and a blank subtitle is simply a caption nobody wrote.
 ///
 /// The draft is kept separately from the stored value so trimming does not
 /// fight the user's typing: a trailing space stays visible while they are
-/// mid-word, and emptying the field leaves the last good instruction in place
-/// rather than saving nothing.
-private struct InstructionField: View {
-    @Binding var instruction: String
+/// mid-word, and emptying a field whose rule refuses blanks leaves the last
+/// good value stored rather than saving nothing.
+private struct PresetField: View {
+    private let prompt: String
+    @Binding private var value: String
+    /// `nil` refuses the edit and leaves the stored value alone.
+    private let validate: (String) -> String?
+    private let lineLimit: ClosedRange<Int>
+
     @State private var draft = ""
 
+    init(
+        _ prompt: String,
+        text: Binding<String>,
+        validate: @escaping (String) -> String?,
+        lineLimit: ClosedRange<Int> = 1...1
+    ) {
+        self.prompt = prompt
+        _value = text
+        self.validate = validate
+        self.lineLimit = lineLimit
+    }
+
     var body: some View {
-        TextField("Instruction", text: $draft, axis: .vertical)
-            .lineLimit(2...6)
-            .onAppear { draft = instruction }
+        TextField(prompt, text: $draft, axis: .vertical)
+            .lineLimit(lineLimit)
+            .onAppear { draft = value }
             .onChange(of: draft) { _, edited in
-                guard let cleaned = PresetEdit.instruction(from: edited) else { return }
-                instruction = cleaned
+                guard let cleaned = validate(edited) else { return }
+                value = cleaned
+            }
+            // Re-sync when something *other* than this field moved the value —
+            // "Reset to default" is the one that does, and without this the
+            // field would keep showing what the user had replaced. Guarded so
+            // it cannot fight its own edits: while the user is typing, the
+            // stored value is by definition the cleaned draft.
+            .onChange(of: value) { _, stored in
+                if validate(draft) != stored { draft = stored }
             }
     }
 }

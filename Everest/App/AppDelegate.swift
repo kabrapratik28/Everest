@@ -31,6 +31,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var hotkeys: HotkeyManager?
     private var onboarding: NSWindow?
 
+    /// Assigned by `EverestApp`'s scene body, which is the only scope that can
+    /// read `OpenSettingsAction`. Set before launch finishes, so by the time
+    /// the menu can be clicked it is there.
+    var presentSettings: (@MainActor () -> Void)?
+
+    private(set) lazy var presence = AppPresence(
+        setPolicy: { _ = NSApp.setActivationPolicy($0) }
+    )
+
     private lazy var accessibility = AXSelectionAdapter()
     private lazy var keystroke = SyntheticKeystroke()
 
@@ -71,6 +80,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     )
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // `LSUIElement` pins every launch to `.accessory`, so the stored
+        // preference has to be re-applied here or it silently resets.
+        presence.start()
+
         panel.onCancel = { [coordinator] in Task { await coordinator.cancel() } }
         panel.onPickStyle = { [coordinator] preset in Task { await coordinator.pickStyle(preset) } }
         panel.onCopy = { [weak self] text in self?.copyToPasteboard(text) }
@@ -79,7 +92,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             quickImprove: { [coordinator] in Task { await coordinator.quickImprove() } },
             chooseStyle: { [coordinator] in Task { await coordinator.chooseStyle() } },
             openSettings: { [weak self] in self?.openSettings() },
-            openOnboarding: { [weak self] in self?.showOnboarding() }
+            openOnboarding: { [weak self] in self?.showOnboarding() },
+            shortcutText: { HotkeyManager.rendered($0) }
         )
 
         hotkeys = HotkeyManager(coordinator: coordinator)
@@ -119,9 +133,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         notice.markWarned()
     }
 
+    /// Activate, *then* open — the order is load-bearing.
+    ///
+    /// Measured on macOS 26.6.2 with a `Settings`-scene `LSUIElement` app:
+    /// calling the action without activating first leaves the window
+    /// `isVisible == true` but `isKeyWindow == false`, with the app the user
+    /// came from still frontmost. It opens behind them, which is
+    /// indistinguishable from nothing happening. Activating first gives a key,
+    /// frontmost window. Calling it again while it is already open is
+    /// harmless, so there is no "already showing" branch to make.
     private func openSettings() {
         NSApp.activate(ignoringOtherApps: true)
-        NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+        presentSettings?()
     }
 
     private func showOnboarding() {
@@ -135,7 +158,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let view = OnboardingView(
             model: model,
             models: modelSettings,
-            settings: settings,
             requestAccessibility: { Self.openAccessibilitySettings() },
             finish: { [weak self] in
                 self?.onboarding?.close()

@@ -24,8 +24,14 @@ enum ProducerFailure: Error, Equatable {
 /// unavailable from an asynchronous context under Swift 6, and the recording
 /// happens inside the producer's own `Task`.
 final class ScriptedTokenProducer: TokenProducer {
-    /// Deltas yielded in order, exactly as `ChatSession.streamResponse` would.
+    /// Deltas yielded in order, exactly as `ChatSession.streamDetails` would.
     let deltas: [String]
+
+    /// Reported as the last event, the way MLX reports `stopReason`.
+    ///
+    /// Defaults to `.endOfText` so every test that is not about truncation
+    /// scripts a model that finished its sentence, which is the ordinary case.
+    let stop: GenerationStop
 
     /// Reported as the prompt's token count, for the output budget.
     let promptTokens: Int
@@ -47,11 +53,13 @@ final class ScriptedTokenProducer: TokenProducer {
 
     init(
         deltas: [String],
+        stop: GenerationStop = .endOfText,
         promptTokens: Int = 100,
         delayBetweenDeltas: Duration = .zero,
         loadFailure: ProducerFailure? = nil
     ) {
         self.deltas = deltas
+        self.stop = stop
         self.promptTokens = promptTokens
         self.delayBetweenDeltas = delayBetweenDeltas
         self.loadFailure = loadFailure
@@ -88,7 +96,7 @@ final class ScriptedTokenProducer: TokenProducer {
     func stream(
         prompt: String,
         settings: GenerationSettings
-    ) -> AsyncThrowingStream<String, Error> {
+    ) -> AsyncThrowingStream<TokenEvent, Error> {
         recorded.withLock { $0.settings = settings }
 
         return AsyncThrowingStream { continuation in
@@ -98,12 +106,16 @@ final class ScriptedTokenProducer: TokenProducer {
                         try? await Task.sleep(for: delayBetweenDeltas)
                     }
                     guard !Task.isCancelled else {
+                        // Cut short, so the scripted `stop` never arrives —
+                        // MLX reports `.cancelled` here, and either way the
+                        // engine's cancellation check is what ends it.
                         continuation.finish()
                         return
                     }
                     recorded.withLock { $0.deltasYielded += 1 }
-                    continuation.yield(delta)
+                    continuation.yield(.delta(delta))
                 }
+                continuation.yield(.stopped(stop))
                 continuation.finish()
             }
             continuation.onTermination = { _ in task.cancel() }

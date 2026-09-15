@@ -1,16 +1,43 @@
 import Foundation
 
-/// The one guard on the Prompts tab.
+/// The guards on the Prompts tab.
 ///
 /// `PromptBuilder.safetyFrame` is deliberately not reachable from Settings at
 /// all — it is the prompt-injection frame, and a user-editable frame is not a
-/// frame. `Preset.instruction` is the only editable string, and the only thing
-/// that can go wrong with it is emptying it: `PromptBuilder.build` would then
-/// send the frame, a blank line, and the selected text, leaving the model to
-/// invent a task. Whatever it invents lands in the user's document.
+/// frame. Every *other* field of a `Preset` is the user's, and each has its own
+/// rule because each fails differently when it is empty.
 public enum PresetEdit {
     /// The instruction to store, or `nil` when the edit must be refused.
+    ///
+    /// Emptying it makes `PromptBuilder.build` send the frame, a blank line and
+    /// the selected text, leaving the model to invent a task. Whatever it
+    /// invents lands in the user's document.
     public static func instruction(from raw: String) -> String? {
+        nonEmpty(raw)
+    }
+
+    /// The name to store, or `nil` when the edit must be refused.
+    ///
+    /// The name is the whole of a style's identity in the ⌘⇧I picker: the row
+    /// label and the VoiceOver label are both `preset.name`. Emptying it leaves
+    /// a row that can only be picked by counting, is announced as nothing, and
+    /// is indistinguishable from the next empty one.
+    public static func name(from raw: String) -> String? {
+        nonEmpty(raw)
+    }
+
+    /// The subtitle to store. Never refused.
+    ///
+    /// The one editable field that is allowed to be empty, and it has to stay
+    /// that way: the Add button already creates `subtitle: ""`, so borrowing
+    /// the name's rule would make a new style's blank caption unclearable the
+    /// moment it had been typed into once. It is a caption under the name, and
+    /// an empty caption is one the user chose not to write.
+    public static func subtitle(from raw: String) -> String {
+        raw.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private static func nonEmpty(_ raw: String) -> String? {
         let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? nil : trimmed
     }

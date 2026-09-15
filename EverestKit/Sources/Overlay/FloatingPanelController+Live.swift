@@ -12,6 +12,7 @@ public extension FloatingPanelController {
         let controller = FloatingPanelController(
             surface: surface,
             keyMonitor: NSEventKeyMonitor(),
+            keyInterceptor: CGEventTapKeyInterceptor(),
             clock: RunLoopPanelClock(),
             // The screen under the pointer, not `NSScreen.main`. `NSScreen.main`
             // is the screen containing the key window, and this app never has

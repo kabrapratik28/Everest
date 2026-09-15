@@ -55,10 +55,27 @@ public struct AppleFoundationEngine: RewriteEngine {
                     }
 
                     try Task.checkCancellation()
+
+                    // `FoundationModels` reports neither a stop reason nor a
+                    // token count, so unlike `MLXEngine` there is no exact
+                    // signal to refuse on and the text is all there is. A
+                    // rewrite Apple's model cut short is otherwise
+                    // indistinguishable from a finished one, and
+                    // `OutputValidator` has no lower bound to catch it.
+                    if OutputCompleteness.looksTruncated(latest, source: request.text) {
+                        throw GenerationError.truncated
+                    }
+
                     continuation.yield(.finished(latest))
                     continuation.finish()
                 } catch is CancellationError {
                     continuation.finish()
+                } catch let incomplete as GenerationError {
+                    // Ahead of `map`, whose default branch would reduce this
+                    // to `.generationFailed("GenerationError")` — a sentence
+                    // that blames Apple's model for stopping and offers the
+                    // local model as the remedy. Neither is true here.
+                    continuation.finish(throwing: incomplete)
                 } catch {
                     // Classify before it leaves the engine. A raw
                     // `AppleSystemFailure` reaching the panel is a type the

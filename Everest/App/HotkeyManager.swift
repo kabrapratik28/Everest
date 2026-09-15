@@ -69,4 +69,26 @@ final class HotkeyManager {
             control: shortcut.modifiers.contains(.control)
         )
     }
+
+    /// What a binding currently looks like, for the status-item menu.
+    ///
+    /// Rendered by `KeyboardShortcuts` and not re-implemented in `AppCore`,
+    /// deliberately. Turning a key code into a character needs the active
+    /// keyboard layout — `UCKeyTranslate`, so the same code is `I` on QWERTY
+    /// and something else on AZERTY — which `AppCore` cannot do and should not
+    /// pretend to. It is also the exact string the recorder in Settings ▸
+    /// General shows, so the menu and the recorder cannot disagree about the
+    /// same binding. `nil` when the user has cleared it, and the menu then
+    /// shows nothing rather than a default that is not in force.
+    ///
+    /// `Hotkey` is `AppCore`'s, and this switch is exhaustive over it: adding
+    /// a hotkey there fails to compile here rather than quietly producing a
+    /// menu item that never gets a label.
+    static func rendered(_ hotkey: Hotkey) -> String? {
+        let name: KeyboardShortcuts.Name = switch hotkey {
+        case .quickImprove: .quickImprove
+        case .chooseStyle: .chooseStyle
+        }
+        return KeyboardShortcuts.getShortcut(for: name)?.description
+    }
 }

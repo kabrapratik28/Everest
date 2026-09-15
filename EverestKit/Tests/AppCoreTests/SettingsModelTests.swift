@@ -84,6 +84,102 @@ func deletingTheModelInUseIsRefused() async {
     }
 }
 
+/// Selection and installation are different facts, and the row has to carry
+/// both or a view is left inferring one from the other.
+///
+/// `engineID` defaults to `.qwen4B`, so on a brand-new Mac the selected model
+/// is *always* the uninstalled one. Onboarding read selection as the whole
+/// story: the default row said "In use", was disabled, and never mentioned the
+/// 2.3 GB that had not arrived yet. There was no way forward from the model
+/// step — the first-run screen whose entire job is getting a model onto disk.
+@Test("a row carries its install state as well as its selection, so the model in use can still be downloaded")
+@MainActor
+func aRowKnowsWhetherItIsInstalled() async {
+    let settings = makeSettings()
+    settings.engineID = .qwen4B
+    let availability: [EngineID: EngineAvailability] = [
+        .qwen4B: .needsDownload(bytes: 2_300_000_000),
+        .qwen30B: .ready,
+        .apple: .unavailable(reason: "Apple Intelligence is turned off."),
+    ]
+    let model = ModelSettingsModel(
+        settings: settings,
+        engineFor: { StubEngine(id: $0, availability: availability[$0] ?? .ready) }
+    )
+    await model.refresh()
+    let rows = Dictionary(uniqueKeysWithValues: model.rows.map { ($0.id, $0) })
+
+    // The whole bug: in use *and* not yet on disk.
+    #expect(rows[.qwen4B]!.isSelected)
+    #expect(rows[.qwen4B]!.needsDownload)
+    #expect(rows[.qwen30B]!.needsDownload == false)
+
+    // Apple's engine has no repository, so a download button could do nothing
+    // whatever its availability says.
+    #expect(rows[.apple]!.needsDownload == false)
+
+    // And the row says so in words, because a disabled button with no
+    // explanation is the same dead end with a different shape.
+    #expect(rows[.qwen30B]!.installSummary == "Installed")
+    #expect(rows[.qwen4B]!.installSummary.localizedCaseInsensitiveContains("download"))
+    #expect(rows[.apple]!.installSummary == "Apple Intelligence is turned off.")
+}
+
+/// A download that fails has to say so, or the user retries the same failure
+/// forever with no diagnostic: the bar vanishes, the status is unchanged, and
+/// nothing distinguishes "finished" from "gave up".
+///
+/// `download` does not throw, deliberately. Both call sites used `try?` and
+/// swallowed it, and an error whose only consumer is a label is better
+/// recorded than rethrown — a caller cannot then forget.
+@Test("a failed download says why on the row that failed, and a retry clears the message")
+@MainActor
+func aFailedDownloadIsReported() async {
+    let settings = makeSettings()
+    let failing = StubEngine(id: .qwen4B, prepareFailure: UnexpectedFailure.somethingElse)
+    let model = ModelSettingsModel(settings: settings, engineFor: { _ in failing })
+
+    await model.download(ModelCatalog.all[0])
+
+    #expect(model.downloadFailure[.qwen4B] == EngineFailure.reason(for: UnexpectedFailure.somethingElse))
+    // Only the row that failed.
+    #expect(model.downloadFailure[.qwen30B] == nil)
+    // And no bar left behind suggesting it is still going.
+    #expect(model.downloadProgress[.qwen4B] == nil)
+
+    let working = ModelSettingsModel(settings: settings, engineFor: { StubEngine(id: $0) })
+    await working.download(ModelCatalog.all[0])
+    #expect(working.downloadFailure[.qwen4B] == nil)
+}
+
+/// The row itself is the control, so the row is what has to know it is chosen.
+///
+/// The tab used to draw a decorative circle and put the choosing on a separate
+/// "Use" button beside it — a radio button that was a picture of one. Moving
+/// the choice onto the row means the mark and the setting cannot disagree, and
+/// it puts the answer in one place instead of leaving each view to recompute
+/// `settings.engineID == row.spec.id` for itself.
+///
+/// `refresh()` rebuilds every row from the engines, so the check that the mark
+/// survives that is the check that there is only one source for it.
+@Test("choosing a model row is what selects it, and the mark follows the choice")
+@MainActor
+func choosingARowSelectsIt() async {
+    let settings = makeSettings()
+    settings.engineID = .qwen4B
+    let model = ModelSettingsModel(settings: settings, engineFor: { StubEngine(id: $0) })
+
+    #expect(model.rows.filter(\.isSelected).map(\.id) == [.qwen4B])
+
+    model.select(.qwen30B)
+
+    #expect(settings.engineID == .qwen30B)
+    #expect(model.rows.filter(\.isSelected).map(\.id) == [.qwen30B])
+
+    await model.refresh()
+    #expect(model.rows.filter(\.isSelected).map(\.id) == [.qwen30B])
+}
+
 /// A test box that fails silently is worse than no test box: the user is
 /// trying to find out whether the model works, and a blank result answers
 /// neither way.
@@ -134,6 +230,34 @@ func aBlankInstructionIsRefused() {
     #expect(PresetEdit.instruction(from: "  ") == nil)
     #expect(PresetEdit.instruction(from: "\n\t ") == nil)
     #expect(PresetEdit.instruction(from: "  Make it shorter.  ") == "Make it shorter.")
+}
+
+/// The name is the only thing identifying a style in the picker: it is the row
+/// label and the VoiceOver label, and the picker is the whole of ⌘⇧I. A style
+/// named "" is a blank row the user has to pick by position and a screen reader
+/// announces as nothing, and it cannot be told apart from the next blank one.
+///
+/// Refused for the same reason a blank instruction is, and separately from it —
+/// a preset can be perfectly rewritable and still unpickable.
+@Test("a preset name cannot be blanked")
+func aBlankNameIsRefused() {
+    #expect(PresetEdit.name(from: "   ") == nil)
+    #expect(PresetEdit.name(from: "\n\t ") == nil)
+    #expect(PresetEdit.name(from: "  Professional  ") == "Professional")
+}
+
+/// The subtitle is the one editable field that is allowed to be empty, and it
+/// has to stay that way: `Preset(name: "New style", subtitle: "", …)` is what
+/// the Add button already creates, so a rule copied over from the name would
+/// make every new style's blank subtitle unclearable the moment it was typed
+/// into once.
+///
+/// Trimmed but never refused. It is a caption under the name in the picker,
+/// and an empty caption is a caption the user chose not to write.
+@Test("a preset subtitle may be emptied, unlike its name")
+func aBlankSubtitleIsAccepted() {
+    #expect(PresetEdit.subtitle(from: "   ") == "")
+    #expect(PresetEdit.subtitle(from: "  formal tone  ") == "formal tone")
 }
 
 // MARK: - The Privacy tab

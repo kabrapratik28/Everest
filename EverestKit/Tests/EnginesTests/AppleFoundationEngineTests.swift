@@ -91,6 +91,41 @@ struct AppleFoundationEngineTests {
         #expect(snapshots == ["Hel", "Hello", "Hello there"])
     }
 
+    /// Apple's model can be cut off by its own limits and this engine cannot
+    /// tell: `FoundationModels` exposes no stop reason and no token count, so
+    /// there is nothing here like the `GenerateStopReason.length` that
+    /// `MLXEngine` refuses on. The only remaining signal is the text.
+    ///
+    /// Without this, the same defect that truncated MLX rewrites is still
+    /// live on this engine: a fragment reaches `.finished`, passes
+    /// `OutputValidator` — which has no lower bound — and replaces a
+    /// paragraph with half a sentence.
+    ///
+    /// Thrown as `GenerationError`, deliberately not routed through
+    /// `AppleEngineError.map`. `map`'s default branch would reduce it to
+    /// `.generationFailed("GenerationError")`, whose sentence blames Apple's
+    /// model for stopping and offers the local model as the fix — which is
+    /// wrong twice, since nothing about Apple caused it and switching engines
+    /// will not help.
+    @Test("output that stops mid-sentence is refused rather than finished")
+    func truncatedOutputIsRefused() async throws {
+        let source = "the quarterly report is ready for you to review it now."
+        let engine = AppleFoundationEngine(
+            system: ScriptedAppleSystemModel(
+                snapshots: ["The quarterly", "The quarterly report is ready for your rev"]
+            )
+        )
+
+        var events: [RewriteEvent] = []
+        await #expect(throws: GenerationError.truncated) {
+            for try await event in engine.stream(Self.request(source)) { events.append(event) }
+        }
+        #expect(
+            events.allSatisfy { if case .finished = $0 { false } else { true } },
+            "a truncated rewrite must never reach the replacement path"
+        )
+    }
+
     /// A failure that arrives once generation is under way still has to reach
     /// the user as one of the classified cases, not as whatever raw type the
     /// system threw.

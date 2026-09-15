@@ -22,6 +22,13 @@ struct PanelKeyMapTests {
         Preset(name: "Style \($0)", subtitle: "sub \($0)", instruction: "do \($0)")
     }
 
+    /// `AppSettings.styles` is user-editable and uncapped; five is only the
+    /// shipped default. A list this long is what the picker looks like as soon
+    /// as anyone adds a style of their own.
+    static let nineStyles: [Preset] = (1 ... 9).map {
+        Preset(name: "Style \($0)", subtitle: "sub \($0)", instruction: "do \($0)")
+    }
+
     @Test("Escape cancels from every state")
     func escapeCancelsFromEveryState() {
         for state in PanelStateTests.samples {
@@ -29,11 +36,14 @@ struct PanelKeyMapTests {
         }
     }
 
-    @Test("number keys 1 through 5 pick that style in the picker")
-    func digitsOneThroughFivePickAStyle() {
-        let picker = PanelState.stylePicker(presets: Self.fiveStyles)
+    /// Every row the user can see a number against is reachable by typing that
+    /// number. Stopping at five left anyone with a custom style arrowing down
+    /// to rows that had no digit printed on them at all.
+    @Test("a number key picks its row, for every row that carries a number")
+    func digitsPickTheirRow() {
+        let picker = PanelState.stylePicker(presets: Self.nineStyles)
 
-        for number in 1 ... 5 {
+        for number in 1 ... 9 {
             #expect(PanelKeyMap.action(for: Self.digit(number), in: picker) == .pickStyle(index: number - 1))
         }
     }
@@ -56,21 +66,24 @@ struct PanelKeyMapTests {
         }
     }
 
-    /// Only the first five rows get a digit. A sixth custom style is reachable
-    /// with the arrows and gets no number rather than a wrong one.
+    /// Nine is where single-keystroke selection runs out: `0` is not a row, and
+    /// a tenth would need two digits and a key to commit them — a jump-to-line
+    /// dialog, not a picker. A tenth style stays reachable with the arrows and
+    /// gets no number rather than a wrong one.
     @Test("a number outside the numbered rows does nothing")
     func outOfRangeNumberDoesNothing() {
         let five = PanelState.stylePicker(presets: Self.fiveStyles)
         let three = PanelState.stylePicker(presets: Array(Self.fiveStyles.prefix(3)))
-        let six = PanelState.stylePicker(
-            presets: Self.fiveStyles + [Preset(name: "Custom", subtitle: "mine", instruction: "do")]
+        let ten = PanelState.stylePicker(
+            presets: Self.nineStyles + [Preset(name: "Custom", subtitle: "mine", instruction: "do")]
         )
 
         #expect(PanelKeyMap.action(for: Self.digit(0), in: five) == nil)
+        // A digit past the end of a short list is not a row either.
         #expect(PanelKeyMap.action(for: Self.digit(6), in: five) == nil)
         #expect(PanelKeyMap.action(for: Self.digit(9), in: five) == nil)
         #expect(PanelKeyMap.action(for: Self.digit(4), in: three) == nil)
-        #expect(PanelKeyMap.action(for: Self.digit(6), in: six) == nil)
+        #expect(PanelKeyMap.action(for: Self.digit(0), in: ten) == nil)
     }
 
     /// A global monitor cannot consume the event, so ⌘3 pressed in the app

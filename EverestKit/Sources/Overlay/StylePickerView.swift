@@ -23,8 +23,8 @@ struct StylePickerView: View {
 
     private func row(index: Int, preset: Preset) -> some View {
         let isHighlighted = index == highlightedIndex
-        // Only the first five rows get a digit. A sixth custom style is still
-        // reachable with the arrows and gets no number rather than a wrong one.
+        // A row past the numbered ones is still reachable with the arrows and
+        // gets no number rather than a wrong one.
         let number = index < PanelKeyMap.numberedRows ? String(index + 1) : nil
 
         return Button {

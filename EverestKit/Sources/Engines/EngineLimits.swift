@@ -1,5 +1,30 @@
 import Foundation
 
+/// A generation that cannot be offered to the user as a rewrite.
+///
+/// Shared by both engines, because both can produce one and the remedy is the
+/// same. Deliberately an error rather than a `RewriteEvent`: the coordinator
+/// writes whatever reaches `.finished`, so the only safe way to say "this is
+/// not a rewrite" is to never get there.
+public enum GenerationError: Error, Equatable, Sendable {
+    /// The decoder stopped because it ran out of output budget, so what came
+    /// back is the beginning of a rewrite rather than a rewrite.
+    case truncated
+
+    /// The remedy, in words the user can act on.
+    ///
+    /// It says *nothing was changed* on purpose. The failure the user is being
+    /// told about is one whose whole point is that their text survived it, and
+    /// an error message that does not say so reads as "your document is now in
+    /// an unknown state".
+    public var message: String {
+        switch self {
+        case .truncated:
+            "That passage is too long for this model to rewrite in one piece. Nothing was changed — select a shorter passage and try again."
+        }
+    }
+}
+
 /// What a decoder is allowed to do, shared by every engine.
 ///
 /// These live here rather than in `RewriteCore` because they describe decoding,
@@ -17,20 +42,38 @@ public enum EngineLimits {
     /// Stops a one-line selection being cut off mid-word.
     public static let minimumOutputTokens = 64
 
-    /// Stops a model that has started rambling from holding the panel open.
-    public static let maximumOutputTokens = 768
-
     /// A rewrite runs a little longer than its input when grammar fixes expand
-    /// a contraction, and essentially never longer than this.
+    /// a contraction, and essentially never longer than this. **This is the
+    /// guard against a rambling generation**, and it is the only one that
+    /// needs to be: it scales, so it stays proportionate at every input size.
     public static let outputScale = 1.4
 
-    /// `min(max(64, inputTokens * 1.4), 768)`.
+    /// `min(max(64, inputTokens * 1.4), contextCap - inputTokens)`.
     ///
     /// The scaled value is rounded, not truncated. `1.4` is not exactly
     /// representable in binary, so `Double(200) * 1.4` is `279.999...` and an
     /// `Int(_:)` conversion would silently shave a token off every budget.
+    ///
+    /// **The ceiling is derived, never a constant of its own.** It used to be
+    /// a flat 768, chosen to bound how long the panel stays open, and that
+    /// number was never reconciled with the 8,000-character capture cap in
+    /// `TextBridge`. From about 550 input tokens up — a selection of roughly
+    /// 2,200 characters — 768 was below what a faithful rewrite needs, so the
+    /// decoder stopped at `maxTokens` mid-word and the half-rewrite was
+    /// written over the user's paragraph. Nothing downstream could catch it:
+    /// `OutputValidator` rejects output that is *too long* and has no lower
+    /// bound. Two independently reasonable constants, silently destroying text
+    /// where they met.
+    ///
+    /// `contextCap - inputTokens` is the honest ceiling because it is the one
+    /// real limit: the prompt and the generation share the KV cache, so this
+    /// is also what stops `maxTokens` overrunning the `maxKVSize` the same
+    /// settings ask for. Past `contextCap / 2` it forces a budget smaller than
+    /// the input, and those selections are **refused** by the stop-reason
+    /// check in `MLXEngine` rather than quietly truncated.
     public static func outputBudget(inputTokens: Int) -> Int {
         let scaled = Int((Double(inputTokens) * outputScale).rounded())
-        return min(max(minimumOutputTokens, scaled), maximumOutputTokens)
+        let headroom = max(minimumOutputTokens, contextCap - inputTokens)
+        return min(max(minimumOutputTokens, scaled), headroom)
     }
 }

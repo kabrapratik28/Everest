@@ -95,12 +95,14 @@ final class FakeClock: PanelClock {
 func makeController(
     surface: PanelSurface = SpySurface(),
     keyMonitor: KeyMonitoring = SpyKeyMonitor(),
+    keyInterceptor: KeyMonitoring = SpyKeyMonitor(),
     clock: PanelClock = FakeClock(),
     visibleFrame: @escaping @MainActor () -> CGRect = { FloatingPanelControllerTests.screen }
 ) -> FloatingPanelController {
     FloatingPanelController(
         surface: surface,
         keyMonitor: keyMonitor,
+        keyInterceptor: keyInterceptor,
         clock: clock,
         visibleFrame: visibleFrame
     )
@@ -532,6 +534,108 @@ struct FloatingPanelControllerTests {
         controller.show(.capturing)
         #expect(controller.followsTail)
         #expect(surface.presented.last?.followsTail == true)
+    }
+
+    /// An event tap is strictly more dangerous than the global monitor beside
+    /// it: while it exists it can *delete* keystrokes out of every application
+    /// on the machine. It has no business existing outside the seconds the
+    /// picker is on screen, so its lifetime is tied to that one state rather
+    /// than to the transaction the way the monitors are.
+    @Test("the event tap is armed only while the picker is on screen")
+    func tapIsArmedOnlyForThePicker() {
+        let tap = SpyKeyMonitor()
+        let controller = makeController(keyInterceptor: tap)
+
+        controller.show(.capturing)
+        #expect(tap.installs == 0)
+
+        controller.show(.stylePicker(presets: PanelKeyMapTests.fiveStyles))
+        #expect(tap.installs == 1)
+
+        // A style was picked and the rewrite has started. Nothing is waiting
+        // for picker keys any more, so nothing may still be swallowing them.
+        controller.update(.generating(text: "The quick"))
+        #expect(tap.isInstalled == false)
+
+        controller.dismiss()
+        #expect(tap.installs == tap.removals)
+    }
+
+    /// The bug this exists for. The panel is deliberately not key while the
+    /// picker is up, so every key the picker uses was *also* being delivered to
+    /// the app underneath: the arrows moved that app's caret and collapsed the
+    /// very selection about to be rewritten, and a bare digit replaced the
+    /// selected text outright. A tap consumes by deleting the event from the
+    /// stream, which costs nothing in focus, so here the answer is yes.
+    @Test("the picker's keys are consumed, so the app underneath never sees them")
+    func pickerKeysAreConsumed() {
+        let tap = SpyKeyMonitor()
+        let controller = makeController(keyInterceptor: tap)
+        let picked = Box<Preset>()
+        let cancels = Counter()
+        controller.onPickStyle = { picked.value = $0 }
+        controller.onCancel = { cancels.bump() }
+
+        controller.show(.stylePicker(presets: PanelKeyMapTests.fiveStyles))
+
+        #expect(tap.send(PanelKeyMapTests.arrowDown) == true)
+        #expect(tap.send(PanelKeyMapTests.arrowUp) == true)
+        #expect(tap.send(PanelKeyMapTests.enter) == true)
+        #expect(tap.send(PanelKeyMapTests.escape) == true)
+
+        // Swallowed *and* acted on. Consuming without acting would be a picker
+        // that eats the user's keys and does nothing with them.
+        #expect(tap.send(PanelKeyMapTests.digit(3)) == true)
+        #expect(picked.value == PanelKeyMapTests.fiveStyles[2])
+        #expect(cancels.count == 1)
+    }
+
+    /// The other half of the same guard, and the more dangerous half. While the
+    /// tap is up it is the first thing in the session to see every keystroke
+    /// the user types, in any application. A tap that swallowed anything beyond
+    /// the picker's own keys would be a keyboard that stops working for as long
+    /// as the panel is on screen.
+    @Test("a key the picker does not use passes through the tap untouched")
+    func nonPickerKeysPassThroughTheTap() {
+        let tap = SpyKeyMonitor()
+        let controller = makeController(keyInterceptor: tap)
+        let picked = Box<Preset>()
+        controller.onPickStyle = { picked.value = $0 }
+
+        controller.show(.stylePicker(presets: PanelKeyMapTests.fiveStyles))
+
+        let bareZ = Keystroke(keyCode: 6, characters: "z", modifiers: [])
+        #expect(tap.send(bareZ) == false)
+        // ⌘3 switches a browser tab; ⇧3 types a `#`. Neither is a pick.
+        #expect(tap.send(PanelKeyMapTests.digit(3, plain: false)) == false)
+        #expect(tap.send(Keystroke(keyCode: 0, characters: "3", modifiers: .shift)) == false)
+        // The picker holds no rewrite, so ⌘C here is the user copying in the
+        // app underneath. Eating it would lose them their own clipboard.
+        #expect(tap.send(PanelKeyMapTests.commandC) == false)
+        // A digit past the end of the list is not a row.
+        #expect(tap.send(PanelKeyMapTests.digit(9)) == false)
+
+        #expect(picked.value == nil)
+    }
+
+    /// Same requirement as the monitors, and the existing test for them does
+    /// not cover this: it never opens the picker, so it never installs a tap.
+    /// The handler is retained by the handle and the handle by the controller,
+    /// so a handler holding the controller strongly is a cycle — the controller
+    /// never deallocates and the tap survives for the rest of the session,
+    /// deleting keys out of every application the user types in.
+    @Test("releasing the controller with the picker up removes the event tap")
+    func releasingTheControllerRemovesTheTap() {
+        let tap = SpyKeyMonitor()
+
+        do {
+            let controller = makeController(keyInterceptor: tap)
+            controller.show(.stylePicker(presets: PanelKeyMapTests.fiveStyles))
+            #expect(tap.isInstalled)
+        }
+
+        #expect(tap.removals == 1)
+        #expect(tap.isInstalled == false)
     }
 
     /// The coordinator drives the panel straight from engine events, so that

@@ -44,10 +44,15 @@ public enum PanelKeyAction: Equatable, Sendable {
 }
 
 public enum PanelKeyMap {
-    /// How many picker rows get a number. A sixth style is still reachable with
-    /// the arrows; giving it a digit nobody printed next to it is worse than
-    /// giving it none.
-    public static let numberedRows = 5
+    /// How many picker rows get a number.
+    ///
+    /// Nine, not five: `AppSettings.styles` is user-editable and uncapped, and
+    /// five is only the shipped default, so every style anyone added was
+    /// reachable by arrow key alone. Nine is where a single keystroke runs
+    /// out — `0` is not a row, and a tenth needs two digits and a key to
+    /// commit them, which is a jump-to-line dialog rather than a picker. A
+    /// tenth style keeps the arrows and gets no number rather than a wrong one.
+    public static let numberedRows = 9
 
     public static func action(for keystroke: Keystroke, in state: PanelState) -> PanelKeyAction? {
         if keystroke.keyCode == Keystroke.escapeKeyCode { return .cancel }

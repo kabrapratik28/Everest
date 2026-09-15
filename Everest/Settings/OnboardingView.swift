@@ -10,7 +10,6 @@ import SwiftUI
 struct OnboardingView: View {
     @ObservedObject var model: OnboardingModel
     @ObservedObject var models: ModelSettingsModel
-    @ObservedObject var settings: AppSettings
     let requestAccessibility: () -> Void
     let finish: () -> Void
 
@@ -117,11 +116,15 @@ struct OnboardingView: View {
                     if let progress = models.downloadProgress[row.spec.id] {
                         ProgressView(value: progress).frame(width: 120)
                     } else {
-                        Button(settings.engineID == row.spec.id ? "In use" : "Use this") {
-                            settings.engineID = row.spec.id
+                        // Through `select`, not by assigning `engineID`: the
+                        // Model tab's rows carry their own `isSelected`, and a
+                        // second way to move the setting leaves that mark
+                        // pointing at the model the user just replaced.
+                        Button(row.isSelected ? "In use" : "Use this") {
+                            models.select(row.spec.id)
                             Task { try? await models.download(row.spec) }
                         }
-                        .disabled(settings.engineID == row.spec.id)
+                        .disabled(row.isSelected)
                     }
                 }
             }

@@ -1,3 +1,4 @@
+import AppCore
 import AppKit
 
 /// The menu bar item and its menu.
@@ -8,17 +9,24 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     private let chooseStyle: () -> Void
     private let openSettings: () -> Void
     private let openOnboarding: () -> Void
+    private let shortcutText: @MainActor (Hotkey) -> String?
+
+    /// Every item that could carry a shortcut, with the command it runs.
+    /// Kept so `menuWillOpen` can re-read all of them without rebuilding.
+    private var commandItems: [(item: NSMenuItem, command: MenuCommand)] = []
 
     init(
         quickImprove: @escaping () -> Void,
         chooseStyle: @escaping () -> Void,
         openSettings: @escaping () -> Void,
-        openOnboarding: @escaping () -> Void
+        openOnboarding: @escaping () -> Void,
+        shortcutText: @escaping @MainActor (Hotkey) -> String?
     ) {
         self.quickImprove = quickImprove
         self.chooseStyle = chooseStyle
         self.openSettings = openSettings
         self.openOnboarding = openOnboarding
+        self.shortcutText = shortcutText
         item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         super.init()
 
@@ -50,18 +58,45 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         let menu = NSMenu()
         menu.delegate = self
 
-        // No `keyEquivalent` on these two. The real bindings are global
-        // `KeyboardShortcuts` hotkeys, and a menu key equivalent would be a
-        // second, separately-editable copy that goes stale the moment the user
-        // rebinds — showing ⌘I in the menu while the hotkey is ⌥R.
-        menu.addItem(withTitleAction: "Quick Improve", target: self, action: #selector(runQuickImprove))
-        menu.addItem(withTitleAction: "Choose Style…", target: self, action: #selector(runChooseStyle))
+        // Still no `keyEquivalent` on any of these, and the bindings are shown
+        // anyway — as a badge, which is trailing text and nothing else. A key
+        // equivalent would be a second, separately-editable copy of a binding
+        // the user can re-record, and it goes stale the moment they do. The
+        // badge is re-read from `KeyboardShortcuts` on every open instead, so
+        // it cannot disagree with the hotkey that is actually registered.
+        add(.quickImprove, "Quick Improve", #selector(runQuickImprove), to: menu)
+        add(.chooseStyle, "Choose Style…", #selector(runChooseStyle), to: menu)
         menu.addItem(.separator())
-        menu.addItem(withTitleAction: "Settings…", target: self, action: #selector(runOpenSettings))
-        menu.addItem(withTitleAction: "Setup Guide…", target: self, action: #selector(runOpenOnboarding))
+        add(.settings, "Settings…", #selector(runOpenSettings), to: menu)
+        add(.setupGuide, "Setup Guide…", #selector(runOpenOnboarding), to: menu)
         menu.addItem(.separator())
-        menu.addItem(withTitleAction: "Quit Everest", target: self, action: #selector(runQuit))
+        add(.quit, "Quit Everest", #selector(runQuit), to: menu)
         return menu
+    }
+
+    /// Re-reads every binding as the menu comes down.
+    ///
+    /// Here rather than in `buildMenu` because the menu is built once at
+    /// launch and the user can re-record a hotkey at any point after that.
+    /// Which commands are eligible is `MenuCommand.hotkey`, in `AppCore`,
+    /// where it has a test; this only renders the answer.
+    func menuWillOpen(_ menu: NSMenu) {
+        for (item, command) in commandItems {
+            item.badge = command.hotkey
+                .flatMap(shortcutText)
+                .map { NSMenuItemBadge(string: $0) }
+        }
+    }
+
+    /// `addItem(withTitle:action:keyEquivalent:)` leaves `target` nil, which
+    /// sends the action down the responder chain — and this app has no key
+    /// window to start that chain, so every item would be permanently greyed
+    /// out. Setting the target explicitly is what makes them clickable.
+    private func add(_ command: MenuCommand, _ title: String, _ action: Selector, to menu: NSMenu) {
+        let item = NSMenuItem(title: title, action: action, keyEquivalent: "")
+        item.target = self
+        menu.addItem(item)
+        commandItems.append((item, command))
     }
 
     @objc private func runQuickImprove() { quickImprove() }
@@ -69,16 +104,4 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     @objc private func runOpenSettings() { openSettings() }
     @objc private func runOpenOnboarding() { openOnboarding() }
     @objc private func runQuit() { NSApp.terminate(nil) }
-}
-
-private extension NSMenu {
-    /// `addItem(withTitle:action:keyEquivalent:)` leaves `target` nil, which
-    /// sends the action down the responder chain — and this app has no key
-    /// window to start that chain, so every item would be permanently greyed
-    /// out. Setting the target explicitly is what makes them clickable.
-    func addItem(withTitleAction title: String, target: AnyObject, action: Selector) {
-        let item = NSMenuItem(title: title, action: action, keyEquivalent: "")
-        item.target = target
-        addItem(item)
-    }
 }

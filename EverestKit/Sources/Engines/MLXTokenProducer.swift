@@ -31,10 +31,20 @@ public final class MLXTokenProducer: TokenProducer {
         return await container.encode(prompt).count
     }
 
+    /// Translates `Generation` onto `TokenEvent`. No decisions: whether a
+    /// `.budgetExhausted` rewrite may be shown is `MLXEngine`'s call, on the
+    /// tested side of this seam.
+    ///
+    /// `streamDetails`, not `streamResponse`. They differ only in that
+    /// `streamResponse` maps every element through `\.chunk` and therefore
+    /// **throws the completion info away** — including `stopReason`, the one
+    /// thing that distinguishes a finished rewrite from one the token budget
+    /// cut in half. `mlx-swift-lm` yields exactly one `.info` immediately
+    /// before finishing the stream, on every path.
     public func stream(
         prompt: String,
         settings: GenerationSettings
-    ) -> AsyncThrowingStream<String, Error> {
+    ) -> AsyncThrowingStream<TokenEvent, Error> {
         AsyncThrowingStream { continuation in
             let task = Task {
                 do {
@@ -57,8 +67,20 @@ public final class MLXTokenProducer: TokenProducer {
                     // documents that the prompt is one user turn with no
                     // system message — the safety frame is already inside it
                     // and must reach the model exactly as written.
-                    for try await chunk in session.streamResponse(to: [Chat.Message.user(prompt)]) {
-                        continuation.yield(chunk)
+                    for try await generated in session.streamDetails(
+                        to: [Chat.Message.user(prompt)]
+                    ) {
+                        switch generated {
+                        case let .chunk(text):
+                            continuation.yield(.delta(text))
+                        case let .info(info):
+                            continuation.yield(.stopped(Self.stop(from: info.stopReason)))
+                        // No tools are passed, so this cannot arrive. Ignored
+                        // rather than trapped: an unreachable branch is not
+                        // worth a crash in a rewrite.
+                        case .toolCall:
+                            break
+                        }
                     }
                     continuation.finish()
                 } catch {
@@ -71,6 +93,19 @@ public final class MLXTokenProducer: TokenProducer {
         }
     }
 
+    /// `GenerateStopReason` onto ours, one case each.
+    ///
+    /// Not folded into the call site: `mlx-swift-lm` uses `.cancelled` as its
+    /// fallback when it cannot tell why the iterator ended, so the mapping is
+    /// the one place that fact is worth stating.
+    private static func stop(from reason: GenerateStopReason) -> GenerationStop {
+        switch reason {
+        case .stop: .endOfText
+        case .length: .budgetExhausted
+        case .cancelled: .cancelled
+        @unknown default: .cancelled
+        }
+    }
 }
 
 public enum MLXProducerError: Error, Equatable, Sendable {

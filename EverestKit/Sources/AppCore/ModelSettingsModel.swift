@@ -19,6 +19,11 @@ public final class ModelSettingsModel: ObservableObject {
     public struct Row: Identifiable, Sendable {
         public let spec: ModelSpec
         public let availability: EngineAvailability
+        /// Whether this is the engine a hotkey press would use.
+        ///
+        /// On the row rather than recomputed per view, so the mark and the
+        /// setting cannot disagree and there is one place that decides.
+        public let isSelected: Bool
         public var id: EngineID { spec.id }
     }
 
@@ -39,7 +44,20 @@ public final class ModelSettingsModel: ObservableObject {
         self.settings = settings
         self.engineFor = engineFor
         self.storeRoot = storeRoot
-        rows = ModelCatalog.all.map { Row(spec: $0, availability: .needsDownload(bytes: $0.approxBytes)) }
+        rows = ModelCatalog.all.map {
+            Row(spec: $0, availability: .needsDownload(bytes: $0.approxBytes), isSelected: $0.id == settings.engineID)
+        }
+    }
+
+    /// Chooses the engine every rewrite will use.
+    ///
+    /// The row is the control, so this is what the row calls. There was a
+    /// separate "Use" button beside a drawn circle, which meant the picture of
+    /// a radio button and the thing that actually moved the setting were two
+    /// different controls — and only one of them was clickable.
+    public func select(_ id: EngineID) {
+        settings.engineID = id
+        rows = rows.map { Row(spec: $0.spec, availability: $0.availability, isSelected: $0.spec.id == id) }
     }
 
     /// Re-asks every engine what it can do right now.
@@ -53,7 +71,13 @@ public final class ModelSettingsModel: ObservableObject {
     public func refresh() async {
         var next: [Row] = []
         for spec in ModelCatalog.all {
-            next.append(Row(spec: spec, availability: await engineFor(spec.id).availability()))
+            next.append(
+                Row(
+                    spec: spec,
+                    availability: await engineFor(spec.id).availability(),
+                    isSelected: spec.id == settings.engineID
+                )
+            )
         }
         rows = next
     }

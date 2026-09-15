@@ -11,6 +11,7 @@ public final class FloatingPanelController {
 
     private let surface: PanelSurface
     private let keyMonitor: KeyMonitoring
+    private let keyInterceptor: KeyMonitoring
     private let clock: PanelClock
     private let visibleFrame: @MainActor () -> CGRect
 
@@ -23,7 +24,13 @@ public final class FloatingPanelController {
 
     /// The only reference to the installed monitors. See `KeyMonitorHandle`.
     private var armedMonitors: KeyMonitorHandle?
-    private var state: PanelState?
+    /// The only reference to the installed event tap. See `syncKeyInterceptor`.
+    private var armedInterceptor: KeyMonitorHandle?
+    /// Every write goes through `didSet`, so no path can move the panel into or
+    /// out of the picker without the tap following it.
+    private var state: PanelState? {
+        didSet { syncKeyInterceptor() }
+    }
     private var coalescer = StreamCoalescer()
     /// Sampled once per presentation. See `screenIsCapturedAtShow`.
     private var anchorScreen: CGRect?
@@ -31,11 +38,13 @@ public final class FloatingPanelController {
     public init(
         surface: PanelSurface,
         keyMonitor: KeyMonitoring,
+        keyInterceptor: KeyMonitoring,
         clock: PanelClock,
         visibleFrame: @escaping @MainActor () -> CGRect
     ) {
         self.surface = surface
         self.keyMonitor = keyMonitor
+        self.keyInterceptor = keyInterceptor
         self.clock = clock
         self.visibleFrame = visibleFrame
     }
@@ -129,8 +138,49 @@ public final class FloatingPanelController {
         }
     }
 
-    /// Returns whether the keystroke was consumed.
+    /// Arms the event tap for the picker and disarms it for everything else.
+    ///
+    /// The monitors stay up for the whole transaction; this does not. A tap can
+    /// delete keystrokes out of every application on the machine, so it exists
+    /// only in the state that needs to delete them, and `state.didSet` is what
+    /// makes that structural rather than a call at each transition.
+    private func syncKeyInterceptor() {
+        guard case .stylePicker = state else {
+            armedInterceptor = nil
+            return
+        }
+        guard armedInterceptor == nil else { return }
+        armedInterceptor = keyInterceptor.install { [weak self] keystroke in
+            self?.intercept(keystroke) ?? false
+        }
+    }
+
+    /// The monitors' answer: whether the keystroke was consumed.
+    ///
+    /// Acting on a key is not the same as swallowing it. A global monitor
+    /// observes and cannot consume at all, so only a state that took key status
+    /// may claim the event — and only then does the local monitor swallow it
+    /// before the frontmost app sees it.
     private func handle(_ keystroke: Keystroke) -> Bool {
+        let acted = perform(keystroke)
+        return acted && (state?.acceptsKeyWindow ?? false)
+    }
+
+    /// The tap's answer: whether the keystroke was consumed.
+    ///
+    /// A tap consumes by deleting the event from the stream rather than by
+    /// owning the focus, so unlike `handle` it does not have to buy the right
+    /// with key status — which is the entire reason the picker can now swallow
+    /// its own keys while the source app keeps frontmost and keeps a live
+    /// selection. It claims exactly what it acted on, so every other keystroke
+    /// the user types passes through untouched.
+    private func intercept(_ keystroke: Keystroke) -> Bool {
+        perform(keystroke)
+    }
+
+    /// Runs whatever this keystroke means in this state. Returns whether it
+    /// meant anything.
+    private func perform(_ keystroke: Keystroke) -> Bool {
         guard let state, let action = PanelKeyMap.action(for: keystroke, in: state) else {
             return false
         }
@@ -142,12 +192,7 @@ public final class FloatingPanelController {
         case .commitHighlightedStyle:   pickStyle(at: highlightedStyleIndex)
         case let .moveHighlight(offset): moveHighlight(by: offset)
         }
-
-        // Acting on a key is not the same as swallowing it. A global monitor
-        // observes and cannot consume, so only a state that took key status
-        // may claim the event — and only then does the local monitor swallow
-        // it before the frontmost app sees it.
-        return state.acceptsKeyWindow
+        return true
     }
 
     private func moveHighlight(by offset: Int) {
@@ -168,5 +213,6 @@ public final class FloatingPanelController {
     /// is nothing else to forget.
     private func disarmKeyMonitor() {
         armedMonitors = nil
+        armedInterceptor = nil
     }
 }

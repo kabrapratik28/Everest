@@ -141,6 +141,84 @@ struct MLXEngineTests {
         #expect(finished == "Hello there")
     }
 
+    /// **A rewrite the token budget cut short must never be offered as a
+    /// rewrite.**
+    ///
+    /// This is the defect this test exists for. The decoder stopping at
+    /// `maxTokens` and the decoder emitting a stop token produce the same
+    /// thing — ordinary prose that ends — and every guard downstream checks
+    /// the wrong direction: `OutputValidator` rejects output more than three
+    /// times the input's length and has no lower bound at all, so a rewrite
+    /// truncated to 60% sails through it and `ReplacementService` writes it
+    /// over the user's selection. There is no undo on either side, and the
+    /// success panel dismisses itself after 1.2 seconds.
+    ///
+    /// So the engine refuses on the only signal that can tell the two apart,
+    /// which `mlx-swift-lm` does report: `GenerateStopReason.length`.
+    ///
+    /// Both halves are asserted. An engine that threw on every stream would
+    /// pass the failing half while being useless, and it is the *pair* —
+    /// same text, same length, different ending — that pins the behaviour to
+    /// the stop reason rather than to anything about the text.
+    @Test("a rewrite the budget cut short is refused, not offered as finished")
+    func aBudgetTruncatedRewriteIsRefused() async throws {
+        let temp = try TempDirectory()
+        let deltas = ["The quarterly report ", "is ready for your rev"]
+
+        let truncated = Self.engine(
+            producer: ScriptedTokenProducer(deltas: deltas, stop: .budgetExhausted),
+            root: temp.url
+        )
+
+        var events: [RewriteEvent] = []
+        await #expect(throws: GenerationError.truncated) {
+            for try await event in truncated.stream(Self.request()) { events.append(event) }
+        }
+        #expect(
+            events.allSatisfy { if case .finished = $0 { false } else { true } },
+            "a truncated rewrite must never reach the replacement path"
+        )
+
+        let complete = Self.engine(
+            producer: ScriptedTokenProducer(deltas: deltas, stop: .endOfText),
+            root: temp.url
+        )
+
+        var finished: String?
+        for try await event in complete.stream(Self.request()) {
+            if case let .finished(text) = event { finished = text }
+        }
+        #expect(finished == "The quarterly report is ready for your rev")
+    }
+
+    /// The stop reason is the exact signal, and it is also a dependency's
+    /// promise. This is what holds if that promise stops being kept.
+    ///
+    /// `MLXTokenProducer` reads `stopReason` off the single `.info` that
+    /// `mlx-swift-lm` yields before finishing. A version that stopped emitting
+    /// it, or emitted `.stop` where it meant `.length`, would silently restore
+    /// the original defect — and it would do so invisibly, because the only
+    /// symptom is a rewrite that ends early. So the text is checked too:
+    /// here the decoder *claims* it finished cleanly and the output still
+    /// stops mid-word, and the engine still refuses.
+    @Test("output that stops mid-sentence is refused even when the decoder claims it finished")
+    func truncatedOutputIsRefusedEvenWhenTheStopReasonSaysOtherwise() async throws {
+        let temp = try TempDirectory()
+        let engine = Self.engine(
+            producer: ScriptedTokenProducer(
+                deltas: ["The quarterly report ", "is ready for your rev"],
+                stop: .endOfText
+            ),
+            root: temp.url
+        )
+
+        await #expect(throws: GenerationError.truncated) {
+            for try await _ in engine.stream(
+                Self.request("the quarterly report is ready for you to review it now.")
+            ) {}
+        }
+    }
+
     /// Settings needs to offer a download button with a size on it before the
     /// weights exist, and stop offering it afterwards.
     ///
