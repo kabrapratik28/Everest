@@ -31,6 +31,68 @@ clone does not build elsewhere. Pinning is deliberate — Accessibility permissi
 is bound to the code signature, and an ad-hoc signature changes every build — but
 the value must move out of the committed file before anyone else can contribute.
 
+## The $0 route, and the one thing it must not get wrong
+
+Launching free on GitHub Releases is viable and is the right first move: it
+tests whether anyone wants this before spending anything. Developers are used
+to it. macOS will say "Apple could not verify Everest is free of malware", and
+the user goes to **System Settings ▸ Privacy & Security ▸ Open Anyway** once.
+Since macOS 15 the old right-click-Open shortcut is gone, so that pane is the
+only path — the README must say so in those words.
+
+**But the build must be signed with the Apple Development certificate, not
+ad-hoc.** This is specific to Everest and it is not optional. Measured:
+
+```
+Development-signed:  identifier "com.kabrapratik.Everest" and anchor apple
+                     generic and certificate leaf[subject.CN] = "Apple
+                     Development: …"                              ← stable
+ad-hoc (codesign -s -):  cdhash H"f8c78ba8…"                      ← per build
+```
+
+macOS binds Accessibility permission to the designated requirement. An ad-hoc
+DR is a content hash, so **every update would silently revoke the permission
+the app cannot work without**, and the user would have to find it in System
+Settings again each time. A Development-signed DR is identifier plus
+certificate, which survives rebuilds and renewals. Gatekeeper still refuses it
+without notarisation — that is the one-time Open Anyway — but TCC accepts it.
+
+**Untested and worth checking before any public release:** that a
+Development-signed build runs at all on a Mac that is not this one. The
+signature is valid and Open Anyway should cover it, but development
+certificates are not intended for distribution and this has not been
+confirmed on second hardware.
+
+**The tension with CI.** Building releases from public source via GitHub
+Actions is good for trust, and it conflicts with the above: CI cannot sign
+with the Development certificate unless the certificate and its password go
+into repository secrets. An unsigned CI build brings back the per-build
+cdhash. Pick one — reproducibility or a stable permission grant — or sign
+locally and let CI only verify.
+
+### Guiding the user through it
+
+Nothing in the app can help before first launch, because Gatekeeper prevents
+the app from running at all. The only surfaces that exist at that moment are
+the download page and the disk image. So:
+
+- **A `.dmg` with a background image** showing "drag to Applications" and the
+  three Open Anyway steps. This is the only in-install guidance possible.
+- **Release notes and README** repeating it in the same words macOS uses, so
+  the sentence the user sees on screen matches the one they were given.
+
+Everything after that first launch is already handled: onboarding walks
+through the Accessibility grant and polls for it, so the user is not left
+guessing.
+
+### When $99 becomes worth it
+
+When the Open Anyway step costs more in lost users than the fee. At a few
+hundred installs that is plausible; before the first one it is not. Note the
+fee is not avoidable later by open-sourcing — Apple's waiver covers
+nonprofits, accredited schools and government, not individual open-source
+developers.
+
 ## Versioning
 
 `project.yml` holds both numbers:
