@@ -30,46 +30,90 @@ settings:
     SWIFT_STRICT_CONCURRENCY: complete
     MARKETING_VERSION: "0.1.0"
     CURRENT_PROJECT_VERSION: "1"
-    # Apple Development identity. Accessibility permission is keyed to the code
-    # signature, so signing consistently avoids re-granting on every build.
-    CODE_SIGN_STYLE: Automatic
-    DEVELOPMENT_TEAM: LHZZ485Q37
+    # Ad-hoc signing, no development team. This is the ONLY configuration that
+    # builds here, arrived at after two that do not:
+    #
+    #  1. Automatic signing fails: `No signing certificate "Mac Development"
+    #     found ... matching team ID LHZZ485Q37`. The installed identity is the
+    #     modern unified "Apple Development" type; automatic signing wants the
+    #     legacy per-platform "Mac Development" one, which cannot be issued
+    #     without a paid membership.
+    #  2. Manual signing with "Apple Development" + a DEVELOPMENT_TEAM cascades
+    #     the team requirement into every SPM dependency: `Signing for
+    #     "swift-crypto_Crypto" requires a development team`, and the same for
+    #     Cmlx, KeyboardShortcuts, swift-transformers and four others.
+    #
+    # Cost of ad-hoc, and it is real: Accessibility permission is keyed to the
+    # code signature, and an ad-hoc signature changes on every rebuild, so macOS
+    # will ask the user to re-grant Accessibility after each build. Acceptable
+    # for a personal app. Joining the Developer Program at $99/year removes it.
+    # Dependencies stay unsigned. Signing settings MUST NOT live here: anything
+    # in `settings.base` reaches every SPM dependency target, and a real
+    # identity here produces `Signing for "swift-crypto_Crypto" requires a
+    # development team` for eight packages at once. The app's own identity is
+    # set on the Everest target instead.
+    CODE_SIGN_STYLE: Manual
+    CODE_SIGN_IDENTITY: "-"
+    DEVELOPMENT_TEAM: ""
+    PROVISIONING_PROFILE_SPECIFIER: ""
     ENABLE_HARDENED_RUNTIME: YES
     # Deliberately NOT sandboxed. A sandboxed process cannot use the
     # cross-process Accessibility API at all, which is the entire product.
     # Do not add com.apple.security.app-sandbox.
 
 packages:
-  RewriteCore:
-    path: RewriteCore
+  # One local package holding every testable target. Path is relative to THIS
+  # FILE, which is why project.yml lives at the repo root.
+  EverestKit:
+    path: EverestKit
+  # Only the app target uses this directly (the shortcut recorder UI).
   KeyboardShortcuts:
     url: https://github.com/sindresorhus/KeyboardShortcuts
     from: 2.0.0
-  # Pinned to a release, NOT `branch: main`. This package already shipped one
-  # breaking major: 2.x to 3.x removed its downloader and tokenizer and changed
-  # every call site MLXEngine uses. A moving branch on the inference dependency
-  # is the same class of risk that AGENTS.md section 5 rejects for model weights,
-  # and it would break the build on someone else's clock rather than ours.
-  mlx-swift-lm:
-    url: https://github.com/ml-explore/mlx-swift-lm
-    from: 3.31.4
-  swift-huggingface:
-    url: https://github.com/huggingface/swift-huggingface
-    from: 0.10.1
-  swift-transformers:
-    url: https://github.com/huggingface/swift-transformers
-    from: 1.3.4
+  # mlx-swift-lm, swift-huggingface and swift-transformers are declared in
+  # EverestKit/Package.swift, not here. They are the Engines target's
+  # dependencies and reach the app transitively. One home for each version pin.
 
 targets:
   Everest:
     type: application
     platform: macOS
+    # THE APP ALONE gets a stable identity, and this is a correctness
+    # requirement rather than a nicety.
+    #
+    # Accessibility permission is bound by TCC to the code signature. An ad-hoc
+    # signature is just a hash of the binary, so every rebuild is a new
+    # identity: the switch in System Settings stays on, pointing at a signature
+    # that no longer exists, `AXIsProcessTrusted()` returns false, and the app
+    # tells the user to enable a permission they can see is already enabled.
+    # That cost a real debugging session.
+    #
+    # "Apple Development" is stable across rebuilds, so the grant survives.
+    # Scoped here, not in `settings.base`, so it cannot reach the dependencies.
+    # Identified by certificate SHA-1, and NOT by name, and with no
+    # DEVELOPMENT_TEAM. Setting either of those sends Xcode into automatic
+    # provisioning even under Manual style, which then fails with
+    # `No signing certificate "Mac Development" found` — the modern unified
+    # "Apple Development" cert is not the legacy per-platform one it looks for.
+    # The hash names the cert directly and skips provisioning entirely.
+    #
+    # Check yours with: security find-identity -v -p codesigning
+    settings:
+      base:
+        CODE_SIGN_STYLE: Manual
+        CODE_SIGN_IDENTITY: "69E3EC2FC828A27A07095C58150F1A3D42C96BC0"
     sources:
       - path: Everest
         excludes:
           - "**/*.md"
+          # Icon build inputs and the unused alternate icon. Only the .icns
+          # named by CFBundleIconFile belongs in the bundle.
           - "Resources/make_icon.py"
-          - "Resources/AppIcon-1024.png"
+          - "Resources/Artwork"
+          - "Resources/AppIcon-alt.icns"
+          # Appears the moment anyone imports make_icon.py rather than running
+          # it; without this xcodegen picks it up and copies it into the app.
+          - "**/__pycache__"
     info:
       path: Everest/Resources/Info.plist
       properties:
@@ -92,41 +136,25 @@ targets:
         # Hardened Runtime is on, and MLX JIT-compiles Metal shaders at
         # runtime, so the JIT exception is required or model load crashes.
         com.apple.security.cs.allow-jit: true
+    # MLX, HuggingFace and Tokenizers are NOT listed here. They arrive
+    # transitively through EverestKit's Engines target, which is where they
+    # belong. Declaring them again in the app would be a second place for the
+    # version pins to drift.
     dependencies:
-      - package: RewriteCore
+      - package: EverestKit
+        product: AppCore
+      - package: EverestKit
+        product: RewriteCore
+      - package: EverestKit
+        product: TextBridge
+      - package: EverestKit
+        product: Engines
+      - package: EverestKit
+        product: Overlay
       - package: KeyboardShortcuts
-      - package: mlx-swift-lm
-        product: MLXLLM
-      - package: mlx-swift-lm
-        product: MLXLMCommon
-      - package: swift-huggingface
-        product: HuggingFace
-      - package: swift-transformers
-        product: Tokenizers
-
-  # Guard tests. One test per entry in AGENTS.md section 5, because every one
-  # of those guards looks removable to someone who does not know why it exists.
-  # These live in the app target's test bundle rather than in RewriteCore
-  # because the code under test (pasteboard transactions, secure-field refusal,
-  # replacement routing) is AppKit and Accessibility code that cannot move into
-  # the pure package.
-  EverestTests:
-    type: bundle.unit-test
-    platform: macOS
-    sources: [Tests/EverestTests]
-    dependencies:
-      - target: Everest
-    settings:
-      base:
-        BUNDLE_LOADER: "$(TEST_HOST)"
-        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/Everest.app/Contents/MacOS/Everest"
 
 schemes:
   Everest:
     build:
       targets:
         Everest: all
-        EverestTests: [test]
-    test:
-      targets: [EverestTests]
-      gatherCoverageData: false

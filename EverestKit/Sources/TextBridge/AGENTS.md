@@ -1,0 +1,59 @@
+# TextBridge
+
+Reads the selection out of another app and writes the rewrite back. Highest-risk code in Everest: a bug here leaks a password into a prompt or destroys a document with no undo on either side. Biased toward doing nothing when uncertain.
+
+## Capture chain, in order (`SelectionCoordinator.capture`)
+
+| # | Rung | Why it sits here |
+|---|---|---|
+| 0 | `IsSecureEventInputEnabled()` | Free, no permission, true exactly when we must stay out. Synthetic keys stop being delivered anyway. |
+| 1–2 | Frontmost app, then `excludedBundleIDs` | Refused before any AX call is aimed at the app. Case-insensitive and exact; prefix matching would let `com.apple` exclude everything. `var`, because Settings edits it while running. |
+| 3–3a | `AXIsProcessTrusted`, resolve focus | Rung 4 needs an element, and the apps hiding passwords are the ones whose tree is off. |
+| 4 | Secure **subrole** refusal | See facts. Before any text read and any keystroke. |
+| — | Strategy cache lookup | **Only here.** Skips work, never a refusal. |
+| 5 | `AXSelectedText` | The app's own answer. Beats anything reconstructed from a range. |
+| 6 | `AXSelectedTextRange` | Read before rung 5 in code: a range is not the user's characters, and it is the only thing that disambiguates rung 5. |
+| 7 | `AXStringForRange` | Sets `isRangeDerived`. Never written back. |
+| 8 | `AXManualAccessibility`, retry **once** | Chromium and Electron. Re-runs the secure check on the revealed tree. |
+| 9 | Synthetic ⌘C | Last: only path that disturbs the clipboard, and the target's write leaks to clipboard-history apps. |
+
+One length check at the end, not per rung, so a new rung cannot forget it: over 8,000 characters throws `.tooLong(count)`.
+
+## Facts that were expensive to learn
+
+| Fact | Consequence |
+|---|---|
+| A real `NSSecureTextField` is role `AXTextField`, subrole **`AXSecureTextField`** | A role-only check reads the password. Check both slots. |
+| Web and Electron password fields do **not** set `IsSecureEventInputEnabled()` | Rung 0 alone protects nothing there. The subrole check is the only guard. |
+| `AXFocusedUIElement` on the system-wide element can return `kAXErrorCannotComplete` on macOS 26 while the per-app query succeeds | Ask both. Require the answer's pid to match the frontmost app: that check is a *security* check, since the exclusion list was evaluated against that process. |
+| Chromium's `AXSelectedTextRange` is off by one | Rung 7 text is shifted but still well-formed prose, so nothing downstream detects it, and revalidation re-reads the same shifted range and agrees with itself. Hence `isRangeDerived` forces copy-only, refused **before** the validator so nobody reads a pass as permission. |
+| Chromium builds no AX tree until asked | Rung 8 writes the undocumented `AXManualAccessibility`. The tree is not ready when the call returns: settle, re-resolve, retry once. A loop is a visible freeze. Not `AXEnhancedUserInterface`, which also changes window management. |
+| `AXSelectedText == ""` is ambiguous: nothing selected, or unimplemented | The range settles it. Length 0 → **stop** with `.noSelection`; >0 → rung 7; absent → rungs 8–9. Falling through on length 0 rewrites whatever the user copied ten minutes ago, silently, looking like a model hallucination. |
+| Everything dropped by the byte budget leaves the same empty array as an empty clipboard | `Fidelity` has three states, `notTaken`/`faithful`/`lossy`. Collapsing them cleared a user's 40 MB TIFF and reported success. A nil `data(forType:)` is a derived flavour with nothing to lose, not loss. |
+| A `let` with a default value is excluded from Swift's memberwise initializer | `isRangeDerived` has **no** default, so every call site must state it. Give it one and the flag is permanently false and its guard is dead code that looks alive. |
+| AppKit recycles the name of a pasteboard you have released | So a lock keyed by that name must be released at the transaction's *logical* end, never left to `deinit`. Tying it to deallocation let a finished transaction collide with an unrelated later one, which reads as random flakiness. |
+| A synthetic ⌘C reaches an app's `copy:` only via a menu key equivalent | A fixture app needs a real Edit menu or the keystroke lands nowhere and looks like a failed event. |
+| Under App Sandbox `AXUIElementSetAttributeValue` does nothing, the prompt never appears, and `AXIsProcessTrusted()` is permanently false | **No degraded sandboxed mode exists.** Do not add the entitlement. If asked to make this sandbox-compatible, say plainly that it means deleting the feature. |
+
+## Guards that must not be simplified away
+
+| Guard | What breaks without it |
+|---|---|
+| Cache lookup **below** the secure refusal | A warm `.clipboard` entry posts ⌘C at a password field. The cache is per app, not per field, so focus can move into one with the entry still warm. Expiry and version-invalidation keep a bad reading from being permanent; a cached answer is a hint, never a gate. |
+| Restore gated on `changeCount`, never a delay | A delay races the user's ⌘C and silently eats it. No delay is short enough to win or long enough to be safe: the hazard is a user action, not a duration. `expect(changeCount:)` covers the case where the *target app* was the writer. |
+| `canBorrow` checked **before** anything writes | By `restoreIfUnchanged` the bytes are already gone from both your copy and the pasteboard. Both call sites check first; the refusal inside restore is only a backstop. |
+| Snapshot every type on every item, ordered | Type order is preference order, so string-only silently downgrades a copied table to tab-separated words. Our scratch write is marked transient and auto-generated; the restore is not, because that content is the user's own. |
+| Text never trimmed or normalised | Changes what the user chose, breaks exact-match revalidation, and hides the Chromium off-by-one, which is a range bug and belongs at the range. |
+| Revalidate pid, element, range and text before writing, with `CFEqual` not `===` | Three seconds is enough to click elsewhere. Two references to one element are equal but not identical, so `===` would refuse every rewrite. No age limit: the identities are what make it safe. `unknown` is not `matches`, so a clipboard-path capture can never be written back. |
+| Route one never chains into route two | A false-negative confirmation pastes the rewrite **twice**. A duplicated paragraph is unrecoverable; a rewrite that quietly did not land is visible and repeatable. |
+| `PasteboardBorrow` makes a borrow exclusive per pasteboard | Two transactions must never interleave. A nested one snapshots **our own scratch text** as if it were the user's clipboard and restores that, and every `changeCount` check passes, because under re-entrancy the other writer is us. Blocking the main thread in `observeConsumption` also prevents it, but that is scheduling rather than correctness and it dies the moment someone adds a suspension point to kill the 450 ms hitch. Refused, not queued: both run on the main thread, so waiting deadlocks. |
+
+## Outcomes, seams, verification
+
+`.replaced` | `.copiedOnly(cause:reason:)`, which promises the text really is on the clipboard | `.heldForManualCopy(cause:reason:)` when we can neither write to the target nor safely borrow the clipboard, so nothing is touched and the user's unsavable clipboard survives. `cause` is a typed enum for control flow, `reason` is the sentence shown to the user, and they are separate because `reason` is copy that will get reworded and a caller in another module branching on prose breaks silently when it does. Every case is returned by a real path and pinned by a test: do not add one to look complete.
+
+Everything external is injected (`Seams.swift`). Not decoration: the central test needs "password field focused, global flag false", which cannot be staged for real, and injection is what keeps the suite off `NSPasteboard.general` and off real `CGEvent`s. `PasteboardBorrow` is injected too, defaulting to `.shared`: production needs one process-wide registry for the exclusion to mean anything, while each test suite owns its own so parallel suites cannot couple through it.
+
+Six seams, each with exactly one production conformance: `SystemProbe`, `AXSelectionAdapter` (read and write), `ClipboardSelectionAdapter`, and `SyntheticKeystroke` (⌘C and ⌘V). A green suite proves the decisions and says nothing about whether an adapter exists, so check that list when adding a seam.
+
+Run: `swift build --target TextBridgeTests && xcrun xctest .build/out/Products/Debug/TextBridgeTests.xctest`. 65 tests. **Manual only, because each is pure translation over a system call with no decision in it:** `SyntheticKeystroke`, since a real `CGEvent` types into whatever the user has focused; `SystemProbe`'s three calls; the thin C wrappers in `AXSelectionAdapter`; and the live Chromium and Electron branches. Where a decision did creep in it is tested: `SystemProbe.version(of:)` and `AXSelectionAdapter.isEditable`. Rung 7 fails closed regardless, so an untested branch cannot produce a write.

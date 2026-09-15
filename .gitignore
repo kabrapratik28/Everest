@@ -7,3 +7,4 @@ DerivedData/
 xcuserdata/
 *.xcuserstate
 .swiftpm/
+__pycache__/
