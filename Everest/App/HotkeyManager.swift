@@ -2,8 +2,6 @@ import AppCore
 import KeyboardShortcuts
 
 extension KeyboardShortcuts.Name {
-    /// `⌘I`. Shadows Italic almost everywhere; accepted, and warned about
-    /// once — see `ShortcutNotice`.
     /// `⌃⌥I`, not `⌘I`.
     ///
     /// `⌘I` was the originally requested default and it is a bad one: a global
@@ -17,7 +15,6 @@ extension KeyboardShortcuts.Name {
     /// recorder warns once via `ShortcutNotice`.
     static let quickImprove = Self("quickImprove", default: .init(.i, modifiers: [.control, .option]))
 
-    /// `⌘⇧I`. Shift keeps it clear of Italic.
     /// `⌃⌥⇧I`. Same reasoning, and deliberately the Quick Improve chord plus
     /// Shift so the pair is one thing to remember rather than two.
     static let chooseStyle = Self(
