@@ -410,12 +410,11 @@ kbd {
   position: relative;
   isolation: isolate;
   overflow: hidden;
-  padding-block: clamp(3rem, 6.5vw, 5.5rem) clamp(3rem, 6vw, 5rem);
+  padding-block: clamp(1.5rem, 3vw, 2.5rem) clamp(3rem, 6vw, 5rem);
 }
 
-/* Two soft colour fields behind the hero. They sit in the top corners,
-   outside the text column, and cap at 16% / 13% so the muted body copy
-   still clears 4.5:1 over the tint. */
+/* A soft field behind the card, so it is not a slab on flat paper. It only
+   has to survive being 90% covered by the card, so it is kept faint. */
 .hero::before {
   content: "";
   position: absolute;
@@ -429,6 +428,86 @@ kbd {
     radial-gradient(36% 40% at 84% 12%,
       color-mix(in srgb, var(--accent-2) var(--glow-2), transparent), transparent 72%);
 }
+
+/* ── The hero card ──────────────────────────────────────────────────────
+   The same gradient panel as the closing CTA, which is the treatment the
+   owner picked out. Every pair inside it is white-on-gradient, so the
+   gradient's own lightest point is the one that governs: #0e7490 at
+   L=0.146, where pure white measures 5.36:1.
+
+   The rule that follows from that, and that every override below obeys:
+   a translucent WHITE fill lightens the backdrop and pushes white text
+   down — 14% white already drops it to 3.33:1. Anything needing a fill
+   behind white text uses a dark scrim instead, which raises contrast. */
+.hero-card {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  padding: clamp(2.5rem, 5vw, 4.5rem) clamp(1rem, 4vw, 3rem) clamp(2.5rem, 5vw, 4rem);
+  border-radius: var(--radius-xl);
+  background-image: linear-gradient(135deg, #0b3f97 0%, #0b5ed7 52%, #0e7490 100%);
+  color: #fff;
+  box-shadow: var(--shadow-xl);
+}
+.hero-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: radial-gradient(65% 55% at 15% 0%, rgba(255, 255, 255, .10), transparent 70%);
+}
+
+/* Focus rings are var(--accent) by default, which is blue on blue here and
+   effectively invisible. Both gradient panels switch to white. */
+.hero-card :focus-visible,
+.final :focus-visible { outline-color: #fff; }
+
+/* ── What the card re-colours, and the measured reason for each ──────── */
+
+/* Dark scrim, not a white one. Measured against #0e7490. */
+.hero-card .eyebrow {
+  color: #fff;
+  background: rgba(5, 16, 33, .16);
+  border-color: rgba(255, 255, 255, .38);
+  box-shadow: none;
+}
+.hero-card .pip { background: linear-gradient(135deg, #fff, #a8e9ff); }
+
+/* The old stops were #0b5ed7 → #0e7490, which is the card's own gradient:
+   blue text on a blue card. White → ice blue keeps the two-tone headline
+   and the worst stop, #a8e9ff, measures 4.02:1, past the 3:1 large-text
+   floor. If background-clip: text is unsupported the @supports guard
+   leaves the text the card's inherited white. */
+.hero-card h1 { color: #fff; }
+@supports ((-webkit-background-clip: text) or (background-clip: text)) {
+  .hero-card .grad { background-image: linear-gradient(100deg, #fff 15%, #a8e9ff); }
+}
+
+.hero-card .lede { color: rgba(255, 255, 255, .92); }      /* 4.81:1 */
+.hero-card .lede strong { color: #fff; }
+
+/* White keycaps on blue, which is both the higher-contrast choice and the
+   better-looking one. Pinned to light values because var(--surface) is
+   near-black in dark mode and the card is blue in both schemes. */
+/* `.keyline .cap` is two classes and outranks `.hero-card kbd`, which is one
+   class and a type, so the big keycaps kept var(--surface) — white in light
+   mode, near-black in dark. On a card that is blue in both schemes that read
+   as two different keycap styles in the same hero. Both selectors here. */
+.hero-card kbd,
+.hero-card .keyline .cap {
+  background: #fff;
+  color: #0b1220;
+  border-color: rgba(255, 255, 255, .55);
+  box-shadow: 0 1px 2px rgba(5, 16, 33, .35);
+}
+.hero-card .keyline { color: rgba(255, 255, 255, .92); }
+.hero-card .hero-meta { color: rgba(255, 255, 255, .92); }
+.hero-card .hero-meta li::before { background: rgba(255, 255, 255, .75); }
+
+.hero-card .shot { background: rgba(255, 255, 255, .22); }
+.hero-card .demo figcaption { color: rgba(255, 255, 255, .92); }
+.hero-card .tag { background: #fff; color: #0b3f97; }      /* 9.7:1 */
 
 .hero-copy {
   max-width: 860px;
@@ -984,7 +1063,13 @@ details p {
   overflow: hidden;
   padding: clamp(2.5rem, 5vw, 4rem) clamp(1.5rem, 4vw, 3rem);
   border-radius: var(--radius-xl);
-  background-image: linear-gradient(135deg, #0b3f97 0%, #0b5ed7 52%, #0e7490 100%);
+  /* Two stops, not the hero's three: the teal is dropped so the closing
+     panel reads as the same family, calmer. That is the deliberate answer
+     to having the treatment twice — a vivid opener and a quieter closer,
+     ~9,900px apart at 1440 so they are never on screen together, which
+     makes them a bookend rather than a repeat. Dropping the teal also
+     raises the worst white-on-gradient pair here from 5.36:1 to 5.84:1. */
+  background-image: linear-gradient(135deg, #0b3f97 0%, #0b5ed7 100%);
   color: #fff;
   text-align: center;
   box-shadow: var(--shadow-xl);
@@ -1108,6 +1193,9 @@ details p {
   font-size: .875rem;
   line-height: 1.6;
   color: var(--muted);
+  /* balance, not the inherited pretty: this is a centred two-line block
+     where an even split reads better than a full first line. */
+  text-wrap: balance;
 }
 .fineprint a { color: inherit; text-decoration-color: color-mix(in srgb, currentColor 45%, transparent); }
 .fineprint a:hover { color: var(--accent); }
