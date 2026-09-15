@@ -29,22 +29,33 @@ public enum OutputValidator {
     /// The tags `PromptBuilder` wraps the selection in, echoed back around the
     /// answer.
     ///
-    /// Both require the **per-prompt id**, and that is what makes the unwrap
-    /// exact rather than a guess. The model is never shown a bare
-    /// `<selected_text>`, and the user's text cannot contain an unpredictable
-    /// 64-bit id, so a tag matching this came from our own envelope — by
-    /// construction, not by judging which bits look like packaging.
+    /// **Exactly sixteen hex digits**, which is the width `identifier()`
+    /// zero-pads to — not `+`, which is the whole of a data-loss bug this
+    /// once had. `[0-9a-fA-F]+` also matches `<selected_text_1>`, so a user
+    /// rewriting their own `<selected_text_1>inner</selected_text_1>` had the
+    /// sentence around it read as packaging and thrown away, and the fragment
+    /// written to their document. `safetyFrame` makes that *more* likely, not
+    /// less: it tells the model any other tag inside the block is part of the
+    /// text to rewrite, so a compliant model echoes the user's tag faithfully.
     ///
-    /// The id is read as a pattern rather than threaded through from
-    /// `PromptBuilder`. Carrying the exact value would mean passing it through
-    /// both engines' `stream` and into `validate` — four files across three
-    /// modules — to catch an occasional cosmetic tic. This is a tidy-up, not a
-    /// guard; containment is structural and lives in `PromptBuilder`.
+    /// **This is unlikely, not impossible, and the comment that claimed
+    /// otherwise is part of what let the bug live.** A false positive needs
+    /// the user's own text to contain a 16-hex-digit tag *and* a closing tag
+    /// carrying that same id, exactly once each. That is the same order of
+    /// unlikelihood as an id collision, which is already accepted — but it is
+    /// a probability, not a construction, and it should not be written up as
+    /// one.
+    ///
+    /// The id is still matched as a pattern rather than threaded through from
+    /// `PromptBuilder`: carrying the real value means four files across three
+    /// modules for what is a cosmetic tic. This is a tidy-up, not a guard;
+    /// containment is structural and lives in `PromptBuilder`.
     ///
     /// Computed, not `static let`: `Regex` is not `Sendable`, so a stored one
     /// is a concurrency error under Swift 6. Built once per rewrite.
-    private static var openTag: Regex<Substring> { /<selected_text_[0-9a-fA-F]+>/ }
-    private static var closeTag: Regex<Substring> { /<\/selected_text_[0-9a-fA-F]+>/ }
+    private static var openTag: Regex<(Substring, Substring)> {
+        /<selected_text_([0-9a-fA-F]{16})>/
+    }
 
     public static func clean(_ raw: String, source: String) -> String {
         var result = raw
@@ -67,13 +78,21 @@ public enum OutputValidator {
     /// their document. Taking the first pair instead hands back their original
     /// as the rewrite. Both are silent and wrong; leaving the tags in place
     /// fails visibly, which is the trade this codebase makes everywhere else.
+    ///
+    /// The closing tag is searched for **by the opening tag's own id**, not by
+    /// a second pattern. Two patterns would accept a close that carries a
+    /// different id from the open — which is not an envelope at all, just two
+    /// tag-shaped things in someone's text.
     private static func unwrappedEnvelope(_ text: String) -> String? {
-        let opens = text.ranges(of: openTag)
-        let closes = text.ranges(of: closeTag)
-        guard opens.count == 1, closes.count == 1,
-            let open = opens.first, let close = closes.first,
-            open.upperBound <= close.lowerBound
+        let opens = text.matches(of: openTag)
+        guard opens.count == 1, let opening = opens.first else { return nil }
+
+        let closes = text.ranges(of: "</selected_text_\(opening.output.1)>")
+        guard closes.count == 1, let close = closes.first,
+            opening.range.upperBound <= close.lowerBound
         else { return nil }
+
+        let open = opening.range
 
         // Trimmed because the prompt puts the text on its own line, so the
         // newlines either side belong to the envelope, not to the rewrite.

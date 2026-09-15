@@ -78,12 +78,26 @@ func outputValidatorCleanRefusesToGuessBetweenTwoEnvelopes() {
 /// safe now: only a wrapper around the *whole* output is unwrapped, and only
 /// one carrying a per-prompt id — and the model is never shown a bare tag, so
 /// a bare tag in the output can only have come from the user.
+/// Two payloads, because only one of them can fail.
+///
+/// The bare-tag case has never been able to fail: the pattern requires an
+/// `_` and an id, so `<selected_text>` was never going to match it whatever
+/// the pattern said. A test that cannot fail guarded nothing — which is the
+/// third time in this one function that a passing test has sat in front of a
+/// live defect, after the injection escape and the dead literal strip.
+///
+/// The **id-shaped** case is the one with teeth, and it was failing: an id of
+/// `1` satisfies "one or more hex digits", so a user's own
+/// `<selected_text_1>…</selected_text_1>` was read as our envelope and
+/// everything outside it — the whole rest of their sentence — was discarded
+/// and the fragment written to their document.
 @Test("OutputValidator.clean leaves selected_text tags that are the user's own text")
 func outputValidatorCleanKeepsTheUsersOwnTags() {
-    let source = "the parser must handle <selected_text> and </selected_text> correctly"
-    let raw = "The parser must handle <selected_text> and </selected_text> correctly."
-    let cleaned = OutputValidator.clean(raw, source: source)
-    #expect(cleaned == raw)
+    let bare = "The parser must handle <selected_text> and </selected_text> correctly."
+    #expect(OutputValidator.clean(bare, source: bare.lowercased()) == bare)
+
+    let idShaped = "Keep this. <selected_text_1>inner</selected_text_1> And keep this too."
+    #expect(OutputValidator.clean(idShaped, source: idShaped.lowercased()) == idShaped)
 }
 
 /// **Quotes the user wrote are not packaging either.**
