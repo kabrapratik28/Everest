@@ -67,9 +67,15 @@ packages:
   EverestKit:
     path: EverestKit
   # Only the app target uses this directly (the shortcut recorder UI).
+  # Pinned exactly, not `from: 2.0.0`. Xcode resolves the app-level graph into
+  # the workspace, which is gitignored, and no root `Package.resolved` is
+  # tracked — so a range here means a clean checkout can silently resolve a
+  # different 2.x and behave differently from the build that was tested.
+  # `EverestKit`'s own dependencies are locked by its tracked Package.resolved;
+  # this one had nothing holding it.
   KeyboardShortcuts:
     url: https://github.com/sindresorhus/KeyboardShortcuts
-    from: 2.0.0
+    exactVersion: 2.4.0
   # mlx-swift-lm, swift-huggingface and swift-transformers are declared in
   # EverestKit/Package.swift, not here. They are the Engines target's
   # dependencies and reach the app transitively. One home for each version pin.

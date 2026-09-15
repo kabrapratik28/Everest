@@ -1,6 +1,8 @@
 # Everest
 
-Select text in any Mac app, press `⌘I`, and a locally-generated rewrite streams into a floating panel and replaces your selection. Nothing leaves the machine.
+Select text in any Mac app, press `⌃⌥I`, and a locally-generated rewrite streams into a floating panel and replaces your selection.
+
+The model runs on your Mac and nothing is sent to a server — it works with networking off. One honest exception: where macOS will not let Everest read a selection directly (terminals, PDFs, Google Docs) it falls back to the system clipboard, and anything on the system clipboard is eligible for Universal Clipboard if you have Handoff on. There is no API to opt out of that; turn Handoff off in System Settings ▸ General if it matters to you.
 
 macOS 26+, Apple Silicon only.
 
@@ -18,18 +20,18 @@ First launch asks for Accessibility permission (System Settings ▸ Privacy & Se
 ## Tests
 
 ```bash
-cd RewriteCore && swift test
+cd EverestKit && swift test
 ```
 
 ## Hotkeys
 
 | Key | Does |
 |---|---|
-| `⌘I` | Quick Improve. One prompt, one rewrite. |
-| `⌘⇧I` | Choose Style, then rewrite. |
+| `⌃⌥I` | Quick Improve. One prompt, one rewrite. |
+| `⌃⌥⇧I` | Choose Style, then rewrite. |
 | `Esc` | Cancel an in-flight rewrite. |
 
-Both are configurable in Settings. `⌘I` shadows Italic in editors while the app is running, which is the documented tradeoff of the requested default.
+Both are configurable in Settings. Control+Option is used because `⌘I` is Italic in every editor and `⌘⇧I` is Web Inspector in Chrome, Safari and Firefox — and a global hotkey wins over the frontmost app, so Everest would take them system-wide.
 
 Replacement works in native text fields, browsers, editors and chat apps. In Terminal, PDFs and ordinary web prose there is no editable buffer, so the result is placed on the clipboard instead and the panel says so.
 
