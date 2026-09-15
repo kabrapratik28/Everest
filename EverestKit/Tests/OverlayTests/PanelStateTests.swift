@@ -91,31 +91,55 @@ struct PanelStateTests {
         #expect(PanelState.generating(text: "half a par").bodyText == "half a par")
     }
 
-    /// The panel is non-activating to protect the user's selection: the moment
-    /// this app activates, the source app resigns and its selection stops
-    /// being live. That cost is only worth paying while a write is still
-    /// intended. In a terminal state nothing will be written, so the panel can
-    /// safely take key status — which is what lets ⌘C be *consumed* instead of
-    /// also reaching the frontmost app, where that app's own copy would land
-    /// after ours and overwrite the rewrite on the clipboard.
+    /// The two copy-only outcomes have to say what to do, and say it first.
     ///
-    /// The picker is deliberately not in the list. We still intend to replace,
-    /// so activating would make the source app lose frontmost and revalidation
-    /// would downgrade the whole transaction to `copiedOnly`.
-    @Test("only a terminal state that needs the user may take key status")
-    func onlyTerminalStatesAcceptKey() {
-        let mayBecomeKey: Set<PanelStateKind> = [
-            .readOnly, .targetChanged, .heldForManualCopy, .refused, .error,
+    /// They read "Copied — the text was not editable" over a grey line, which
+    /// fuses an outcome with a diagnosis so it lands as an error; "the text"
+    /// does not say whose, the user's or the rewrite's; and the one thing the
+    /// user must actually *do* was the caption. They also explained
+    /// themselves with the identical sentence, so a reader could not tell
+    /// which of two different situations had happened — an app that cannot be
+    /// typed into, or text that moved before it could be replaced.
+    ///
+    /// This is only sayable now that ⌘V works while the panel is up. It did
+    /// not, until the panel stopped taking key status.
+    @Test("the copy-only outcomes lead with the keystroke and explain themselves differently")
+    func copyOnlyOutcomesLeadWithTheAction() {
+        let readOnly = PanelState.readOnly(text: "the rewrite")
+        let moved = PanelState.targetChanged(text: "the rewrite")
+
+        // The action is the headline, not the caption.
+        #expect(readOnly.title.contains("⌘V"))
+        #expect(moved.title.contains("⌘V"))
+
+        // And the reason tells them apart.
+        #expect(readOnly.detail != moved.detail)
+    }
+
+    /// Which states take a keystroke away from the frontmost app.
+    ///
+    /// Only a `CGEventTap` can consume here, and while one is armed it is the
+    /// first thing in the session to see every key the user types anywhere —
+    /// so it exists only where the panel has a key it genuinely must have.
+    /// The picker, whose digits and arrows would otherwise land in the very
+    /// document about to be rewritten; and any state holding a finished
+    /// rewrite, where the source app's own ⌘C would land after ours and
+    /// overwrite it. `refused` and `error` hold nothing, so there is no ⌘C
+    /// to take and no tap is armed for them.
+    ///
+    /// The panel itself is never key, in any state — see
+    /// `PanelKeyWindowTests`. Making terminal panels key was the previous way
+    /// to consume ⌘C, and a key window takes *every* keystroke, which is how
+    /// it came to swallow the ⌘V the panel was telling the user to press.
+    @Test("only the picker and a state holding a rewrite take keys from the app underneath")
+    func onlyPickerAndRewriteStatesInterceptKeys() {
+        let intercepting: Set<PanelStateKind> = [
+            .stylePicker, .readOnly, .targetChanged, .heldForManualCopy,
         ]
 
         for state in Self.samples {
-            #expect(state.acceptsKeyWindow == mayBecomeKey.contains(state.kind), "\(state.kind)")
+            #expect(state.needsKeyInterception == intercepting.contains(state.kind), "\(state.kind)")
         }
-
-        // `success` auto-dismisses and asks nothing of the user, so there is
-        // no reason to take focus for it.
-        #expect(PanelState.success.acceptsKeyWindow == false)
-        #expect(PanelState.stylePicker(presets: []).acceptsKeyWindow == false)
     }
 
     /// An invisible keyboard shortcut is the same as no shortcut. This panel

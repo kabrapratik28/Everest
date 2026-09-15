@@ -180,21 +180,13 @@ public final class NSPanelSurface: PanelSurface {
         // deferred until the app is next activated.
         panel.orderFrontRegardless()
 
-        // `canBecomeKey` is permission, not action: it answers a question
-        // nobody was asking. Without this line the panel is never key, so the
-        // local monitor never runs, the global one cannot consume, and the
-        // frontmost app processes the same ⌘C — its Copy landing *after* ours
-        // and overwriting the rewrite we just put on the clipboard. Measured
-        // against TextEdit: the clipboard went from the rewrite to the source
-        // app's own selection. In `heldForManualCopy` the panel is the user's
-        // only copy, so that is the advertised keystroke destroying the thing
-        // it is advertised to save.
-        //
-        // `makeKey()`, not `makeKeyAndOrderFront(_:)` — ordering is done above.
-        // This does not activate us: a `.nonactivatingPanel` takes key status
-        // while the source app stays frontmost, which is what the style mask is
-        // for. Verified: frontmost stayed the source app across the call.
-        if acceptsKey { panel.makeKey() }
+        // Nothing calls `makeKey()`. It was called here, to let the local
+        // monitor consume ⌘C, and it worked — but a key window takes *every*
+        // keystroke, and this panel answers none of them, so ⌘V vanished
+        // while the panel was up. Measured against TextEdit: with `makeKey()`
+        // a ⌘V put nothing in the document; without it the clipboard pasted.
+        // `CGEventTapKeyInterceptor` consumes ⌘C without touching focus,
+        // which is the thing a key window cannot do.
 
         if followsTail, layout.scrolls {
             // Pin to the newest text. Skipped once the user has scrolled up,

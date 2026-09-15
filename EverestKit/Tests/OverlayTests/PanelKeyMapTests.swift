@@ -15,6 +15,10 @@ struct PanelKeyMapTests {
     /// A key the picker never claims — the user typing somewhere else.
     static let bareZ = Keystroke(keyCode: 6, characters: "z", modifiers: [])
 
+    /// The keystroke the panel *tells* the user to press. Nothing here may
+    /// ever claim it.
+    static let commandV = Keystroke(keyCode: 9, characters: "v", modifiers: .command)
+
     /// Digits are matched by the character, not the key code, so a keyCode of 0
     /// here is deliberate: it would be wrong for the map to care.
     static func digit(_ value: Int, plain: Bool = true) -> Keystroke {

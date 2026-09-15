@@ -172,7 +172,7 @@ public final class FloatingPanelController {
     /// only in the state that needs to delete them, and `state.didSet` is what
     /// makes that structural rather than a call at each transition.
     private func syncKeyInterceptor() {
-        guard case .stylePicker = state else {
+        guard state?.needsKeyInterception == true else {
             armedInterceptor = nil
             return
         }
@@ -211,7 +211,14 @@ public final class FloatingPanelController {
     /// selection. It claims exactly what it acted on, so every other keystroke
     /// the user types passes through untouched.
     private func intercept(_ keystroke: Keystroke) -> Bool {
-        guard let state, let action = PanelKeyMap.action(for: keystroke, in: state) else {
+        guard let current = state else { return false }
+        guard let action = PanelKeyMap.action(for: keystroke, in: current) else {
+            // Standing down here belongs to the picker alone. A panel holding
+            // a rewrite is not a question — it is the user's only copy, and
+            // `autoDismissAfter` is `nil` for that reason, so letting a stray
+            // keystroke anywhere cancel it would throw the rewrite away.
+            guard case .stylePicker = current else { return false }
+
             // Nothing the picker could answer, so the user has moved on —
             // most likely to another application, since the picker has no
             // timer and will otherwise sit there. Passed on rather than

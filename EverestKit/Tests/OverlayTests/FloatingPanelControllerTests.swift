@@ -430,11 +430,16 @@ struct FloatingPanelControllerTests {
         #expect(surface.presented.last?.state == .generating(text: "snapshot 99"))
     }
 
-    /// Consuming is the whole point. If the panel is not key, our monitor sees
-    /// ⌘C and so does the frontmost app — and that app's own copy lands *after*
-    /// ours and overwrites the rewrite we just put on the clipboard.
-    @Test("Command-C copies and is consumed in a key terminal state, and does nothing before one")
-    func commandCCopiesAndIsConsumedOnlyInATerminalState() {
+    /// The monitors act on ⌘C but never claim it, in any state.
+    ///
+    /// They did claim it in terminal states, back when the panel made itself
+    /// key there — and only a key window can genuinely swallow an event, so
+    /// the claim was true at the time. It is not any more: the panel is never
+    /// key, and saying otherwise would have the local monitor eat a ⌘C the
+    /// frontmost app should see. Taking it from the source app is the tap's
+    /// job now, in `statesHoldingARewriteConsumeOnlyCommandC`.
+    @Test("Command-C copies where there is a rewrite, and the monitors never claim it")
+    func commandCCopiesWithoutTheMonitorsClaimingIt() {
         let monitor = SpyKeyMonitor()
         let controller = makeController(keyMonitor: monitor)
         let copied = Box<String>()
@@ -445,7 +450,9 @@ struct FloatingPanelControllerTests {
         #expect(copied.value == nil)
 
         controller.update(.heldForManualCopy(text: "the whole rewrite", reason: "the window moved"))
-        #expect(monitor.send(PanelKeyMapTests.commandC) == true)
+        #expect(monitor.send(PanelKeyMapTests.commandC) == false)
+        // Positive control: it acted, so the false above is a verdict about
+        // claiming rather than a keystroke that went nowhere.
         #expect(copied.value == "the whole rewrite")
     }
 
@@ -478,31 +485,6 @@ struct FloatingPanelControllerTests {
         controller.cancel()
 
         #expect(cancels.count == 1)
-    }
-
-    /// The decision is `PanelState.acceptsKeyWindow`; this is the wiring that
-    /// carries it to the window. If the window never hears about it, ⌘C is
-    /// never consumed and the frontmost app's copy overwrites ours.
-    @Test("the surface is told, per state, whether the panel may take key status")
-    func keyStatusFollowsTheState() {
-        let surface = SpySurface()
-        let clock = FakeClock()
-        let controller = makeController(surface: surface, clock: clock)
-
-        controller.show(.capturing)
-        #expect(surface.presented.last?.acceptsKey == false)
-
-        clock.now = clock.start + .seconds(1)
-        controller.update(.generating(text: "half a par"))
-        #expect(surface.presented.last?.acceptsKey == false)
-
-        clock.now = clock.start + .seconds(2)
-        controller.update(.heldForManualCopy(text: "the rewrite", reason: "the window moved"))
-        #expect(surface.presented.last?.acceptsKey == true)
-
-        clock.now = clock.start + .seconds(3)
-        controller.update(.success)
-        #expect(surface.presented.last?.acceptsKey == false)
     }
 
     /// Auto-scrolling to the newest text is right while the user is watching
@@ -784,24 +766,24 @@ struct FloatingPanelControllerTests {
         #expect(cancels.count == 2)
     }
 
-    /// The handler can take the panel down while the keystroke is still being
-    /// answered, so key status has to be read from the state the keystroke was
-    /// *dispatched against*, never from whatever `state` holds afterwards.
+    /// The handler takes the panel down while the keystroke is still being
+    /// answered, so nothing may decide the verdict from state read afterwards.
     ///
     /// Production's `onCopy` is `AppDelegate.copyToPasteboard`, which calls
-    /// `panel.dismiss()` synchronously — `state` is `nil` before the copy
-    /// returns. Reading key status after the action therefore answered "not
-    /// consumed" for a ⌘C it had just performed, so the frontmost app ran its
-    /// own Copy afterwards and overwrote the rewrite, in the one state where
-    /// the panel is the user's only copy of it.
+    /// `panel.dismiss()` synchronously: `state` is `nil` before the copy
+    /// returns, and dismissing also releases the tap **from inside its own
+    /// callback**. If the verdict were read from `state` at that point it
+    /// would come back "not consumed" for a ⌘C just performed, and the
+    /// frontmost app would run its own Copy over the rewrite — in the one
+    /// state where the panel is the user's only copy of it.
     ///
     /// The other ⌘C test passes either way, because its stub only records the
-    /// text. A double quieter than production is the case a green suite cannot
-    /// catch, so this one dismisses the way the app does.
+    /// text. A double quieter than production is the case a green suite
+    /// cannot catch, so this one dismisses the way the app does.
     @Test("Command-C is still consumed when the copy handler dismisses the panel")
     func commandCIsConsumedWhenTheHandlerDismisses() {
-        let monitor = SpyKeyMonitor()
-        let controller = makeController(keyMonitor: monitor)
+        let tap = SpyKeyMonitor()
+        let controller = makeController(keyInterceptor: tap)
         let copied = Box<String>()
         controller.onCopy = { [weak controller] text in
             copied.value = text
@@ -810,9 +792,61 @@ struct FloatingPanelControllerTests {
 
         controller.show(.heldForManualCopy(text: "the whole rewrite", reason: "the window moved"))
 
-        #expect(monitor.send(PanelKeyMapTests.commandC) == true)
-        // Positive control: the handler really ran, so the false above would
-        // have been a verdict rather than a dead spy.
+        #expect(tap.send(PanelKeyMapTests.commandC) == true)
+        // Positive control: the handler really ran, so the verdict above is
+        // about a copy that happened rather than a dead spy.
+        #expect(copied.value == "the whole rewrite")
+    }
+
+    /// Where ⌘C consumption comes from now.
+    ///
+    /// It used to come from making the panel key, and a key panel receives
+    /// *every* keystroke: ⌘V died in a responder chain with nothing in it, so
+    /// the state whose own words are "paste it where you want it" was the one
+    /// blocking the paste. Measured against TextEdit — with `makeKey()`, ⌘V
+    /// put nothing in the document; without it, the clipboard pasted.
+    ///
+    /// A tap claims exactly what it acts on, which is the thing a key window
+    /// cannot do: ⌘C is taken from the source app, ⌘V is not.
+    @Test("a state holding a rewrite takes ⌘C through the tap and leaves ⌘V alone")
+    func statesHoldingARewriteConsumeOnlyCommandC() {
+        let tap = SpyKeyMonitor()
+        let controller = makeController(keyInterceptor: tap)
+        let copied = Box<String>()
+        controller.onCopy = { copied.value = $0 }
+
+        controller.show(.heldForManualCopy(text: "the whole rewrite", reason: "the window moved"))
+        #expect(tap.isInstalled)
+
+        #expect(tap.send(PanelKeyMapTests.commandV) == false)
+        #expect(tap.send(PanelKeyMapTests.commandC) == true)
+        #expect(copied.value == "the whole rewrite")
+    }
+
+    /// Standing down on an unanswerable key belongs to the picker alone.
+    ///
+    /// The picker is a question, so a key that is not an answer means the user
+    /// moved on. A panel holding a rewrite is not a question — it is the only
+    /// copy of the user's text, and `autoDismissAfter` is `nil` for exactly
+    /// that reason. Carrying the picker's rule into it would let any stray
+    /// keystroke anywhere cancel the transaction and throw the rewrite away.
+    @Test("a key it cannot answer does not close a panel holding the only copy")
+    func anUnclaimedKeyDoesNotEndATerminalPanel() {
+        let tap = SpyKeyMonitor()
+        let controller = makeController(keyInterceptor: tap)
+        let cancels = Counter()
+        let copied = Box<String>()
+        controller.onCancel = { cancels.bump() }
+        controller.onCopy = { copied.value = $0 }
+
+        controller.show(.heldForManualCopy(text: "the whole rewrite", reason: "the window moved"))
+
+        #expect(tap.send(PanelKeyMapTests.bareZ) == false)
+        #expect(cancels.count == 0)
+
+        // Positive control: the panel is still up and the tap still working,
+        // so the zero above is a verdict rather than a dead spy.
+        #expect(tap.send(PanelKeyMapTests.commandC) == true)
         #expect(copied.value == "the whole rewrite")
     }
 

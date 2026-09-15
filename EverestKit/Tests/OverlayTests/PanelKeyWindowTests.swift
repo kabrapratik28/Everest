@@ -5,40 +5,50 @@ import Testing
 
 /// The only test in this directory that opens a real window.
 ///
-/// `NSPanelSurface` is below the seam and is hand-checked for everything else,
-/// but this one fact cannot be checked from above it. Every seam-level test
-/// asserts the surface was *told* `acceptsKey`, and it was told correctly all
-/// along — `keyStatusFollowsTheState` passed throughout the bug. What was
-/// missing was the surface acting on what it was told, and a spy cannot see
-/// that. This is the "a green suite does not prove the adapter" case in root
-/// `AGENTS.md` §0, so the check has to sit on the real `NSPanel`.
+/// `NSPanelSurface` is below the seam and hand-checked for everything else,
+/// but this fact cannot be checked from above it: every seam-level test
+/// asserts the surface was *told* something, and a spy cannot see what the
+/// window then does. Root `AGENTS.md` §0's "a green suite does not prove the
+/// adapter" case, so the check sits on the real `NSPanel`.
 @MainActor
 @Suite("Panel key window")
 struct PanelKeyWindowTests {
     static let screen = CGRect(x: 0, y: 0, width: 1728, height: 1079)
 
-    /// `canBecomeKey` is permission, not action. Returning true from it asks
-    /// nobody for anything: until something calls `makeKey`, the panel stays
-    /// non-key, our local monitor never runs, and the frontmost app processes
-    /// the same ⌘C — its Copy landing *after* ours and overwriting the rewrite
-    /// on the clipboard. In `heldForManualCopy` the panel is the user's only
-    /// copy, so the keystroke the panel advertises is the one that loses it.
-    @Test("a terminal state takes key status; a state that still intends a write does not")
-    func terminalStatesTakeKeyStatus() {
+    /// The panel never takes key status, in any state.
+    ///
+    /// It did, briefly, in terminal states — that was how ⌘C was consumed
+    /// before the tap existed. But a key window receives *every* keystroke,
+    /// and this one has no responder to answer them, so ⌘V died in an empty
+    /// chain: the state whose own detail line reads "paste it where you want
+    /// it" was the state preventing the paste. Measured against TextEdit —
+    /// with `makeKey()`, ⌘V put nothing in the document; without it, the
+    /// clipboard pasted.
+    ///
+    /// Consumption belongs to `CGEventTapKeyInterceptor`, which takes exactly
+    /// the keys it acts on and leaves ⌘V alone. A key window cannot do that,
+    /// which is why nothing here is ever key again.
+    @Test("no state takes key status, so the app underneath keeps its own keystrokes")
+    func noStateTakesKeyStatus() {
         let surface = NSPanelSurface()
         defer { surface.hide() }
         let layout = PanelGeometry.layout(contentHeight: 120, in: Self.screen)
 
-        surface.present(
+        let states: [PanelState] = [
             .generating(text: "half a par"),
-            layout: layout, followsTail: true, acceptsKey: false
-        )
-        #expect(NSApplication.shared.keyWindow == nil)
-
-        surface.present(
+            .readOnly(text: "the rewrite"),
             .heldForManualCopy(text: "the rewrite", reason: "the window moved"),
-            layout: layout, followsTail: false, acceptsKey: true
-        )
-        #expect(NSApplication.shared.keyWindow != nil)
+            .error(reason: "the model ran out of memory"),
+        ]
+
+        for state in states {
+            surface.present(
+                state,
+                layout: layout,
+                followsTail: false,
+                acceptsKey: state.acceptsKeyWindow
+            )
+            #expect(NSApplication.shared.keyWindow == nil, "\(state.kind)")
+        }
     }
 }

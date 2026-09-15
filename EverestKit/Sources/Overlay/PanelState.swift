@@ -115,8 +115,12 @@ public extension PanelState {
         case .generating:         "Rewriting"
         case .applying:           "Replacing selection"
         case .success:            "Replaced"
-        case .readOnly:           "Copied — the text was not editable"
-        case .targetChanged:      "Copied — the original text had moved"
+        // Both lead with the keystroke, because the outcome is not what the
+        // user has to act on. Only sayable because ⌘V reaches the app
+        // underneath again; do not write this sentence back if the panel ever
+        // takes key status.
+        case .readOnly:           "Press ⌘V to paste your rewrite"
+        case .targetChanged:      "Press ⌘V to paste your rewrite"
         case .refused:            "The model declined"
         case .error:              "Rewrite failed"
         case .stylePicker:        "Choose a style"
@@ -149,8 +153,12 @@ public extension PanelState {
         case .capturing, .generating, .applying, .success, .stylePicker: nil
         case let .preparing(progress):
             progress.map { "\(Int($0 * 100))% downloaded" } ?? "Loading the model"
-        case .readOnly:                      "It is on the clipboard — paste it where you want it."
-        case .targetChanged:                 "It is on the clipboard — paste it where you want it."
+        // The two reasons are different situations and must not read alike:
+        // one app cannot be typed into at all, so the paste has to go
+        // somewhere else; the other can, and the text simply moved first.
+        // "The text" said neither whose nor which, so both name the rewrite.
+        case .readOnly:                      "Everest can't type into this app, so your rewrite is on the clipboard."
+        case .targetChanged:                 "The text moved before Everest could replace it, so your rewrite is on the clipboard."
         case let .refused(reason):           reason
         case let .error(reason):             reason
         case let .heldForManualCopy(_, why): why
@@ -176,15 +184,29 @@ public extension PanelState {
     /// after ours and overwrite the rewrite we just put on the clipboard.
     var acceptsKeyWindow: Bool {
         switch self {
-        // A write is still intended. `stylePicker` included: activating here
-        // costs the source app frontmost, and revalidation then downgrades the
-        // whole transaction to `copiedOnly`.
-        case .capturing, .preparing, .generating, .applying, .stylePicker: false
-        // Auto-dismisses and asks nothing of the user.
-        case .success:                                                     false
-        case .readOnly, .targetChanged, .heldForManualCopy,
-             .refused, .error:                                             true
+        // Never, in any state. A key window receives *every* keystroke, and
+        // this panel has no responder to answer them, so ⌘V died in an empty
+        // chain — the state whose own words are "paste it where you want it"
+        // was the one preventing the paste. Terminal states took key status
+        // only to consume ⌘C, and `CGEventTapKeyInterceptor` now does that
+        // while taking nothing else.
+        case .capturing, .preparing, .generating, .applying, .stylePicker,
+             .success, .readOnly, .targetChanged, .heldForManualCopy,
+             .refused, .error:                                             false
         }
+    }
+
+    /// Whether this state has a keystroke it must take from the frontmost app.
+    ///
+    /// The picker, whose digits and arrows would otherwise land in the very
+    /// document about to be rewritten; and any state holding a finished
+    /// rewrite, where ⌘C must not also reach the source app, because that
+    /// app's own Copy lands *after* ours and overwrites the rewrite on the
+    /// clipboard. `refused` and `error` hold nothing, so there is nothing for
+    /// a tap to take and none is armed.
+    var needsKeyInterception: Bool {
+        if case .stylePicker = self { return true }
+        return copyableText != nil
     }
 
     /// The rewrite to show in the panel body, finished or still arriving.
