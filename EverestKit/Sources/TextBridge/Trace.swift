@@ -30,6 +30,12 @@ enum TraceEvent: Equatable {
     /// which is precisely the confusion this exists to make visible.
     case writeRefused(TargetValidator.Refusal)
 
+    /// Route one returned success and changed nothing — the Chromium case.
+    /// Worth its own event because it is invisible from every other signal:
+    /// the API said yes, the element still reports `settable`, and the only
+    /// evidence is the read-back.
+    case writeDropped
+
     /// A declared type that had no bytes of its own and was left out of the
     /// snapshot. Almost always a flavour AppKit re-advertises from the base
     /// types, and sometimes a promise whose provider refused — the two are

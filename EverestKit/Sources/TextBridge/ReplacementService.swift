@@ -140,14 +140,36 @@ public final class ReplacementService {
         // Route one. Settability is re-checked live rather than trusted from
         // the snapshot, because a field can go read-only while a rewrite runs.
         //
-        // When the write reports success we stop. No confirming read: a false
-        // negative there would fall through and paste as well, inserting the
-        // rewrite twice, and a duplicated paragraph is unrecoverable where a
-        // rewrite that quietly did not land is visible and repeatable.
-        if accessibility.isSelectedTextSettable(snapshot.element),
-            accessibility.setSelectedText(text, on: snapshot.element)
-        {
-            return .replaced
+        // **A reported success is not a write.** Measured in Chrome 153
+        // against Linear, 2026-09-15: the field reports `settable`,
+        // `AXUIElementSetAttributeValue(kAXSelectedTextAttribute)` returns
+        // `.success`, and the value is unchanged at +120 ms and at +1 s.
+        // React owns the input and never sees the AX write. Reported the same
+        // way on chatgpt.com and chat.google.com, while a plain
+        // `contenteditable` in the same browser replaces correctly — which is
+        // what made it look browser-shaped when it is framework-shaped.
+        //
+        // This used to stop here on `true`, on the grounds that a false
+        // negative would paste as well and duplicate a paragraph. That
+        // reasoning still holds and is why the confirm below is **positive
+        // proof of failure, never absence of proof of success** — the same
+        // shape as the rung-9 confirm and for the same inverted-cost reason.
+        // Both signals must say nothing moved: the selection still reports
+        // our exact captured text *and* the element holds the same number of
+        // characters. A landed write moves at least one, unless the rewrite
+        // is byte-identical to the original, in which case the paste that
+        // follows produces the identical result anyway.
+        if accessibility.isSelectedTextSettable(snapshot.element) {
+            let countBefore = accessibility.characterCount(of: snapshot.element)
+            if accessibility.setSelectedText(text, on: snapshot.element) {
+                let stillSelected = accessibility.selectedText(of: snapshot.element)
+                let countAfter = accessibility.characterCount(of: snapshot.element)
+                let nothingMoved = stillSelected == snapshot.text && countAfter == countBefore
+                if !nothingMoved {
+                    return .replaced
+                }
+                trace.record(.writeDropped)
+            }
         }
 
         // Route two. Editability is still re-derived live rather than read

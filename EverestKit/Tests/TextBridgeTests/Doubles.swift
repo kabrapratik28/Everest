@@ -135,9 +135,29 @@ final class FakeAccessibility: AccessibilityReading, AccessibilityWriting {
 
     func isSelectedTextSettable(_ element: AXUIElement) -> Bool { settable }
 
+    /// Whether a write that reports success actually changes anything.
+    ///
+    /// Default true, because that is what a real text field does — and what
+    /// every test written before this flag silently assumed, since the fake
+    /// recorded the write and left `selected` alone. That accident is the
+    /// Linear bug in miniature: the fake modelled a lying write for months
+    /// and nothing looked, because route one never read back.
+    ///
+    /// `false` is Chromium. Measured in Chrome 153 against Linear on
+    /// 2026-09-15: `AXUIElementSetAttributeValue(kAXSelectedTextAttribute)`
+    /// returns `.success` on a field reporting `settable`, and the value is
+    /// unchanged at +120 ms and at +1 s.
+    var writeLands = true
+
     func setSelectedText(_ text: String, on element: AXUIElement) -> Bool {
         writes.append(text)
-        return writeSucceeds
+        guard writeSucceeds else { return false }
+        if writeLands {
+            let old = selected ?? ""
+            selected = text
+            if let c = characters { characters = c - old.count + text.count }
+        }
+        return true
     }
 }
 

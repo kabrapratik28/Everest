@@ -220,6 +220,72 @@ struct ReplacementTests {
         }
     }
 
+    /// **A write that reports success and changes nothing.**
+    ///
+    /// Measured in Chrome 153 against Linear, 2026-09-15:
+    /// `AXUIElementSetAttributeValue(kAXSelectedTextAttribute)` returns
+    /// `.success` on a field that reports `settable`, and the value is
+    /// unchanged at +120 ms and at +1 s. The same is reported for
+    /// chatgpt.com and chat.google.com. React owns the input and never sees
+    /// the AX write, so nothing lands. A plain `contenteditable` in the same
+    /// Chrome replaces correctly, which is why this looked browser-shaped
+    /// and is not.
+    ///
+    /// Everest believed the return value: the live trace from a real
+    /// reproduction reads `captured(rung: selectedText, length: 23,
+    /// isEditable: true, role: AXTextArea)` then `outcome(replaced)`, four
+    /// presses in a row, with nothing written and a green tick each time.
+    ///
+    /// The confirm is deliberately **positive proof of failure**, never
+    /// absence of proof of success — the same shape as the rung-9 confirm,
+    /// and for the same reason. Chaining into route two on a false negative
+    /// pastes the rewrite twice, and a duplicated paragraph is worse than a
+    /// rewrite that did not land. So both signals must say nothing moved:
+    /// the selection still reports our exact captured text *and* the
+    /// element holds the same number of characters.
+    @Test("a route-one write that reports success but changes nothing falls through to the paste")
+    func routeOneThatReportsSuccessWithoutWritingFallsThrough() throws {
+        withPrivatePasteboard { pasteboard in
+            let ax = liveTarget()
+            ax.settable = true
+            ax.characters = 12
+            ax.writeLands = false  // Chromium: success, and nothing moves
+            let keystroke = FakeKeystroke()
+            keystroke.onPaste = {
+                ax.selected = ""
+                ax.range = CFRange(location: 15, length: 0)
+            }
+
+            let outcome = service(ax, keystroke: keystroke, pasteboard: pasteboard)
+                .apply("the rewrite", to: snapshot(), autoReplace: true, keepOutOfHistory: false)
+
+            #expect(ax.writes == ["the rewrite"], "route one is still tried first")
+            #expect(keystroke.pastes == 1, "and the paste is what actually lands")
+            #expect(outcome == .replaced)
+        }
+    }
+
+    /// The other half, and the one that keeps the old guard honest: a write
+    /// that *did* land must not be pasted on top of. Without this the fix
+    /// above would be free to confirm sloppily and duplicate a paragraph in
+    /// every app where route one works.
+    @Test("a route-one write that lands is never pasted a second time")
+    func routeOneThatLandsIsNotPastedAgain() throws {
+        withPrivatePasteboard { pasteboard in
+            let ax = liveTarget()
+            ax.settable = true
+            ax.characters = 12
+            let keystroke = FakeKeystroke()
+
+            let outcome = service(ax, keystroke: keystroke, pasteboard: pasteboard)
+                .apply("the rewrite", to: snapshot(), autoReplace: true, keepOutOfHistory: false)
+
+            #expect(outcome == .replaced)
+            #expect(ax.writes == ["the rewrite"])
+            #expect(keystroke.pastes == 0, "route one landed, so nothing may be pasted over it")
+        }
+    }
+
     /// The setting has to reach the write, not merely exist. `handOff` is the
     /// single funnel every copy-only outcome goes through, so a flag that
     /// stops short of it is a preference the user can toggle with no effect —
