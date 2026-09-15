@@ -38,7 +38,7 @@ Rationalizations already used on this project, all rejected: "already manually t
 
 **Code** — no abstraction with one implementation, no config for a constant, no scaffolding "for later". No parameter, field, case or overload no behaviour drives: if you can't name the test, don't write it. **Nothing unreferenced** — a symbol with no caller outside its own tests is dead, and tests are not a customer. Delete, don't comment out; git has it.
 
-**Tests** — TDD over-produces these if you let it. One test per *behaviour*, not per implementation detail, so refactoring doesn't break passing tests. **If two tests fail for the same root cause, one is redundant** — it adds no signal and makes one regression look like five. Don't test the stdlib or a plain getter. A test that cannot fail must be deleted or fixed; prove it by breaking the code. Never add a test "for coverage".
+**Tests** — TDD over-produces these if you let it. One test per *behaviour*, not per implementation detail, so refactoring doesn't break passing tests. **If two tests fail for the same root cause, one is redundant** — it adds no signal and makes one regression look like five. Don't test the stdlib or a plain getter. A test that cannot fail must be deleted or fixed; prove it by breaking the code. Never add a test "for coverage". **An assertion that something did *not* happen needs a positive control in the same test** — `spy.send(k) == false` passes identically when the spy was torn down and nothing ran at all, so pair it with a send that must return true or a side effect that must have fired.
 
 **Docs too** (§2). Every sweep asks: what here does nothing?
 
