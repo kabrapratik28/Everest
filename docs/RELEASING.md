@@ -98,23 +98,79 @@ developers.
 - `CURRENT_PROJECT_VERSION` — a monotonic build number. **Must increase on
   every release**; Sparkle compares it, not the marketing string.
 
-Currently `0.1.0` / `1`.
+Currently `0.1.0` / `1`, shipped as `v0.1.0` on 2026-09-15.
 
 ## Cutting a release
 
-1. Bump both numbers in `project.yml`, commit, tag `v1.0.0`.
-2. Build Release, signed with **Developer ID Application** and Hardened Runtime
-   on (`com.apple.security.cs.allow-jit` is already required for MLX).
-3. Notarise and staple:
-   ```bash
-   xcrun notarytool submit Everest.zip --keychain-profile "AC" --wait
-   xcrun stapler staple Everest.app
-   ```
-   Stapling matters: without it a first launch offline fails the check.
-4. Package as `.dmg`, attach to a GitHub Release.
-5. Sign the appcast entry and publish it (below).
-6. Verify on a Mac that has never built the app: `spctl -a -vvv -t exec` must
-   say **accepted**.
+This is what actually ran for `v0.1.0` on 2026-09-15. No notarisation, no
+`create-dmg`; `hdiutil` is in the OS and does the job.
+
+```bash
+# 1. Bump both numbers in project.yml, commit.
+
+# 2. Release build. A separate derived-data path, so a Debug build sitting in
+#    the normal one cannot be mistaken for the artefact.
+xcodebuild -project Everest.xcodeproj -scheme Everest -configuration Release \
+  -destination 'platform=macOS,arch=arm64' -skipPackagePluginValidation \
+  -derivedDataPath /tmp/everest-archive build
+
+# 3. Stage the app next to an /Applications symlink — that is the whole of the
+#    drag-to-install layout.
+APP=/tmp/everest-archive/Build/Products/Release/Everest.app
+rm -rf /tmp/everest-dmg && mkdir -p /tmp/everest-dmg
+cp -R "$APP" /tmp/everest-dmg/
+ln -s /Applications /tmp/everest-dmg/Applications
+hdiutil create -volname "Everest 0.1.0" -srcfolder /tmp/everest-dmg \
+  -ov -format UDZO /tmp/Everest_0.1.0_aarch64.dmg
+
+# 4. Verify the signature survived packaging, by mounting the DMG rather than
+#    by trusting the build. hdiutil is not a signing operation, but this is
+#    cheap and a broken signature here is invisible until a user hits it.
+MP=$(hdiutil attach -nobrowse -readonly /tmp/Everest_0.1.0_aarch64.dmg \
+  | grep -oE '/Volumes/.*' | head -1)
+codesign -v --deep --strict "$MP/Everest.app"
+codesign -d -r- "$MP/Everest.app"        # DR must match the installed app's
+hdiutil detach "$MP"
+
+shasum -a 256 /tmp/Everest_0.1.0_aarch64.dmg   # goes in the release body
+
+# 5. Publish. gh creates the tag from HEAD.
+gh release create v0.1.0 /tmp/Everest_0.1.0_aarch64.dmg \
+  --title "Everest 0.1.0" --notes-file notes.md
+
+# 6. Prove the public URL serves the bytes you built, as an anonymous
+#    downloader. Checking the release page is not the same thing.
+curl -sL -o /tmp/verify.dmg \
+  https://github.com/kabrapratik28/Everest/releases/download/v0.1.0/Everest_0.1.0_aarch64.dmg
+shasum -a 256 /tmp/verify.dmg
+```
+
+**Naming.** `Everest_<version>_aarch64.dmg`, matching the convention most
+Mac-only Apple-Silicon projects use, so the download URL is guessable and a
+script can construct it.
+
+**Still missing from the DMG:** a background image showing "drag to
+Applications" and the three Open Anyway steps. `hdiutil` produces a plain
+volume window; the background needs artwork plus AppleScript window
+positioning, or `create-dmg`. "Guiding the user through it" above argues this is
+the only in-install guidance possible, so it is worth doing before the
+release is promoted anywhere.
+
+### When notarisation exists
+
+Steps 2 and 3 change: build signed with **Developer ID Application** and
+Hardened Runtime on (`com.apple.security.cs.allow-jit` is already required by
+MLX), then before packaging:
+
+```bash
+xcrun notarytool submit Everest.zip --keychain-profile "AC" --wait
+xcrun stapler staple Everest.app
+```
+
+Stapling matters — without it a first launch offline fails the check. Then
+`spctl -a -vvv -t exec` must say **accepted** on a Mac that has never built
+the app, and the Open Anyway paragraph comes out of the README and the
+release notes.
 
 ## Automatic updates — Sparkle
 
@@ -150,11 +206,25 @@ survive — **but that has not been tested here and must be verified on the firs
 update**, because a silent permission loss after an auto-update is the worst
 possible first impression. See `docs/MANUAL-CHECKS.md`.
 
-## Before the first public release
+## Outstanding, now that v0.1.0 is public
 
-- `Developer ID Application` certificate and notarisation working.
+Shipped before these were done, deliberately, to find out whether anyone
+wants the thing. In rough order of what a real user hits first:
+
+- **A first-run pass on a Mac that has never run Everest.** The download
+  path, the Accessibility prompt and Open Anyway are all invisible on a
+  machine that already has the weights and the grant. This is the one with
+  the highest chance of a plain embarrassment in it.
+- **A Development-signed build has never been launched on second hardware.**
+  The signature is valid and Open Anyway should cover it, but development
+  certificates are not meant for distribution and this is untested.
+- **A DMG background** with the drag-to-Applications and Open Anyway steps.
+- `Developer ID Application` certificate and notarisation, which removes the
+  Open Anyway step and takes the maintainer's email address out of the
+  designated requirement. Measured on `v0.1.0`: the DR names
+  `Apple Development: <email>`, and anyone who downloads the DMG can read it
+  with `codesign -d -r-`. A Developer ID certificate carries the account
+  holder's name instead and keys the DR on the team ID.
 - Everything in `docs/PUNCH-LIST.md` and the P0s in `docs/EXTERNAL-AUDIT.md`.
-- A first-run pass on a Mac that has never run Everest — the download path is
-  invisible on a machine that already has the weights.
-- Decide the open questions in `docs/OPEN-DECISIONS.md`; two of them change
-  defaults that would be awkward to reverse once strangers are running the app.
+- The open questions in `docs/OPEN-DECISIONS.md`; two of them change defaults
+  that are awkward to reverse once strangers are running the app.
