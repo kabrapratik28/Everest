@@ -205,6 +205,26 @@ independent guards, either sufficient. This is what refuted EVE-030.
     and Blink both refuse, which covers most of the surface. A custom-drawn
     field in a Java or game toolkit is untested.
 
+## Four terminal bundle identifiers are guesses
+
+**Not urgent, but until it is done, half the terminal list is unverified.**
+`ReplacementService.insertsRatherThanReplaces` blocks auto-paste into apps
+where a paste goes to a prompt instead of replacing a selection. Four entries
+were recalled from memory and never checked:
+
+`com.googlecode.iterm2`, `dev.warp.warp-stable`, `net.kovidgoyal.kitty`,
+`co.zeit.hyper`
+
+**The fifth written the same way was wrong** — `io.alacritty` for an app that
+declares `org.alacritty` — and shipped a rewrite into a shell prompt. Four
+were verified against real plists: Terminal, Ghostty, WezTerm, Alacritty.
+
+*Do, per app:* `defaults read /Applications/<App>.app/Contents/Info CFBundleIdentifier`.
+A wrong entry is no worse than a missing one, which is why this is not urgent —
+and it is also why nothing in the test suite asserts these values. A test over
+an unchecked constant launders a guess into an assertion, which is the failure
+that produced the Alacritty bug.
+
 ## Judgment, not pass/fail
 
 32. **An 8,000-character rewrite holds the panel ~75 s**, streaming, where it
