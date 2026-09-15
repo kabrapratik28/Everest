@@ -153,3 +153,39 @@ never had.** Before the leaked-borrow fix, `handOff` could not acquire the
 clipboard and the user's fresh copy survived behind a false "another rewrite is
 using the clipboard". Fixing the leak was right, and it converted a wrong
 *message* into data *loss*. Recorded in `TextBridge/AGENTS.md`.
+
+---
+
+# Round four, 2026-09-15 — EVE-049…053
+
+Frozen at `3bc4134`, source analysis only, no build or run. **All P0s closed.**
+
+| ID | Sev | What | State |
+|---|---|---|---|
+| EVE-049 | P0 | Terminal gate had the wrong Alacritty bundle id | **Fixed** — `org.alacritty`. Four ids verified against real plists; four remain recalled and are on the manual list, deliberately not asserted in a test |
+| — | P0 | **The gate was also in the wrong place** — found while fixing the above | **Fixed** — Terminal.app captures at rung 5, so the list inside `pasteUnverifiable` was never consulted for the terminal most people use. Predates every feature built today |
+| EVE-050 | P0 | Validation expired before the copy/paste sequence | **Fixed** — frontmost and secure input re-checked before every synthetic copy and the paste |
+| EVE-030 | P0 | The password promise was absolute | **Fixed** — narrowed to what is enforced, in both strings that carried it |
+| EVE-031 | P0 | Snapshot not atomic | **Already fixed** before the audit froze |
+| EVE-052 | P1 | ~1.49 s main-thread freeze | Open, and slightly worse — the EVE-050 re-checks added three AX round trips |
+| EVE-053 | P2 | Trace durability and payload | Open |
+
+## What this round taught, beyond the fixes
+
+**The most serious finding was not in the audit.** EVE-049 named a wrong
+string; fixing it surfaced that the gate sat on a path Terminal.app never
+takes, so Everest could paste into a shell prompt and had been able to since
+the paste route existed. The audit found the typo and the typo found the
+architecture.
+
+**Three of the four P0s were ours, not the auditor's.** The wrong id came from
+a list I supplied from memory. The absolute promise and its duplicate were
+written here. The stale `IsSecureEventInputEnabled` row produced a phantom P0
+the previous round. External review keeps finding our documentation rather
+than our code.
+
+**And the guard hid inside its own justification.** `isEditable`'s
+over-reporting was excused with "an attempted paste the target ignores" — a
+terminal does not ignore it. The one case where the assumption fails is the
+dangerous one, and the sentence explaining why there was no hole is why nobody
+looked.
