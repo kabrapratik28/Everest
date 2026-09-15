@@ -36,6 +36,13 @@ first, and suspicion is not a mechanism.
   exactly like real ones, and the only way to find out is to go looking for a
   commit that does not exist. Read it from `git log` in the same command that
   uses it, or substitute it with `$(git log --format=%h -1 --grep=…)`.
+- **Write the message from `git diff --cached`, not from the agent's report.**
+  Explicit pathspecs are not enough. An agent lands more work in the same
+  files between your `git status` and your `git add`, so the staged diff is a
+  superset of what the report described — and a message written from the
+  report then omits it. That is how `89824bc` came to carry the EVE-010
+  key-status regression fix under a title naming only F3 and F5. Read what is
+  actually staged before writing a word about it.
 - **Commit by explicit pathspec, never `git add -A`.** Six agents write to one
   tree, so a blanket add stages whatever three of them happened to have on
   disk. `7334547` was titled for five Settings defects and in fact carried the
