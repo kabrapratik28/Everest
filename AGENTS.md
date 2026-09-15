@@ -2,7 +2,7 @@
 
 Menu-bar app. Select text anywhere, press a hotkey, a local model streams a rewrite into a floating panel and replaces the selection. Nothing leaves the machine.
 
-macOS 26+, Apple Silicon. `⌘I` = Quick Improve (one prompt, one output). `⌘⇧I` = pick a style, then rewrite. Both configurable. `⌘I` shadows Italic while running; accepted, warned once.
+macOS 26+, Apple Silicon. `⌃⌥I` = Quick Improve (one prompt, one output). `⌃⌥⇧I` = pick a style, then rewrite. Both configurable; the defaults avoid `⌘I`, which is Italic in most editors.
 
 ---
 
@@ -105,7 +105,7 @@ Each caused a real defect. Each has a test.
 | Target revalidation before writing | 3s is long enough to click elsewhere. Wrong-target writes are unrecoverable. |
 | Range-derived capture → copy-only | A shifted range validates against itself; revalidation can't catch it. |
 | Never trim captured text | Silently alters what the user selected. |
-| Monitor teardown structural, not disciplinary | A leaked global key monitor watches every keystroke forever. |
+| Picker keys consumed by a `CGEventTap`, armed and torn down from `state.didSet` | A digit typed at the picker lands in the document about to be rewritten. Discipline instead of structure leaks a monitor or tap that then watches every keystroke forever. |
 | Only the current transaction's original in memory | More is an undeclared history of private selections. |
 | No content in logs | Defeats the local-only premise. |
 
@@ -113,7 +113,7 @@ Each caused a real defect. Each has a test.
 
 - **Sandbox is off and the Mac App Store is impossible.** Sandboxed, `AXUIElementSetAttributeValue` and `AXUIElementCopyElementAtPosition` don't work even with permission granted, and `AXIsProcessTrusted()` is permanently false. Never add `com.apple.security.app-sandbox`.
 - **A non-activating panel is never key and receives no key events.** Escape needs an `NSEvent` monitor. "Fixing" it to a normal `NSWindow` destroys the selection.
-- **A global monitor observes keys, it doesn't consume them.** Pressing `3` in the picker selects style 3 *and* types `3` into the frontmost app. So **capture the selection before showing the picker**, or a stray digit corrupts the text being rewritten.
+- **A global monitor observes keys; only a `CGEventTap` consumes them.** The picker arms one, measured: without it `3` picks style 3 *and* types `3` into the frontmost app, destroying the selection. The tap needs the same signature-keyed permission and returns nil without it, so **still capture the selection before showing the picker** — one revoked grant and the old behaviour is back.
 - **`RewriteEvent.finished` ≠ transaction finished.** Validation and replacement still follow and can fail.
 - **Terminals, PDFs and web prose can't be replaced** — no editable buffer. Copy-only is correct behaviour, not a bug.
 - Accessibility permission is keyed to the code signature; re-signing forces a re-grant.
