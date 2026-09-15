@@ -1,15 +1,15 @@
-# TextBridge — Google Docs capture, plus three audited defects
+# TextBridge — Google Docs capture, plus four audited defects
 
-**TextBridge: 65 → 72 tests, all passing.** Doc at exactly 60 lines.
+**TextBridge: 65 → 73 tests, all passing.** Doc at exactly 60 lines.
 
-Five pieces of work below, grouped as five commits. Four are fixed; **bug B is
-established as real and deliberately not built**, because the fix trades one
-unrecoverable failure for another and that is a product call, not a patch.
+Six commits below, all built. Bug B's late restore is now in (commit 6) after
+approval; the earlier revision of this report recommended it and did not build
+it.
 
-AppCore currently has one failing test — `"a stream that ends without a rewrite
-still reaches a terminal state"`, about engine streams. That suite grew 45 → 55
-while I was working and the failure is not from these changes; every
-capture-related AppCore test passes.
+One thing is **not** built and needs sequencing: the oversize-clipboard capture
+error. `CaptureError` is switched with no `default`, exactly the trap you
+warned about, so the TextBridge half is not separable from an AppCore edit. The
+design and the sentence are at the end, ready to apply.
 
 ---
 
@@ -187,7 +187,72 @@ rows rewritten rather than four added, to stay at 60 lines:
 
 ---
 
-## Bug B — real, demonstrated, deliberately not built
+## Commit 6 — a late paste inserts the rewrite, not the user's old clipboard
+
+`Sources/TextBridge/ReplacementService.swift`
+`Tests/TextBridgeTests/ReplacementTests.swift`
+
+EVE-009's paste half. Approved after the investigation below.
+
+**It has to block, and here is what it turned out to be.** You asked whether
+the wait could be awaited off the main actor so the cost is bookkeeping rather
+than a hitch. It cannot, for three reasons that are all about the tail rather
+than about the wait:
+
+1. **The borrow would outlive the return.** The transaction holds it until the
+   restore, so a second hotkey press inside the window gets
+   `.heldForManualCopy(.clipboardBusy)` — "another rewrite is using the
+   clipboard", which is false; nothing is using it, we are waiting. Blocking
+   makes that press simply wait, which is what the user expects.
+2. **The restore would be owed by a task nobody awaits.** Quit inside the
+   window and the user's clipboard is stranded holding our rewrite. That is a
+   new unrecoverable loss introduced by the fix for one.
+3. **It is the design change the file already names.** `pasteReplace`'s comment
+   says a suspension point there needs the transaction to become a
+   process-wide resource with an owner first. Doing it properly is that change,
+   not this one.
+
+So `hold(until:)` blocks, and all three reasons are in the code.
+
+**The cost, precisely.** Route two's *success* path goes from returning on the
+first poll to always spending the full `consumptionBudget` — about 8 ms to
+450 ms in production. Route one is untouched, `handOff` is untouched, and the
+already-slow failure path is unchanged because `observeConsumption` had
+already spent the budget. So: every successful rewrite in a web editor is
+~450 ms slower. If that proves too visible, the tighter bound is
+event-*delivery* latency rather than app-*response* latency, which is much
+shorter — but that would be a new magic number, and the budget is one we have
+already reasoned about, so I used it.
+
+RED — the late paste read the user's old clipboard:
+```
+✘ Test "a late paste reads the rewrite, never the clipboard we were about to restore"
+  ReplacementTests.swift:155: Expectation failed: reader.text == "the rewrite"
+✘ Test run with 73 tests in 10 suites failed after 0.582 seconds with 1 issue.
+```
+
+GREEN: `✔ Test run with 73 tests in 10 suites passed after 0.963 seconds.`
+
+The test drives it the way it actually happens: a selection that moves for a
+reason that is not our paste, so consumption is read on the first poll while
+the ⌘V is in flight, and a background reader records what the pasteboard held
+when that ⌘V finally arrived. It asserts on the bytes the target would have
+inserted, not on the outcome.
+
+**What this does not fix, on purpose.** The false positive itself stands —
+`apply` still returns `.replaced` when the selection merely moved. Tightening
+that is the table below, and it is still a bad trade. What is gone is the
+silent wrong write that used to follow it.
+
+Your framing is in `AGENTS.md` rather than mine, because it is the better one:
+the two costs are not the same kind of bad. I had weighed them as symmetric
+unrecoverables and they are not — one is a write the user never asked for and
+cannot undo from here, the other is a paste they performed, see immediately,
+and fix by copying again.
+
+---
+
+## Bug B — the investigation that preceded commit 6
 
 Audit finding B. You asked me to establish whether it is real before building.
 **It is real.** A throwaway probe (added, run, removed — not left in the suite):
@@ -224,10 +289,9 @@ preferred because a false negative can duplicate a paragraph unrecoverably — s
 this is reversing a considered trade in the highest-risk file, not patching an
 oversight.
 
-**My recommendation: the third row.** Inserting unrelated content into the
-user's document while reporting success is worse than a bounded hitch, and
-route two is already the slow path. It is about ten lines and I will build it
-immediately on a yes.
+**The third row was approved and is commit 6.** The first two rows remain
+rejected, for the reason in the table: both turn a visible failure into a
+duplicated paragraph.
 
 ---
 
@@ -261,9 +325,62 @@ safely". The replace side already distinguishes this as
 *before* ⌘C is posted, which is why nothing is destroyed — it is only the
 reporting that lies.
 
-**I have not fixed it**, because it needs a new `CaptureError` case and a
-sentence in `CaptureFailure`, which is now `fix-settings`' file. Say the word
-and I will do the TextBridge half and hand them the sentence.
+### Not built — it needs sequencing with `fix-settings`
+
+Checked as you asked: **`CaptureFailure.message(for:)` switches `CaptureError`
+exhaustively with no `default`**, so adding a case breaks the AppCore build for
+everyone. That means the TextBridge half is **not separable** — adding the case
+alone breaks the build, and adding the seam change without the case leaves dead
+information the Iron Law would reject. It is one change across two modules.
+
+**Prepared and proven on a scratch copy at `/tmp/everest-cand2`, not applied.**
+The whole cycle has been run there: **TextBridge 74 green, AppCore 57 green**.
+Applying to the shared tree is now a handful of targeted edits and one verify,
+not fifteen minutes of discovery.
+
+Behavioural RED from the dry run:
+```
+✘ Test "a clipboard too large to borrow is reported as that, not as an unreadable app"
+  CaptureChainTests.swift:237: Expectation failed: expected error ".clipboardUnavailable"
+  of type CaptureError, but ".nothingCaptured" of type CaptureError was thrown instead
+✘ Test run with 74 tests in 10 suites failed after 0.944 seconds with 1 issue.
+```
+GREEN: `✔ Test run with 74 tests in 10 suites passed after 0.949 seconds.`
+
+**One thing the dry run caught that I would have missed.** There is a third
+call site, `ReentrancyTests.swift:133`, where a capture is deliberately nested
+inside a replacement to prove the exclusion holds across both halves of the
+app. It asserted `captured.value == nil`; it now asserts `== .unavailable`,
+which is a strengthening — the nested capture is told *why*, which is the whole
+point of the change.
+
+That site also corrected me. I had written that an already-held borrow is
+"unreachable" in capture; this test reaches it on purpose. The one-case design
+still stands, because in production capture blocks the main thread so only the
+too-large cause can reach a user — but the enum comment now says that, rather
+than claiming the path does not exist.
+
+Everything needed is below.
+
+**TextBridge (mine).** `ClipboardCapturing.copySelection(pid:) -> String?`
+currently collapses two different facts into `nil`: "⌘C produced nothing" and
+"the clipboard could not be borrowed". The second needs to survive to the
+coordinator, so the seam returns a small enum instead, and `runCaptureChain`
+throws `CaptureError.clipboardUnavailable` rather than `.nothingCaptured`.
+One case, not two — `Fidelity` distinguishes too-large from already-borrowed,
+but capture runs blocking on the main thread so "borrowed" is not reachable
+there, and a second case would be returned by no real path.
+
+**AppCore (`fix-settings`).** One `case` in the switch:
+
+```swift
+case .clipboardUnavailable:
+    "Everest reads some apps by copying, and it will not do that while your clipboard holds something too large to put back — a screenshot or an image, usually. Copy a word of text to replace it, then press the shortcut again."
+```
+
+It names the real cause and a remedy the user can act on. The current
+behaviour sends someone with a screenshot on their clipboard hunting for a
+Google Docs permission that does not exist.
 
 ### Before/after, same live page
 
@@ -287,10 +404,11 @@ DOM:     CAPTURED: "quick brown fox"      range={4,15}  isEditable=true   role=A
 
 ## Handover notes
 
-- **`CaptureFailure`'s header still says "Five refusals … so five sentences".**
-  There are six. Confirmed stale; it is `fix-settings`' file now, and you said
-  you are telling them. Flagging only because that comment is the thing warning
-  the next person not to fold the messages together.
+- **`CaptureFailure`'s stale header is already fixed** — `fix-settings` landed
+  it while I was working. It now says "Deliberately not a count: this said
+  'five' through the addition of a sixth, which is how a comment stops being
+  read," which is better than restating the number.
+- **No new files.** Everything above is edits to files that already existed.
 - **The `.nothingCaptured` sentence names Google Docs and nothing else.** It
   never mentioned Terminal or PDF, so `tdd-bridge`'s correction needed no
   change. Worth keeping that trap written down somewhere: those are

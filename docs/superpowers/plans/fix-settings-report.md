@@ -1,52 +1,49 @@
-# Five Settings and menu UX bugs — report
+# Settings, onboarding and menu — report
 
-**Status: all five done.** AppCore is green at **45 tests** (was 35; I added 6,
-other agents added 4 in the same window). Every app-target file is
-`swiftc -parse` only — see *Not type-checked* at the end.
+**AppCore: 58 tests, all green.** Baseline when I started was 35; I added 18,
+other agents added the rest. Every app-target file is `swiftc -parse` only —
+see *Not type-checked*.
+
+Organised per bug, for one commit each. Files listed are the files that commit
+should stage.
 
 ---
 
-## 1. Everything in Prompts should be editable
+## 1. Prompts — everything editable
 
-**Root cause.** Two different things, and the brief's framing ("only the
-instruction is editable") is true of only one of them.
+**Files:** `AppCore/SettingsEdits.swift`, `AppCoreTests/SettingsModelTests.swift`,
+`Settings/SettingsView.swift`
 
-- The **Quick Improve** section rendered a single `InstructionField`. Name and
-  subtitle had no field at all.
-- The **Styles** section already had `TextField("Name")` and
-  `TextField("Subtitle")`, but bound **raw** — no `PresetEdit`, no draft. A
-  style name could be blanked, and `StylePickerView` uses `preset.name` as both
-  the row label *and* the `accessibilityLabel`, so a blank name is a row you
-  can only pick by counting and a screen reader announces as nothing.
+**Root cause.** Two different things. The **Quick Improve** section had one
+field. The **Styles** section already had name and subtitle fields, but bound
+raw — no `PresetEdit`, no draft — so a style name could be blanked, and
+`StylePickerView` uses `preset.name` as both row label and `accessibilityLabel`.
+A blank name is a row you can only pick by counting and a screen reader
+announces as nothing.
 
-**Fix.** `InstructionField` became `PresetField`, which takes its rule as a
-parameter because the three fields fail differently. Quick Improve gained Name
-and Subtitle. Styles' name and subtitle now go through `PresetEdit`.
+**Fix.** `InstructionField` → `PresetField`, taking its rule as a parameter
+because the three fields fail differently. Styles' name and subtitle now go
+through `PresetEdit`. `safetyFrame` untouched and still unreachable.
 
-`PromptBuilder.safetyFrame` is untouched and still unreachable from Settings.
+**Reversal, on your recorded decision.** I built Quick Improve's name and
+subtitle fields, then found `quickImprove` has no picker row so those two
+strings render nowhere. I flagged it; `QUESTIONS-FOR-PRATIK.md` now records
+them as removed. **I have removed them.** `PresetEdit.name`/`.subtitle` stay —
+Styles uses both.
 
-**Also fixed while in there:** `PresetField` re-syncs its draft when the stored
-value moves from outside. Without it "Reset to default" leaves every touched
-field showing what the user just discarded — visible now that the section has
-three fields instead of one.
+**Also:** `PresetField` re-syncs its draft when the value moves from outside,
+or "Reset to default" leaves every touched field showing what was discarded.
 
-> **Worth your call.** `settings.quickImprove.name` and `.subtitle` are
-> rendered *nowhere* — only `StylePickerView` draws a preset's name, and it
-> draws `settings.styles`, never `quickImprove`. So the two new Quick Improve
-> fields are editable and persist, and nothing displays them. I built what was
-> asked and am flagging it rather than quietly dropping it: either the panel
-> should show which preset ran, or those two fields are decoration.
+**Behaviours:** a preset name cannot be blanked; a subtitle may be emptied,
+unlike its name.
 
-**Behaviours driven out (2)**
-- a preset name cannot be blanked
-- a preset subtitle may be emptied, unlike its name
+## 2. Settings did nothing from the menu bar
 
-## 2. Settings does nothing from the menu bar
+**Files:** `App/EverestApp.swift`, `App/AppDelegate.swift`, `App/AGENTS.md`
 
-**Root cause — confirmed by measurement, not inference.** The code already
-called `NSApp.activate` before `sendAction`, so activation was never the
-problem. I built a throwaway `LSUIElement` SwiftUI app with a `Settings` scene
-and probed it on **macOS 26.6.2 (25G83)**:
+**Root cause — measured, not inferred.** Activation was already there, so that
+was not it. I built a throwaway `LSUIElement` SwiftUI app with a `Settings`
+scene and probed macOS 26.6.2 (25G83):
 
 ```
 NSApp class: AppKitApplication
@@ -56,263 +53,462 @@ sendAction(showSettingsWindow:) returned: true
 windows after sendAction: []
 ```
 
-Two findings. The selector **does not exist** on macOS 26 — not on
-`NSApplication`, not on SwiftUI's `AppKitApplication`. And `sendAction`
-**returns `true` anyway**, so the call site saw success while no window was
-ever created. That is why it failed silently rather than logging anything.
+The selector does not exist — not on `NSApplication`, not on SwiftUI's
+`AppKitApplication` — and `sendAction` **returns `true` anyway**, so the call
+site saw success while no window was created. `⌘,` kept working because it is a
+main-menu key equivalent resolved by `performKeyEquivalent` whenever one of
+Everest's windows is key: a different path, which is why the two disagreed.
 
-`⌘,` kept working because it is a main-menu key equivalent that
-`performKeyEquivalent` resolves whenever one of Everest's own windows is key —
-a different path entirely, which is why the two disagreed.
+**Fix.** `@Environment(\.openSettings)`, handed to the delegate from the scene
+body (which runs before `applicationDidFinishLaunching`, so it is always set).
 
-**Fix.** `@Environment(\.openSettings)`. It reads only from a SwiftUI scope, so
-`EverestApp`'s scene body hands the action to the delegate; the scene body runs
-before `applicationDidFinishLaunching`, so it is always set before a menu item
-can be clicked.
-
-**A second measured finding made the ordering load-bearing:**
+**A second measurement made the ordering load-bearing:**
 
 ```
-after openSettings() with NO activate:
-  active=false  frontmost=com.google.Chrome
-  windows=["Probe2 Settings|key=false|visible=true"]
-
-after activate + openSettings():
-  active=true   frontmost=<the probe app>
-  windows=["Probe2 Settings|key=true|visible=true"]
+openSettings() with NO activate:  active=false frontmost=com.google.Chrome
+                                  windows=["Probe2 Settings|key=false|visible=true"]
+activate + openSettings():        active=true  frontmost=<probe>
+                                  windows=["Probe2 Settings|key=true|visible=true"]
 ```
 
 Without activating, the window opens *behind* the app the user came from and
-never takes key — indistinguishable from nothing happening. Activate first.
-Calling the action again while the window is already open is harmless, so
-there is no "already showing" branch.
+never takes key — indistinguishable from nothing happening.
 
-**No AppCore test.** This is wiring: one property assignment and two calls in
-order, with no branch. Evidence is the probe above; see *Manual verification*.
+**No unit test.** Wiring: one assignment and two calls, no branch. Evidence is
+the probe.
 
 ## 3. Show Everest in ⌘Tab
 
-**Root cause.** Not a bug — a missing preference. Also measured:
+**Files:** `AppCore/AppPresence.swift`, `AppCoreTests/AppPresenceTests.swift`,
+`App/AppDelegate.swift`, `Settings/SettingsView.swift`
 
-```
-policy at launch: 1 (accessory)      # LSUIElement, as expected
-setActivationPolicy(.regular)  -> true; now 0
-policy after 1s: 0                    # sticks
-setActivationPolicy(.accessory) -> true; now 1
-```
+**Root cause.** Missing preference, not a bug. Measured: launch pins to
+`.accessory` under `LSUIElement`; `setActivationPolicy` flips both ways at
+runtime and sticks. So the preference **must** be re-applied at launch or it
+silently resets overnight and reads as broken rather than unset.
 
-So runtime flipping works in **both** directions and holds. The `LSUIElement`
-interaction you flagged is real and is the whole design constraint: every
-launch starts at `.accessory` regardless of what the user chose, so the
-preference must be re-applied at launch or it silently resets overnight and
-reads as broken rather than unset.
+There is no ⌘Tab without a Dock icon — ⌘Tab membership *is* `.regular`. The
+switch says "Show Everest in the Dock and app switcher" and explains why.
 
-**On the Dock icon:** there is no way to have one without the other. ⌘Tab
-membership *is* `.regular`, which is also what puts the icon up. So the switch
-is labelled "Show Everest in the Dock and app switcher" and says so underneath
-— a switch promising only ⌘Tab would deliver a Dock icon the user never asked
-for and could not find the control to remove.
+Kept out of `AppSettings` (that is `RewriteCore`'s, and out of scope); own
+`UserDefaults`, as `ShortcutNotice` does.
 
-**Fix.** `AppCore/AppPresence.swift`, with its own `UserDefaults` (as
-`ShortcutNotice` does) rather than a field on `AppSettings`: `AppSettings` is
-`RewriteCore`'s, and prompts and presets have no business knowing how the app
-shows itself to the window server. That also kept me out of `RewriteCore`,
-which was not in scope.
+**Behaviours:** the preference is re-applied at launch; flipping it moves the
+policy immediately, both directions.
 
-**Behaviours driven out (2)**
-- the preference is re-applied at launch, because LSUIElement pins every launch
-  to the menu bar
-- flipping the switch moves the policy immediately, in both directions
+## 4. Model radio buttons were not selectable
 
-## 4. Model radio buttons are not selectable
+**Files:** `AppCore/ModelSettingsModel.swift`,
+`AppCoreTests/SettingsModelTests.swift`, `Settings/SettingsView.swift`,
+`Settings/OnboardingView.swift`
 
-**Root cause.** The circle was `Image(systemName:)` with
-`.accessibilityHidden(true)` — a picture of a radio button — and the only
-control that moved `engineID` was a separate "Use" button. The thing that
-looked like the control and the thing that was the control were different
-views.
+**Root cause.** The circle was an `Image` with `.accessibilityHidden(true)` — a
+picture of a radio button — and only a separate "Use" button moved `engineID`.
 
-**Fix.** The row is now a plain-styled `Button` over the whole label, with
-`.accessibilityLabel` (name, blurb, install state) and
-`.accessibilityAddTraits(.isSelected)`, so VoiceOver announces it as a selected
-control rather than reading a decorative glyph. "Use" is gone. `Spacer` is
-inside the button with `.contentShape(Rectangle())`, so the dead space beside
-the blurb is part of the target.
+**Fix.** The row is a plain-styled `Button` with `.accessibilityLabel` and
+`.accessibilityAddTraits(.isSelected)`. `Row.isSelected` moved into AppCore;
+`select(_:)` is the only mover.
 
-`Row.isSelected` moved onto the row in `AppCore` so the mark and the setting
-cannot disagree, and `select(_:)` is now the only thing that moves the engine.
+**Knock-on:** `OnboardingView` set `engineID` directly, which would have left
+the Model tab's radio on the model just replaced. Now calls `models.select`.
+That made three `settings` parameters dead (`OnboardingView`, `ModelTab`,
+`GeneralTab` — the last already dead before I started); all removed per §1.
 
-**Knock-on I had to fix:** `OnboardingView` set `settings.engineID` directly.
-Left alone, picking a model during onboarding would have left the Model tab's
-radio pointing at the model the user just replaced. It now calls
-`models.select`. That also made `OnboardingView`'s `settings` parameter dead,
-and `ModelTab`'s, and `GeneralTab`'s (that last one was already dead before I
-started) — all three removed per §1.
+**Behaviour:** choosing a row selects it, and the mark follows the choice.
 
-**Behaviour driven out (1)**
-- choosing a model row is what selects it, and the mark follows the choice
+## 5. Show shortcuts in the menu
 
-## 5. Show the shortcuts in the menu
+**Files:** `AppCore/MenuCommand.swift`, `AppCoreTests/MenuCommandTests.swift`,
+`App/StatusItemController.swift`, `App/AppDelegate.swift`, `App/AGENTS.md`
 
-**Root cause.** Not a defect — the reasoning in `App/AGENTS.md` is right and I
-kept it. No `keyEquivalent` was added. The gap is that the menu offered no
-other way to discover the binding.
+**Root cause.** Not a defect — your no-`keyEquivalent` reasoning is right and I
+kept it. The menu simply offered no other way to discover the binding.
 
-**Fix.** `NSMenuItemBadge(string:)` (macOS 14+, verified in the SDK headers) as
-trailing text, refreshed in `NSMenuDelegate.menuWillOpen` from
-`KeyboardShortcuts.getShortcut(for:)`. A badge is non-interactive and visually
-distinct from a key equivalent, which is honest: it reports a global hotkey
-rather than claiming the menu will run it.
+**Fix.** `NSMenuItemBadge(string:)` (macOS 14+, verified in the SDK headers),
+refreshed in `menuWillOpen` from `KeyboardShortcuts.getShortcut(for:)`. A badge
+is non-interactive and visually distinct from a key equivalent, which is
+honest: it reports a global hotkey rather than claiming the menu runs it.
 
-> **One deviation from the brief, with a reason.** You asked for shortcut
-> *formatting* in AppCore. I did not put it there, because AppCore cannot do it
-> correctly: `KeyboardShortcuts` renders a key code through `UCKeyTranslate`
-> against the **active keyboard layout**, so the same code is `I` on QWERTY and
-> something else on AZERTY. A hand-rolled AppCore formatter would be wrong on
-> non-US layouts, and it would be a second renderer free to disagree with the
-> recorder in Settings ▸ General about the same binding — which is the exact
-> stale-copy failure that banned `keyEquivalent`. The library already emits
-> canonical `⌃⌥⇧⌘` order (I read `ks_symbolicRepresentation` to confirm), so
-> rendering stays in the app target.
->
-> What went to AppCore instead is the part that is a decision and *is* testable:
-> **which commands may show a shortcut at all.** `MenuCommand.hotkey` is `nil`
-> for Settings, Setup Guide and Quit — not because they are unbound, but
-> because `⌘,` and `⌘Q` only work while one of Everest's own windows is key,
-> and an accessory app owns no menu bar. This dropdown is only ever read *over
-> another app*, where those do nothing. Printing them would advertise a
-> shortcut that is dead where it is being read.
+**Deviation, with a reason.** Shortcut *formatting* did not go into AppCore.
+`KeyboardShortcuts` renders key codes through `UCKeyTranslate` against the
+**active keyboard layout** — AppCore would be wrong on AZERTY, and a second
+renderer could disagree with the Settings recorder about the same binding,
+which is the stale-copy failure that banned `keyEquivalent`. The library
+already emits canonical `⌃⌥⇧⌘` order (I read `ks_symbolicRepresentation`).
+What went to AppCore is the decision: `MenuCommand.hotkey` is `nil` for
+Settings, Setup Guide and Quit, because `⌘,` and `⌘Q` work only while an
+Everest window is key and this menu is only ever read over another app.
 
-**Behaviour driven out (1)**
-- only the two global hotkeys are shown in the menu; the app-menu key
-  equivalents are not
+**Behaviour:** only the two global hotkeys are labelled.
 
 ---
 
-## RED and GREEN
+## 6. Onboarding could not download the default model *(first-run blocker)*
 
-Baseline before any change — **35 passed**:
+**Files:** `AppCore/ModelSettingsModel.swift`,
+`AppCoreTests/SettingsModelTests.swift`, `Settings/OnboardingView.swift`,
+`Settings/SettingsView.swift`
+
+**Root cause.** The step keyed everything off selection. `engineID` defaults to
+`.qwen4B`, so on a new Mac the selected model is the *absent* one: the row read
+"In use", was disabled, and the step never rendered `availability`, so nothing
+said 2.3 GB had yet to arrive. No way forward from the one screen whose job is
+getting a model onto disk.
+
+**Fix.** `Row.needsDownload` and `Row.installSummary` in AppCore — selection
+and install state as separate facts, one source, both views rendering them.
+Onboarding offers Download (or "Use and download") keyed on `needsDownload`,
+never on selection. Settings' Model tab uses the same two properties, which
+also removed its duplicated private `status`.
+
+**Behaviour:** a row carries its install state as well as its selection, so the
+model in use can still be downloaded.
+
+## 7. A failed download was silent everywhere *(first-run blocker)*
+
+**Files:** `AppCore/ModelSettingsModel.swift`,
+`AppCoreTests/SettingsModelTests.swift`, `Settings/OnboardingView.swift`,
+`Settings/SettingsView.swift`
+
+**Root cause.** Both call sites used `try?` and `ModelSettingsModel` published
+no error. The bar vanished, the status was unchanged, and nothing separated
+"finished" from "gave up", so the user retried the same failure forever.
+
+**Fix.** `download` **no longer throws**. The error's only consumer is a label,
+and a recorded failure is one a caller cannot forget to show —
+`downloadFailure[EngineID]`, cleared on retry, rendered red on the row in both
+screens. Structural rather than disciplinary.
+
+**Behaviour:** a failed download says why on the row that failed, and a retry
+clears the message.
+
+**Left alone, flagged:** `delete` still uses `try?` at both call sites, so a
+filesystem failure there is silent in the same way. Same shape, different bug;
+say the word and it is a small change.
+
+## 8. Excluded apps could never be removed
+
+**Files:** `AppCore/SettingsEdits.swift`,
+`AppCoreTests/SettingsModelTests.swift`, `Settings/SettingsView.swift`
+
+**Root cause.** `.onDelete` is a `List` gesture and does nothing in a macOS
+`Form` — which `Everest/Settings/AGENTS.md` already recorded for the Styles
+list, but the note never reached the Privacy list. Worse here, because
+`CaptureFailure.message(for: .excludedApp)` tells the user to come and remove
+the entry. The app instructed an action it had not implemented.
+
+**Fix.** `ExclusionEdit.remove`, by identity and case-insensitively to match
+`add` and `SelectionCoordinator.isExcluded`, plus an explicit per-row button.
+By identity so no view holds an index into an array it is mutating.
+
+**Behaviour:** an excluded bundle id can be removed, matching the same way
+adding does.
+
+## 9. The panel hung forever on a stream that produced nothing
+
+**Files:** `AppCore/RewriteCoordinator.swift`,
+`AppCoreTests/RewriteCoordinatorTests.swift`, `AppCore/AGENTS.md`
+
+**Root cause.** `guard let finished else { return }` assumed "no `.finished`"
+meant a newer generation had taken over — but the generation check immediately
+above has already proved this transaction is current. So a stream that stopped
+for any other reason returned silently and left the panel on "Rewriting": no
+terminal state, no auto-dismiss, force-quit the only way out.
+
+This is the hang both auditors traced through the Settings test box. That
+trigger is `EngineFactory`'s shared engine; **the hang is not**, and it is now
+impossible whatever ends a stream early.
+
+**Behaviour:** a stream that ends without a rewrite still reaches a terminal
+state.
+
+## 10. Escape during a download did not stop it
+
+**Files:** `AppCore/RewriteCoordinator.swift`, `AppCoreTests/Harness.swift`,
+`AppCoreTests/RewriteCoordinatorTests.swift`, `AppCore/AGENTS.md`
+
+**Root cause.** The prepare-progress loop had no generation check and nothing
+cancelled the task behind it. A user who pressed Escape four minutes into a
+2.3 GB fetch got the panel dismissed and then **re-presented by the next
+percentage** — after teardown had released the key monitors, so the panel that
+came back could not be closed with Escape. The download continued.
+
+**Fix.** `prepare` takes the generation, guards the loop, and cancels the task.
+Needed a gated `prepare` in `StubEngine` to drive it.
+
+**Behaviour:** escape during a download stops it, and no later percentage
+re-opens the panel. This one reproduced as a real assertion failure in RED.
+
+## 11. Superseded transaction still writes — **not changed, recorded instead**
+
+**Files:** `AppCore/AGENTS.md` (one line)
+
+The reorder was a no-op: there is **no suspension point** between the existing
+`guard mine == generation` and the `apply` hop (`OutputValidator.validate` is
+pure and synchronous), so a second guard could never observe anything
+different. The window that does exist is *inside* the `MainActor.run` hop —
+another task bumps `generation` while `apply` is queued or running — and
+reordering cannot reach it.
+
+**I first gave the wrong reason for declining** ("I cannot force the race in a
+test"). You corrected it and you are right: the Iron Law wants a test of the
+*decision*, and an `applyIfCurrent(_:generation:)` helper reading a
+`Mutex<Int>` is directly testable — set generation 5, call with 4, assert no
+write — with no interleaving needed. Untestability was never the blocker and I
+will not carry that reasoning forward.
+
+**The real reason, which is yours and which I agree with:** revalidation
+already prevents the unrecoverable *wrong-target* write. What remains is an
+unwanted-but-correct write that ⌘Z undoes, and that is not worth changing the
+coordinator's core concurrency invariant. Recorded as known and bounded in
+`AppCore/AGENTS.md`; on round 2's interaction list.
+
+## 12. Every displayed shortcut now comes from the live binding (EVE-007)
+
+**Files:** `AppCore/ShortcutCopy.swift`, `AppCore/ShortcutNotice.swift`,
+`AppCoreTests/ShortcutCopyTests.swift`, `Settings/OnboardingView.swift`,
+`Settings/SettingsView.swift`, `App/AppDelegate.swift`, `App/EverestApp.swift`,
+`AppCore/RewriteCoordinator.swift`, `AppCore/SettingsEdits.swift`
+
+**Root cause.** Your default change was right; the copy did not follow it.
+Onboarding said "press ⌘I" — a dead key — and both the onboarding note and the
+Settings help text asserted flatly that Everest uses ⌘I and that it is Italic,
+which is now simply false.
+
+**Fix, architectural, and written into all three `AGENTS.md`:** no glyph is
+written down anywhere. `ShortcutCopy.tryItInstruction` builds the sentence from
+the live value and **changes shape** when nothing is bound, rather than leaving
+"press ." on the one screen that teaches the shortcut. The Italic claim became
+`ShortcutNotice.caution(for:)`, shown only when the binding actually collides.
+
+`caution` is deliberately **not** gated on having been said once, unlike
+`warning`: the alert interrupts a launch so it must fire once, but the help
+text describes the box the user is looking at, so sharing the gate would blank
+it permanently after the first launch.
+
+Both screens re-read on the 1-second poll they already run, so re-recording a
+binding cannot strand them.
+
+Comments in `RewriteCoordinator` and `SettingsEdits` no longer name chords. The
+two remaining `⌘I` literals — the launch alert's title and
+`ShortcutNotice.caution`'s sentence — are correct by construction: both appear
+only when `shadowsItalic` is true, which is exactly `⌘I`.
+
+**Behaviours:** the instruction names the bound shortcut; with none bound it
+says where to set one; the help text keeps saying a shortcut collides after the
+alert has been dismissed.
+
+## 13. The 30B model was offered on Macs that cannot run it (EVE-008)
+
+**Files:** `AppCore/ModelSettingsModel.swift`,
+`AppCoreTests/SettingsModelTests.swift`, `Settings/SettingsView.swift`,
+`Settings/OnboardingView.swift`
+
+**Root cause.** `ModelCatalog` lists it unconditionally and nothing measured
+memory.
+
+**Fix.** `Row.fitsInMemory`, from injected `ProcessInfo.physicalMemory`,
+requiring the weights plus **4 GB** of headroom for the OS, the app and the KV
+cache — a fixed margin, not a ratio, because what the rest of the system needs
+does not scale with the model. A 16 GB Mac fails (needs ~21.2 GB); 24 GB passes,
+which matches root `AGENTS.md`'s "needs 18-20 GB resident".
+
+Shown with the reason, not hidden, and the gate takes precedence over install
+state so it can never say "Installed" for a model that cannot run.
+
+**Behaviour:** a model too large for this Mac is shown with the reason.
+
+## 14. Onboarding was gated on permission, not completion (EVE-013)
+
+**Files:** `AppCore/OnboardingModel.swift`,
+`AppCoreTests/OnboardingModelTests.swift`, `App/AppDelegate.swift`,
+`AppCore/AGENTS.md`
+
+**Root cause.** The launch check read `isAccessibilityTrusted()`. A TCC grant
+cannot tell you whether anyone read the capability table or chose an engine, so
+whoever granted Accessibility before opening the guide was counted as set up
+and never saw the model step.
+
+**Fix, architectural, with the why recorded:** completion is stored separately
+from the permission, and the step is persisted too so closing the window
+resumes rather than restarts. Only "Done" marks complete; the close button
+deliberately does not.
+
+**This exposed a real test-hygiene bug.** The two existing `OnboardingModel`
+tests used the default `.standard` store, so once `advance()` began persisting,
+they wrote into real defaults and handed each other a model starting halfway
+through. Both now inject a throwaway suite. I also cleaned the keys that leaked
+into `com.apple.dt.xctest.tool` during the RED runs — the app's own domain was
+never touched.
+
+**Behaviours:** setup is finished when the user finishes it, not when the
+permission is granted; a guide closed midway resumes where it stopped.
+
+## 15. The Privacy tab's central claim was false
+
+**Files:** `AppCore/PrivacyCopy.swift`, `AppCoreTests/PrivacyCopyTests.swift`,
+`Settings/SettingsView.swift`
+
+**Root cause.** It answered "where does your text go?" with "Nowhere." I
+verified your research against the code: `NSPasteboard.general` is written in
+`PasteboardTransaction` (the synthetic ⌘C and the ⌘V) and in
+`AppDelegate.copyToPasteboard` — three paths — and the general pasteboard is
+Handoff-eligible.
+
+**Fix: the claim, not the behaviour**, as you specified. The strong half stays
+loud and first (local model, nothing to a server, works offline); the clipboard
+exception is stated plainly in its own paragraph, not as an asterisk; it names
+Handoff, says the sync is to the user's **own devices** and encrypted, says no
+app can opt out, and gives the only real remedy — System Settings ▸ General.
+Pinned by a test, like `exclusionCaveat`.
+
+## 16. A truncated generation had no words of its own
+
+**Files:** `AppCore/EngineFailure.swift`,
+`AppCoreTests/RewriteCoordinatorTests.swift`
+
+Handed over from `audit-correctness`. `GenerationError.truncated` fell through
+to the generic sentence, which is not wrong but is unhelpful twice over: "try
+again, or pick a different model" invites repeating an attempt that hits the
+same ceiling on the same passage, and it never says the document was left
+alone. `GenerationError.truncated.message` already said both and nothing read
+it.
+
+Routed on **both** surfaces — `reason(for:)` for the Model tab's test box and
+`state(for:)` for the panel — as `.error`, not `.refused`: the model did not
+decline, it ran out of room, and blaming it for an arithmetic limit this app
+set would send the user hunting a better model instead of a shorter passage.
+
+I did not extend `ValidationFailure`, so the no-`default` switch in
+`ValidationFailure+Message.swift` is untouched.
+
+**Behaviour:** a truncated generation is reported in its own words, on the
+panel and in the test box.
+
+## 17. Three smaller ones
+
+- **The practice field could not be typed in.** `TextEditor(text: .constant(…))`
+  on the step that says "type something below" — the one screen that would
+  prove the hotkey works could not be used to prove it. Now `@State`.
+  (`Settings/OnboardingView.swift`)
+- **Index-out-of-range pattern in Styles.** Delete now removes by `id`, and
+  `move` guards the **source** index as well as the destination — a row closure
+  outlives the array it indexes. (`Settings/SettingsView.swift`)
+- **Stale comment.** `CaptureFailure`'s "Five refusals … so five sentences" is
+  now six. Rewritten without a count, since a count is what went stale.
+  (`AppCore/CaptureFailure.swift`)
+- **Stale glyphs in comments.** Three named `⌘⇧I` as the Choose Style binding.
+  Renamed to the role, as you did in `StylePickerView`, because a comment
+  cannot render from the live binding the way `ShortcutCopy` makes the UI do.
+  You flagged two of them; `SettingsView.swift:251` and
+  `Settings/AGENTS.md:17` were a third and fourth you had not spotted, and the
+  `SettingsEdits.swift` one was already fixed. (`SettingsModelTests.swift`,
+  `Settings/SettingsView.swift`, `Settings/AGENTS.md`)
+- **Argument-order build break.** `OnboardingView` now declares `finish`
+  last, matching the call site's grouping. Memberwise init order; a
+  `swiftc -parse` pass cannot see it. (`Settings/OnboardingView.swift`)
+
+---
+
+## Evidence
+
+Real RED per behaviour. Four reproduced as assertion failures rather than
+missing symbols — bug 10 (`afterHide.contains { … } == false`), bug 9
+(`last?.kind == .error`), and both EVE-013 tests, one of which broke an
+existing test and exposed the `.standard`-store leak.
+
+**Final:**
 
 ```
-✔ Test run with 35 tests in 1 suite passed after 0.030 seconds.
+✔ Test run with 58 tests in 1 suite passed after 0.049 seconds.
 ```
 
-**RED, item 1** (`swift build --target AppCoreTests`):
+**Mutation, on a copy at `/tmp/ev-mut2`, never the shared tree.** Compile-error
+RED proves a symbol was absent, not that assertions bite, so eleven mutations
+went in: memory gate always passes; install state inferred from selection
+again; download failure swallowed; hardcoded glyph restored; caution folded
+back into the once-gate; completion inferred from the permission; removal made
+case-sensitive; prepare's generation guard dropped; empty stream returns
+silently; privacy copy reverted to "Nowhere."; and (batch 1) `start()` no-op,
+`MenuCommand.settings` given a hotkey, `select` not moving the mark, name and
+subtitle rules swapped.
+
+A twelfth, run separately, removed the `GenerationError` branch from both
+`reason(for:)` and `state(for:)`; the truncation test failed on both surfaces.
+
+**Every one was caught by the test that owns the behaviour.** One caveat worth
+recording: my first caution-gate mutation read `UserDefaults.standard` while
+the test injects a suite, so it proved nothing. I rebuilt it to model the real
+regression (`caution` sharing `markWarned`'s flag) and it failed correctly:
 
 ```
-SettingsModelTests.swift:148:24: error: type 'PresetEdit' has no member 'name'
-SettingsModelTests.swift:163:24: error: type 'PresetEdit' has no member 'subtitle'
+✘ "the help text keeps saying a shortcut collides after the launch alert has
+   been dismissed" — ShortcutCopyTests.swift:59: ShortcutNotice.caution(for: italic) != nil
 ```
-
-**RED, items 3 and 5:**
-
-```
-MenuCommandTests.swift:22:13: error: cannot find 'MenuCommand' in scope
-MenuCommandTests.swift:31:67: error: cannot find 'Hotkey' in scope
-AppPresenceTests.swift:32:18: error: cannot find 'AppPresence' in scope
-AppPresenceTests.swift:36:20: error: cannot find 'AppPresence' in scope
-```
-
-**RED, item 4** (after 3 and 5 compiled, so this file's errors surfaced):
-
-```
-SettingsModelTests.swift:106:11: error: value of type 'ModelSettingsModel' has no member 'select'
-SettingsModelTests.swift:104:31: error: cannot infer key path type from context   # \.isSelected
-```
-
-**GREEN — final, whole suite:**
-
-```
-✔ Test run with 45 tests in 1 suite passed after 0.057 seconds.
-```
-
-## Mutation, on a copy
-
-Compile-error RED proves a symbol was absent, not that the assertions bite. So
-four mutations went into a **copy at `/tmp/ev-mut`** (never the shared tree),
-all at once:
-
-1. `AppPresence.start()` → no-op
-2. `MenuCommand.settings.hotkey` → `.quickImprove`
-3. `select(_:)` → sets `engineID` but does not move the mark
-4. `PresetEdit.name` accepts blanks / `subtitle` refuses them
-
-Every one was caught, each by the test that owns the behaviour:
-
-```
-✘ "the app-switcher preference is re-applied at launch…"  recorded an issue at
-   AppPresenceTests.swift:41: recorder.applied == [.regular]
-✘ "only the two global hotkeys are shown in the menu…"    recorded an issue at
-   MenuCommandTests.swift:25: MenuCommand.settings.hotkey == nil
-✘ "choosing a model row is what selects it…"              recorded an issue at
-   SettingsModelTests.swift:109: model.rows.filter(\.isSelected).map(\.id) == [.qwen30B]
-✘ "a preset name cannot be blanked"                       2 issues
-✘ "a preset subtitle may be emptied, unlike its name"     1 issue
-```
-
-Five of my six tests failed under mutation; the sixth
-(`flippingThePreferenceAppliesImmediately`) covers a path none of the four
-mutations touched.
 
 ## Not type-checked — you need to build these
 
-`KeyboardShortcuts` is not in the SwiftPM graph, so these are `swiftc -parse`
-only. **All six parse; none are type-checked.**
+`KeyboardShortcuts` is not in the SwiftPM graph. All six parse; **none are
+type-checked**: `App/AppDelegate.swift`, `App/EverestApp.swift`,
+`App/StatusItemController.swift`, `App/HotkeyManager.swift`,
+`Settings/SettingsView.swift`, `Settings/OnboardingView.swift`.
 
-- `Everest/App/AppDelegate.swift`
-- `Everest/App/EverestApp.swift`
-- `Everest/App/StatusItemController.swift`
-- `Everest/App/HotkeyManager.swift`
-- `Everest/Settings/SettingsView.swift`
-- `Everest/Settings/OnboardingView.swift`
+The batch-1 versions of these built clean at `7334547`, including both risks I
+flagged (the `@MainActor` closures and the scene-body assignment). The one
+thing a `swiftc -parse` pass could not see was **memberwise-init argument
+order** — `OnboardingView` gained two properties in the middle of its
+declaration list and the call site passed them before `finish`. Fixed by
+moving `finish` last; that is the class of error to look for first if this
+batch fails.
 
-Most likely to bite, in order:
-
-1. **Actor isolation on the two new closures.** `presentSettings` and
-   `shortcutText` are declared `@MainActor` because they call
-   `OpenSettingsAction.callAsFunction()` and `KeyboardShortcuts.Shortcut`'s
-   `description`, both of which look MainActor-isolated. If inference disagrees,
-   the annotations are the thing to change.
-2. **`delegate.presentSettings = …` inside `EverestApp.body`.** A side effect in
-   a scene body, and it needs the explicit `return` that is now there. It is the
-   earliest scope that has the action; the alternative (reading `@Environment`
-   in `init()`) also worked in the probe but relies on the default environment
-   value.
-3. **`{ PresetEdit.subtitle(from: $0) as String? }`** — written with the explicit
-   cast rather than relying on implicit optional promotion in a closure return.
+`{ PresetEdit.subtitle(from: $0) as String? }` uses an explicit cast rather
+than relying on implicit optional promotion in a closure return, and is worth
+a glance.
 
 ## Manual verification
 
-- **Settings from the menu bar** opens a key, frontmost window. Proved on a
-  standalone probe app, not on Everest itself.
-- **⌘Tab toggle:** flip it on, confirm the Dock icon and ⌘Tab entry appear
-  without a relaunch; quit and relaunch, confirm both come back. Then off.
-  `setActivationPolicy` is called from `applicationDidFinishLaunching`, which
-  the probe did not reproduce (it called it ~3s after launch).
-- **Menu badges** render as trailing text and track a rebind: open the menu,
-  re-record Quick Improve in Settings, open the menu again.
-- **Keyboard reach on the model rows.** With Full Keyboard Access on, Tab should
-  land on each row and Space should select it. A `.plain` button style is the
-  usual answer, but the focus ring is worth an eye.
-- **VoiceOver on a model row:** should read name, blurb and install state, and
-  say "selected" on the current one.
+- Settings from the menu bar opens a **key, frontmost** window. Proved on a
+  probe app, not on Everest itself.
+- ⌘Tab toggle: on → Dock icon and ⌘Tab entry without relaunch; quit, relaunch,
+  both still there; off. `setActivationPolicy` is called from
+  `applicationDidFinishLaunching`, which the probe did not reproduce.
+- Menu badges render as trailing text and track a rebind.
+- **First run end to end**, since that is what most of this batch is: fresh
+  defaults, guide appears, model step offers a download for the default engine
+  with its size, download succeeds, Done, guide does not return. Then the same
+  with the guide closed midway — it should resume at the same step.
+- Keyboard reach and VoiceOver on the model rows (plain `Button` focus ring
+  under Full Keyboard Access; label should read name, blurb, install state).
 
-## Two things to arbitrate
+## Things for you to arbitrate
 
-- **`AppCore/AGENTS.md` is 70 lines, over the 60 budget.** It was already 62
-  before I touched it — another agent added an `EngineFactory` section in the
-  same window. I tightened the pre-existing prose by ~4 lines and kept my own
-  addition to ~12, losing no decision. Going lower means deleting someone
-  else's reasoning, which is not mine to do. `Everest/App/AGENTS.md` and
-  `Everest/Settings/AGENTS.md` are both exactly 60.
-- **The Quick Improve name/subtitle display nothing** — see item 1.
+- **`AppCore/AGENTS.md` is 88 lines against the 60 budget** — not the 70 you
+  have. It was 62 before this batch, and now carries `RewriteCoordinator`,
+  `EngineFactory` and nine Settings-screen decisions from three agents. Every
+  remaining line carries a *why*, which you sharpened as a requirement, so the
+  two rules are in direct tension in this one file. You said you would cut it
+  yourself once I am done — **I am done with it.** `App/AGENTS.md` and
+  `Settings/AGENTS.md` are both exactly 60.
+- **`RewriteCore/AGENTS.md` is stale** and not my file: it still says
+  `OutputValidator` is "deliberately shallow — empty output and a 3× length
+  ratio". The ratio is gone. Worth telling whoever owns it.
 
-## Not mine
+## Cross-agent adaptations
 
-Two failures during this work came from another agent's in-flight TextBridge
-change and are both fixed now: `CaptureError.nothingCaptured` made
-`AppCore/CaptureFailure.swift`'s switch non-exhaustive, and the same insertion
-left `RewriteCoordinatorTests.swift:505` asserting on `messages[4]` after
-`excludedApp` had shifted to `[5]`. I flagged both to `tdd-bridge` rather than
-editing their tests; they fixed both. I touched no file in `Overlay/`,
-`TextBridge/`, `Engines/` or `RewriteCore/`.
+Not bugs of mine; noting them so they are not mistaken for scope creep.
+
+- **`Harness.swift`:** Overlay added `PanelSurface.announce`. Added an empty
+  stub matching the existing `refreshAppearance` precedent — deliberately *not*
+  logged to the shared `CallLog`, which would insert an entry between every
+  state and break this suite's ordering assertions.
+- **`RewriteCoordinatorTests`:** `ValidationFailure.lengthRatio` was removed
+  from RewriteCore (3× ceiling replaced by a decoder bound). Two assertions
+  encoded the old contract. I kept the guard's intent — a rejection must never
+  reach the document — and changed the input to `""`, the one thing `validate`
+  still rejects. Note `clean` trims only inside the envelope, so `"   "` is a
+  non-empty rewrite and *would* be written.
+- I touched nothing in `Overlay/`, `TextBridge/`, `Engines/` or `RewriteCore/`,
+  and nothing in `EngineFactory.swift` or `EngineFactoryTests.swift`.
+  `HotkeyManager.swift` carries `rendered(_:)`, which I added before you
+  claimed the file — flagged separately.
+- I have run no git command since your policy message.
