@@ -14,11 +14,17 @@ Tests run in ~1s: no Accessibility, no window server, no model download. `import
 
 Apple's streaming API yields a full partial response at every step, not a delta. The overlay updates many times a second; a dropped snapshot update just renders a later, still-correct string, where a dropped delta permanently loses a chunk of text. `MLXEngine`, which does get real token deltas, accumulates them into a running string before emitting.
 
-## Why the safety frame is separate from the user-editable instruction
+## The prompt-injection guard, and what it does not do
 
-`PromptBuilder.safetyFrame` is fixed; `Preset.instruction` is the only user-editable string. `build` always orders frame, then instruction, then the untrusted selected text, delimited in `<selected_text>` tags — selected text can come from anywhere and could contain "ignore previous instructions," and weak 4B-class models don't reliably resist that. Never let `instruction` precede `safetyFrame`, or merge the two into one editable string. `OutputValidator` is the second, independent layer behind this one.
+`PromptBuilder.safetyFrame` is fixed and unreachable from Settings; `Preset.instruction` is the only user-editable string. `build` always orders frame, instruction, then the selected text. Never let `instruction` precede `safetyFrame`, or merge the two into one editable string.
 
-Injection containment is a structural consequence of the fixed template, not a separate detect-and-neutralize code path. If that test ever fails, restore the ordering — don't add detection logic.
+**What the delimiter defends against.** The selection is arbitrary text from any app on the machine — a web page, a received message, a shared document, something the user was talked into copying — so it can contain anything, *including the delimiter itself*. A fixed `</selected_text>` was escapable exactly that way: the data block closed early and the rest of the selection read as top-level instructions. The delimiter now carries a fresh 64-bit random id per prompt, in the tag name. Text that cannot name the closing tag cannot close it.
+
+Unpredictable rather than escaped, because escaping is not available here — the selection must reach the model byte for byte. The fixed delimiter did not only admit attacks: it silently split the prompt for anyone honestly writing *about* the tags, which is why the legitimate-text test failed in RED alongside the attack one. Never freeze the id, derive it from the text (the attacker wrote the text), seed it from a counter or the clock, or move it into an attribute — `</selected_text>` is the grammatically correct close for `<selected_text id="…">`, so a forged close would look real.
+
+**What it does not do, which is the part that gets overstated.** A delimiter is not a security boundary. It tells a model which bytes are data; it cannot make the model obey, and semantic resistance stays probabilistic — 4B-class models are weak at it. What bounds the damage is the architecture, not the frame: the model is local, with no tools and no network, so a hijacked generation cannot exfiltrate anything. It can still be steered into producing unrelated content, and Everest writes that into the user's document. `OutputValidator` is the independent second layer and is deliberately shallow — empty output and a 3× length ratio — so it catches runaway generation, not a short plausible-looking hijack.
+
+Containment stays structural, not detection. If a test here fails, restore the structure; don't add a scanner.
 
 ## The model catalog, and why it must never point at Qwen3.5
 
@@ -42,8 +48,6 @@ Any Qwen3.5 model is disqualified: it's a vision-language model (loads via `mlx_
 
 ## Running the tests
 
-```bash
-cd RewriteCore && swift test
-```
+From `EverestKit`: `swift build --target RewriteCoreTests && xcrun xctest .build/out/Products/Debug/RewriteCoreTests.xctest`. Not plain `swift test`, which builds every target in the package, so another agent mid-RED breaks your runner and it reads as your bug.
 
-Twelve tests across `PromptBuilder`, `OutputValidator`, `Preset.builtInStyles`, and `ModelCatalog` (`CoreTests.swift`), plus `AppSettings`'s round-trip in its own file. Give new behavior its own test file.
+Three test files, and a count here would only go stale. **`PromptBuilderTests.swift` is the adversarial one** — a selection that forges the closing delimiter, a fresh id per build, and the legitimate case that must not be censored. Extend it rather than starting a second, weaker file: the escape above survived behind a test whose payload contained no delimiter, so it passed against vulnerable code and stopped anyone looking again. `CoreTests.swift` holds `OutputValidator`, `Preset` and `ModelCatalog`; `AppSettings` has its own. Give new behavior its own test file.
