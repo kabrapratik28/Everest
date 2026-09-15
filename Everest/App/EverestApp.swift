@@ -41,6 +41,14 @@ struct EverestApp: App {
                 models: delegate.modelSettings,
                 presence: delegate.presence,
                 isAccessibilityTrusted: { SystemProbe().isAccessibilityTrusted() },
+                // Built from the delegate rather than @AppStorage: Sparkle is
+                // the owner of this key and reads it directly, so binding to
+                // a separate stored copy would let the switch disagree with
+                // the scheduler.
+                automaticUpdateChecks: Binding(
+                    get: { delegate.automaticUpdateChecks },
+                    set: { delegate.automaticUpdateChecks = $0 }
+                ),
                 collisionCaution: { AppDelegate.collisionCaution() },
                 shortcutCostNote: { AppDelegate.shortcutCostNote() }
             )

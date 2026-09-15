@@ -9,13 +9,22 @@ system version read out of each bundle. Getting any of those wrong by hand
 means an update nobody can install, and the failure shows up on a stranger's
 Mac rather than here.
 
-The one thing it cannot do is our download URLs. `generate_appcast` applies a
-single `--download-url-prefix` to every item, but a GitHub release asset lives
-under its own tag — `/releases/download/v0.1.1/Everest_0.1.1_aarch64.dmg` — so
-the prefix differs per item. So it runs with a placeholder and each URL is
-rewritten afterwards from the version that item declares. The version is read
-back out of the generated XML rather than parsed from the filename, so a DMG
-named for a version its bundle does not carry cannot produce a working entry.
+The one thing it cannot do is our download URLs, for two reasons.
+
+`generate_appcast` applies a single `--download-url-prefix` to every item, but
+a GitHub release asset lives under its own tag, so the prefix differs per item.
+
+And every release is uploaded under the **same** asset name, `Everest.dmg`,
+which is what makes `/releases/latest/download/Everest.dmg` a permanent
+download link for the website and the README — GitHub redirects it to the
+newest release. The tag in the path is what keeps each appcast URL immutable:
+`/releases/download/v0.1.2/Everest.dmg`. Local build artefacts keep their
+versioned filenames so a folder can hold several for this tool to read, so the
+filename in the URL has to be rewritten too, not just the prefix.
+
+Both rewrites come from the version the item itself declares, read back out of
+the generated XML rather than parsed from a filename, so a DMG named for a
+version its bundle does not carry cannot produce a working entry.
 """
 
 import pathlib
@@ -26,6 +35,8 @@ import xml.etree.ElementTree as ET
 
 REPO = "https://github.com/kabrapratik28/Everest"
 PLACEHOLDER = "VERSION_TAG_PLACEHOLDER"
+# Every release is uploaded under this one name. See the module docstring.
+ASSET = "Everest.dmg"
 SPARKLE_NS = "http://www.andymatuschak.org/xml-namespaces/sparkle"
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 OUT = ROOT / "appcast.xml"
@@ -77,17 +88,27 @@ def main() -> None:
 
     ET.register_namespace("sparkle", SPARKLE_NS)
     tree = ET.parse(OUT)
-    rewritten = 0
+    rewritten, kept = 0, 0
     for item in tree.getroot().iter("item"):
         version = item.findtext(f"{{{SPARKLE_NS}}}shortVersionString")
         enclosure = item.find("enclosure")
         if version is None or enclosure is None:
             sys.exit("an item has no shortVersionString or no enclosure; refusing to guess its URL")
         url = enclosure.get("url", "")
-        if PLACEHOLDER not in url:
-            sys.exit(f"unexpected url with no placeholder: {url}")
-        enclosure.set("url", url.replace(PLACEHOLDER, f"v{version}"))
-        rewritten += 1
+        if PLACEHOLDER in url:
+            enclosure.set("url", f"{REPO}/releases/download/v{version}/{ASSET}")
+            rewritten += 1
+            continue
+        # `generate_appcast` merges into an existing appcast.xml rather than
+        # replacing it, so items from earlier releases come back already
+        # rewritten. Those URLs point at assets that are published and
+        # immutable — including ones uploaded under the older versioned
+        # filename — so they are left exactly as they are. Only an unprefixed
+        # URL is a real fault.
+        if url.startswith(f"{REPO}/releases/download/"):
+            kept += 1
+            continue
+        sys.exit(f"url is neither a placeholder nor a published release asset: {url}")
 
     tree.write(OUT, encoding="utf-8", xml_declaration=True)
     text = OUT.read_text()
@@ -95,7 +116,7 @@ def main() -> None:
         sys.exit("placeholder survived the rewrite; the feed would 404")
     OUT.write_text(text)
 
-    print(f"wrote {OUT.relative_to(ROOT)}, {rewritten} item(s)")
+    print(f"wrote {OUT.relative_to(ROOT)}, {rewritten} new item(s), {kept} kept")
     for url in re.findall(r'url="([^"]+)"', text):
         print(f"  {url}")
 

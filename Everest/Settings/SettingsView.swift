@@ -11,6 +11,9 @@ struct SettingsView: View {
     @ObservedObject var models: ModelSettingsModel
     @ObservedObject var presence: AppPresence
     let isAccessibilityTrusted: () -> Bool
+    /// Sparkle's `SUEnableAutomaticChecks`, bound straight through to the
+    /// updater rather than to a stored copy — see `EverestApp`.
+    let automaticUpdateChecks: Binding<Bool>
     /// The caution for the Quick Improve binding *as it stands now*, or nil.
     /// A closure rather than a value because the recorder on this very screen
     /// can change the answer while it is open.
@@ -33,7 +36,7 @@ struct SettingsView: View {
                 .tabItem { Label("Model", systemImage: "cpu") }
             PromptsTab(settings: settings)
                 .tabItem { Label("Prompts", systemImage: "text.quote") }
-            PrivacyTab(settings: settings)
+            PrivacyTab(settings: settings, automaticUpdateChecks: automaticUpdateChecks)
                 .tabItem { Label("Privacy", systemImage: "lock") }
         }
         .frame(width: 560, height: 460)
@@ -473,6 +476,7 @@ private struct PresetField: View {
 
 private struct PrivacyTab: View {
     @ObservedObject var settings: AppSettings
+    let automaticUpdateChecks: Binding<Bool>
     @State private var newEntry = ""
     @State private var rejected = false
 
@@ -489,6 +493,25 @@ private struct PrivacyTab: View {
                     .foregroundStyle(.secondary)
                 Text("Nothing you select or generate is written to the system log.")
                     .foregroundStyle(.secondary)
+            }
+
+            // Here and not in General, because this screen is where the
+            // claim about what leaves the machine is made. An update check
+            // is the only outbound request Everest makes once the model is
+            // on disk, so the switch for it belongs beside that claim rather
+            // than three tabs away.
+            Section("Software updates") {
+                Toggle("Check for updates automatically", isOn: automaticUpdateChecks)
+                Text(
+                    """
+                    Asks GitHub whether a newer version exists, on a schedule. That request \
+                    carries your IP address, the app version and your macOS version, and nothing \
+                    about your text. Turning this off leaves Check for Updates in the menu-bar \
+                    menu working.
+                    """
+                )
+                .font(.callout)
+                .foregroundStyle(.secondary)
             }
 
             Section("Never read from these apps") {

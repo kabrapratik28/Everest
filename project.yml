@@ -28,8 +28,8 @@ settings:
   base:
     SWIFT_VERSION: "6.0"
     SWIFT_STRICT_CONCURRENCY: complete
-    MARKETING_VERSION: "0.1.1"
-    CURRENT_PROJECT_VERSION: "2"
+    MARKETING_VERSION: "0.1.2"
+    CURRENT_PROJECT_VERSION: "3"
     # Ad-hoc signing, no development team. This is the ONLY configuration that
     # builds here, arrived at after two that do not:
     #
@@ -154,11 +154,19 @@ targets:
         # code. Losing the private key means no user can ever be updated
         # again, because a new key cannot be trusted by an installed build.
         SUPublicEDKey: mbOXDy0sdnOAu3FJRhiy9YtByl9ql0puV8E6+Hhtcsk=
-        # Deliberately absent: SUEnableAutomaticChecks. Sparkle asks the user
-        # once, on the second launch, instead of deciding for them that this
-        # app may phone home. An update check is the only network request
-        # Everest makes after the model download, and the privacy page says
-        # so; turning it on silently would make that page a lie.
+        # On by default. The alternative was letting Sparkle ask on the
+        # second launch, which sounds more respectful and is worse in
+        # practice: a security-relevant fix only reaches people who said yes
+        # to a dialog they met before they trusted the app, and this one is
+        # not notarised, so an update is the only way to revoke a bad build.
+        #
+        # What makes the default defensible is that it is reversible *in the
+        # app*: Settings ▸ Privacy carries the switch. A default that can
+        # only be undone with `defaults write` is not a default, it is a
+        # decision. PRIVACY.md documents the request and points at the
+        # switch, and Sparkle owns this key so the switch writes it directly
+        # rather than shadowing it in AppSettings.
+        SUEnableAutomaticChecks: true
     entitlements:
       path: Everest/Resources/Everest.entitlements
       properties:

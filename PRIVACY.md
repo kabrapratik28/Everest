@@ -19,10 +19,11 @@ Two things do go out, and neither carries your text:
   version, and if you accept an update it downloads the new build from
   `github.com`. Those requests tell GitHub your IP address, your app version
   and your macOS version — ordinary HTTP metadata, and nothing about your
-  text. Sparkle asks your permission before the first automatic check and you
-  can decline; the **Check for Updates…** item in the menu-bar dropdown then
-  stays available for when you want one. There is no separate server: the
-  feed is a file in the public repository.
+  text. **This is on by default**, because a build that is not notarised can
+  only be corrected by an update reaching people, and a fix nobody receives
+  is not a fix. Turn it off in **Settings ▸ Privacy ▸ Software updates**;
+  **Check for Updates…** in the menu-bar menu keeps working if you do. There
+  is no separate server: the feed is a file in the public repository.
 
 ## The clipboard, which is the real exception
 

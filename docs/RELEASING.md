@@ -135,15 +135,19 @@ hdiutil detach "$MP"
 shasum -a 256 /tmp/Everest_0.1.0_aarch64.dmg   # goes in the release body
 
 # 5. Publish. gh creates the tag from HEAD.
-#    Two assets, deliberately. The versioned one is what the appcast and
-#    anyone citing a build points at. Everest.dmg is a byte-identical copy
-#    under a fixed name, so that
+#    ONE asset, and always under the same name: Everest.dmg. That is what
+#    makes
 #      /releases/latest/download/Everest.dmg
-#    is a permanent direct-download URL: the README download button points
-#    there and never has to be edited for a release. 20 MB of duplication
-#    against a link that cannot go stale.
+#    a permanent download link — GitHub redirects it to the newest release,
+#    so a website CTA and the README button never need editing for a
+#    release. The tag in
+#      /releases/download/v<version>/Everest.dmg
+#    is what keeps each appcast URL immutable, so one asset serves both
+#    purposes and nothing is duplicated. The local build keeps a versioned
+#    filename only so /tmp/everest-dist can hold several of them for
+#    make_appcast.py to read.
 cp /tmp/Everest_<version>_aarch64.dmg /tmp/Everest.dmg
-gh release create v<version> /tmp/Everest_<version>_aarch64.dmg /tmp/Everest.dmg \
+gh release create v<version> /tmp/Everest.dmg \
   --title "Everest <version>" --notes-file notes.md
 
 # 6. Prove the public URL serves the bytes you built, as an anonymous

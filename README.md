@@ -112,11 +112,11 @@ Xcode 26 needs the Metal toolchain: `xcodebuild -downloadComponent MetalToolchai
 
 ## Updates
 
-From 0.1.1 Everest updates itself with [Sparkle](https://sparkle-project.org). It checks a signed feed in this repository, offers the new version, and installs on quit. Sparkle asks before its first automatic check, and **Check for Updates…** in the menu-bar dropdown works whatever you answer.
+Everest updates itself with [Sparkle](https://sparkle-project.org). It checks a signed feed in this repository, offers the new version, and installs on quit. **Automatic checks are on by default** — this build is not notarised, so an update is the only way a bad one can be corrected. The switch is in Settings ▸ Privacy, and **Check for Updates…** in the menu-bar menu works either way.
 
 Every update is signed with an EdDSA key whose private half never leaves the maintainer's Keychain. Sparkle refuses an update whose signature does not verify, which is what stops anyone else shipping you an "update".
 
-If you are on 0.1.0 you must update by hand once — that build predates Sparkle and cannot check for anything.
+If you are on 0.1.0 you must update by hand once — that build predates Sparkle and cannot check for anything. 0.1.1 can update itself, but only after you accept its first-run prompt; 0.1.2 removed that prompt.
 
 ## Privacy
 

@@ -30,6 +30,8 @@
 	<string>Everest needs Accessibility access to read the text you select and replace it with the rewritten version. Text never leaves your Mac.</string>
 	<key>NSHumanReadableCopyright</key>
 	<string></string>
+	<key>SUEnableAutomaticChecks</key>
+	<true/>
 	<key>SUFeedURL</key>
 	<string>https://raw.githubusercontent.com/kabrapratik28/Everest/main/appcast.xml</string>
 	<key>SUPublicEDKey</key>

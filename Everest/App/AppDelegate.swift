@@ -176,6 +176,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         log.info("launched")
     }
 
+    /// Sparkle's automatic-check switch, surfaced for Settings ▸ Privacy.
+    ///
+    /// Forwards straight to Sparkle rather than mirroring the value in
+    /// `AppSettings`: Sparkle reads `SUEnableAutomaticChecks` from
+    /// `UserDefaults` itself on every scheduled check, so a copy here would
+    /// be a second source of truth that the scheduler ignores. Nothing to
+    /// test — there is no branch, only an assignment.
+    var automaticUpdateChecks: Bool {
+        get { updater.updater.automaticallyChecksForUpdates }
+        set { updater.updater.automaticallyChecksForUpdates = newValue }
+    }
+
     /// The panel's copy button, which for `heldForManualCopy` is the user's
     /// only way to keep the rewrite.
     ///
