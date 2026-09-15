@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<!-- GitHub Pages cannot set response headers, so the policy goes here.
+     'none' by default: this page loads its own stylesheet and its own images
+     and nothing else. The one script element is the JSON-LD block below and
+     is allowed by hash, not by 'unsafe-inline'. Edit that block and the hash
+     must be regenerated, from website/:
+       python3 -c "import re,hashlib,base64;c=re.search(r'ld\+json\">(.*?)</script>',open('index.html').read(),re.S)[1];print('sha256-'+base64.b64encode(hashlib.sha256(c.encode()).digest()).decode())"
+     frame-ancestors, sandbox and report-uri are deliberately absent: a
+     meta-delivered policy ignores them and browsers warn once for each. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self'; style-src 'self'; script-src 'sha256-H/83osbhUFFVibYf7OlcfyE0C+A1wKt2N1wL/xZLjFo='; base-uri 'none'; form-action 'none'">
+
+<title>Everest: Local AI writing improvement for Mac</title>
+<meta name="description" content="Rewrite selected text across macOS with a local language model. Everest is shortcut-driven, open source, and runs the model on your Mac.">
+
+<link rel="canonical" href="https://kabrapratik28.github.io/Everest/">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#f7f9fc" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#07101f" media="(prefers-color-scheme: dark)">
+
+<link rel="icon" href="./assets/favicon-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="./assets/apple-touch-icon.png">
+<link rel="stylesheet" href="./styles.css">
+
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Everest">
+<meta property="og:title" content="Everest: Local AI writing improvement for Mac">
+<meta property="og:description" content="Rewrite selected text across macOS with a local language model. Everest is shortcut-driven, open source, and runs the model on your Mac.">
+<meta property="og:url" content="https://kabrapratik28.github.io/Everest/">
+<meta property="og:image" content="https://kabrapratik28.github.io/Everest/assets/social-card.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="The Everest app icon beside the word Everest and the line: select text, press Option-R, rewrite in place.">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Everest: Local AI writing improvement for Mac">
+<meta name="twitter:description" content="Rewrite selected text across macOS with a local language model. Everest is shortcut-driven, open source, and runs the model on your Mac.">
+<meta name="twitter:image" content="https://kabrapratik28.github.io/Everest/assets/social-card.png">
+<meta name="twitter:image:alt" content="The Everest app icon beside the word Everest and the line: select text, press Option-R, rewrite in place.">
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "Everest",
+  "applicationCategory": "UtilitiesApplication",
+  "operatingSystem": "macOS 26 or later, Apple silicon",
+  "url": "https://kabrapratik28.github.io/Everest/",
+  "image": "https://kabrapratik28.github.io/Everest/assets/app-icon-512.png",
+  "description": "Rewrite selected text across macOS with a local language model. Everest is shortcut-driven, open source, and runs the model on your Mac.",
+  "license": "https://github.com/kabrapratik28/Everest/blob/main/LICENSE",
+  "isAccessibleForFree": true,
+  "downloadUrl": "https://github.com/kabrapratik28/Everest/releases/latest/download/Everest.dmg",
+  "installUrl": "https://github.com/kabrapratik28/Everest/releases",
+  "codeRepository": "https://github.com/kabrapratik28/Everest",
+  "programmingLanguage": "Swift",
+  "offers": {
+    "@type": "Offer",
+    "price": "0",
+    "priceCurrency": "USD"
+  }
+}
+</script>
+</head>
+<body>
+
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="site-header">
+  <nav class="nav wrap" aria-label="Primary">
+    <a class="brand" href="#top">
+      <img src="./assets/app-icon-64.png"
+           srcset="./assets/app-icon-64.png 1x, ./assets/app-icon-128.png 2x"
+           width="34" height="34" alt="">
+      <span>Everest</span>
+    </a>
+    <ul class="nav-links">
+      <li><a href="#how">How it works</a></li>
+      <li><a href="#privacy">Privacy</a></li>
+      <li><a href="#install">Install</a></li>
+      <li><a href="#faq">FAQ</a></li>
+      <li><a href="https://github.com/kabrapratik28/Everest" target="_blank" rel="noopener noreferrer">GitHub</a></li>
+    </ul>
+    <a class="btn btn-primary btn-sm"
+       href="https://github.com/kabrapratik28/Everest/releases/latest/download/Everest.dmg">Download</a>
+  </nav>
+</header>
+
+<main id="main">
+
+<!-- ───────────────────────── Hero ───────────────────────── -->
+<section class="hero wrap" id="top">
+  <div class="hero-copy">
+    <p class="eyebrow">Open source · Local AI · Built for macOS</p>
+    <h1>Rewrite selected text across your Mac.</h1>
+    <p class="lede">
+      Select a sentence in an editor, a browser, or a message, press <kbd>⌥</kbd><kbd>R</kbd>,
+      and Everest streams a clearer version into a floating panel and puts it back in place.
+      The language model runs on your Mac, so your selection and the rewrite are not sent to
+      an AI server.
+    </p>
+    <p class="cta-row">
+      <a class="btn btn-primary"
+         href="https://github.com/kabrapratik28/Everest/releases/latest/download/Everest.dmg">Download developer preview</a>
+      <a class="btn btn-ghost"
+         href="https://github.com/kabrapratik28/Everest" target="_blank" rel="noopener noreferrer">View source on GitHub</a>
+    </p>
+    <p class="note">
+      Developer preview for Apple-silicon Macs running macOS 26 or later. This build is signed
+      but not notarised, so the first launch needs Apple's <strong>Open Anyway</strong> step.
+      Everest downloads a local model of about 2.3&nbsp;GB during setup.
+      <a href="#install">Read the install steps</a> ·
+      <a href="https://github.com/kabrapratik28/Everest/releases" target="_blank" rel="noopener noreferrer">All releases and checksums</a>
+    </p>
+  </div>
+
+  <figure class="demo">
+    <picture>
+      <source media="(prefers-reduced-motion: reduce)" type="image/webp" srcset="./assets/demo-poster.webp">
+      <source media="(prefers-reduced-motion: reduce)" srcset="./assets/demo-poster.png">
+      <img src="./assets/demo.gif" width="760" height="506" decoding="async"
+           alt="A Sublime Text window holding the sentence &quot;hey so i think we should probaly push the launch back a bit becuase the numbers dont look great and i dont wanna ship somthing thats gonna break&quot;. The sentence is selected, Option-R is pressed, and Everest's floating panel streams a corrected version that then replaces the text in the document.">
+    </picture>
+    <figcaption>
+      A real capture in Sublime Text. Select the sentence, press <kbd>⌥</kbd><kbd>R</kbd>, watch the
+      rewrite stream into the panel, and it replaces the selection. <kbd>⌘</kbd><kbd>Z</kbd> puts the
+      original back the way it always does.
+    </figcaption>
+  </figure>
+</section>
+
+<!-- ─────────────────── Trust / requirements ─────────────────── -->
+<section class="strip" aria-label="At a glance">
+  <ul class="wrap facts">
+    <li><strong>Local inference</strong><span>The model runs on your Mac with MLX.</span></li>
+    <li><strong>MIT licensed</strong><span>Source, issues, and releases are public.</span></li>
+    <li><strong>Apple silicon</strong><span>macOS 26 or later.</span></li>
+    <li><strong>Offline after setup</strong><span>Rewriting works with networking switched off.</span></li>
+  </ul>
+</section>
+
+<!-- ─────────────────────── How it works ─────────────────────── -->
+<section class="wrap" id="how">
+  <h2>Three steps, wherever you write.</h2>
+  <ol class="cards steps">
+    <li>
+      <span class="step-n" aria-hidden="true">1</span>
+      <h3>Select text</h3>
+      <p>Highlight a sentence or a paragraph in the app you are already typing in. Nothing to switch to, nothing to paste into.</p>
+    </li>
+    <li>
+      <span class="step-n" aria-hidden="true">2</span>
+      <h3>Press <kbd>⌥</kbd><kbd>R</kbd></h3>
+      <p>Everest captures the selection and streams a local rewrite into a small floating panel. <kbd>Esc</kbd> cancels it mid-flight.</p>
+    </li>
+    <li>
+      <span class="step-n" aria-hidden="true">3</span>
+      <h3>Keep writing</h3>
+      <p>Everest replaces the selection once it has re-verified the target. Where it cannot, it holds the rewrite in the panel for you to copy.</p>
+    </li>
+  </ol>
+  <p class="aside"><a href="#compatibility">See where it replaces in place and where it hands you the clipboard</a></p>
+</section>
+
+<!-- ───────────────────────── Features ───────────────────────── -->
+<section class="wrap" id="features">
+  <h2>What you get.</h2>
+  <ul class="cards features">
+    <li>
+      <h3>Local by design</h3>
+      <p>The rewrite model runs with MLX on your Mac. Your selection and the generated text are not uploaded to an AI service, and there is no account and no telemetry.</p>
+    </li>
+    <li>
+      <h3>Across the apps you use</h3>
+      <p>Native text fields, browsers, code editors, chat and mail apps, all from one global shortcut. Terminals and PDFs get an honest fallback instead of a silent failure.</p>
+    </li>
+    <li>
+      <h3>Streaming preview</h3>
+      <p>The answer forms in a lightweight floating panel while it generates, and <kbd>Esc</kbd> cancels the rewrite before anything is written.</p>
+    </li>
+    <li>
+      <h3>Choose a style</h3>
+      <p>Proofread, Professional, Friendly, Concise, Expand, and Simplify ship with the app. Every instruction is editable in Settings, and you can add your own.</p>
+    </li>
+    <li>
+      <h3>Your shortcuts</h3>
+      <p>Start with <kbd>⌥</kbd><kbd>R</kbd> and <kbd>⌥</kbd><kbd>⇧</kbd><kbd>R</kbd>, or record bindings that suit you. Everest tells you which character a binding costs.</p>
+    </li>
+    <li>
+      <h3>Open and inspectable</h3>
+      <p>Everest is MIT licensed Swift. Read the prompts, read the clipboard handling, file an issue, or send a pull request.</p>
+    </li>
+  </ul>
+</section>
+
+<!-- ──────────────── Compatibility and limitations ──────────────── -->
+<section class="wrap" id="compatibility">
+  <h2>Designed to be useful, and honest when it cannot replace safely.</h2>
+  <p class="section-lede">
+    Reading a selection works in nearly everything. Writing one back does not, because some
+    apps have no editable buffer to write into. Everest tells you which case you are in
+    instead of doing nothing.
+  </p>
+  <div class="cards two">
+    <div class="panel">
+      <h3>Normally replaces in place</h3>
+      <ul class="ticks">
+        <li>Native macOS text fields</li>
+        <li>Browser text areas and rich-text editors</li>
+        <li>Code and text editors, including VS&nbsp;Code, Cursor, Sublime&nbsp;Text, and Xcode</li>
+        <li>Chat and mail apps, including Slack, Discord, Mail, and Messages</li>
+        <li>Apps that expose nothing usable to Accessibility, such as Sublime&nbsp;Text and Google&nbsp;Docs, through a verified paste</li>
+      </ul>
+    </div>
+    <div class="panel">
+      <h3>Hands you the rewrite to paste</h3>
+      <ul class="dots">
+        <li>Terminals, where a paste lands at a live prompt rather than replacing a selection</li>
+        <li>PDFs and ordinary web prose, which take no paste at all</li>
+        <li>Anything Everest cannot re-verify as the same target after generation</li>
+      </ul>
+    </div>
+  </div>
+  <p class="footnote">
+    App behaviour varies by version and by editor. When Everest cannot verify an automatic
+    replacement, holding the rewrite in the panel is the safe result, not a failed generation.
+    Password and secure fields are refused before they are read; see <a href="#privacy">Privacy</a>.
+    Found an app that behaves badly?
+    <a href="https://github.com/kabrapratik28/Everest/issues" target="_blank" rel="noopener noreferrer">Open an issue</a>.
+  </p>
+</section>
+
+<!-- ───────────────────────── Privacy ───────────────────────── -->
+<section class="wrap" id="privacy">
+  <h2>Your writing is processed on your Mac.</h2>
+  <div class="cards two">
+    <div class="panel">
+      <h3>What does not leave</h3>
+      <p>
+        The model runs locally. Your selections and your rewrites are not uploaded, and there
+        is no account, no telemetry, no crash reporting, and no analytics. Once the model is on
+        disk, rewriting works with networking switched off.
+      </p>
+      <h3>What does</h3>
+      <p>
+        Two requests, neither carrying your text. The first setup downloads model weights from
+        Hugging Face at a pinned revision. Update checks ask GitHub whether a newer version
+        exists, and that request discloses ordinary HTTP metadata: your IP address, the app
+        version, and your macOS version.
+      </p>
+    </div>
+    <div class="panel">
+      <h3>The clipboard, which is the real exception</h3>
+      <p>
+        Where macOS will not hand over a selection, such as terminals, PDFs, Google&nbsp;Docs and
+        Sublime&nbsp;Text, Everest reads it with a synthetic <kbd>⌘</kbd><kbd>C</kbd> and pastes rewrites
+        back the same way. Anything on the general clipboard is eligible for Handoff, so with
+        Handoff on, macOS may sync it to your own devices for a couple of minutes. That sync is
+        between your devices and encrypted, and no app can opt out of it. Turn Handoff off in
+        System&nbsp;Settings ▸ General if you would rather it did not happen.
+      </p>
+      <h3>Password fields</h3>
+      <p>
+        Everest checks the secure-field subrole before reading and the secure-input flag again
+        immediately before any synthetic copy. Both checks need the app to expose something, and
+        an app that exposes neither is a case this chain has no way to see. Those are what the
+        exclusion list in Settings ▸ Privacy is for.
+      </p>
+    </div>
+  </div>
+  <p class="cta-row">
+    <a class="btn btn-ghost" href="https://github.com/kabrapratik28/Everest/blob/main/PRIVACY.md" target="_blank" rel="noopener noreferrer">Read the privacy policy</a>
+    <a class="btn btn-ghost" href="https://github.com/kabrapratik28/Everest" target="_blank" rel="noopener noreferrer">Read the source</a>
+  </p>
+</section>
+
+<!-- ───────────────────────── Install ───────────────────────── -->
+<section class="wrap" id="install">
+  <h2>Install the developer preview.</h2>
+  <ol class="steps-list">
+    <li>
+      <a href="https://github.com/kabrapratik28/Everest/releases/latest/download/Everest.dmg">Download <code>Everest.dmg</code></a>,
+      or pick a specific build from
+      <a href="https://github.com/kabrapratik28/Everest/releases" target="_blank" rel="noopener noreferrer">Releases</a>.
+    </li>
+    <li>Open the disk image and drag Everest to Applications.</li>
+    <li>Open Everest. macOS will say it could not verify Everest is free of malware. Click <strong>Done</strong>.</li>
+    <li>Open <strong>System&nbsp;Settings ▸ Privacy&nbsp;&amp;&nbsp;Security</strong>, scroll to Security, and click <strong>Open Anyway</strong> next to Everest. Since macOS&nbsp;15 that pane is the only route; right-click ▸ Open no longer works.</li>
+    <li>Grant Accessibility access when Everest guides you there.</li>
+    <li>Let Everest download the default local model, about 2.3&nbsp;GB. It is not bundled in the app.</li>
+  </ol>
+
+  <div class="panel callout">
+    <h3>Why Open Anyway?</h3>
+    <p>
+      This build is signed but not notarised, and notarisation requires Apple's paid Developer
+      Program. The source and the checksums are public, but macOS still blocks the first launch
+      until you approve it by hand. Once a notarised build ships, this step goes away.
+    </p>
+    <h3>On a managed or work Mac</h3>
+    <p>
+      IT policy often removes the Open Anyway button. If it is not there, clear the download
+      flag from Terminal instead:
+    </p>
+    <pre><code>xattr -dr com.apple.quarantine /Applications/Everest.app</code></pre>
+    <p>
+      That is not a way around the signature check. The app is signed either way; this removes
+      the "downloaded from the internet" marker that triggers the block.
+    </p>
+  </div>
+</section>
+
+<!-- ────────────────── Shortcuts and styles ────────────────── -->
+<section class="wrap" id="shortcuts">
+  <h2>Shortcuts and included styles.</h2>
+  <div class="cards two">
+    <div class="panel">
+      <h3>Keys</h3>
+      <table class="keys">
+        <thead>
+          <tr><th scope="col">Shortcut</th><th scope="col">Action</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><kbd>⌥</kbd><kbd>R</kbd></td><td>Quick Improve. One prompt, one rewrite.</td></tr>
+          <tr><td><kbd>⌥</kbd><kbd>⇧</kbd><kbd>R</kbd></td><td>Choose a style, then rewrite.</td></tr>
+          <tr><td><kbd>Esc</kbd></td><td>Cancel a rewrite that is still generating.</td></tr>
+          <tr><td><kbd>⌘</kbd><kbd>Z</kbd></td><td>Undo the replacement, in the app's own undo stack.</td></tr>
+        </tbody>
+      </table>
+      <p class="footnote">
+        Both global shortcuts are configurable in Settings ▸ General. Every printable binding
+        costs you a character, and Everest tells you which one. It also cautions against the
+        dead keys <kbd>⌥</kbd><kbd>I</kbd> <kbd>⌥</kbd><kbd>E</kbd> <kbd>⌥</kbd><kbd>U</kbd>
+        <kbd>⌥</kbd><kbd>N</kbd>, because binding one of those breaks accented typing everywhere.
+      </p>
+    </div>
+    <div class="panel">
+      <h3>Styles</h3>
+      <ul class="styles">
+        <li><strong>Proofread</strong><span>corrections only</span></li>
+        <li><strong>Professional</strong><span>polished and confident</span></li>
+        <li><strong>Friendly</strong><span>warm and natural</span></li>
+        <li><strong>Concise</strong><span>shorter and more direct</span></li>
+        <li><strong>Expand</strong><span>clarify and develop</span></li>
+        <li><strong>Simplify</strong><span>plain and readable</span></li>
+      </ul>
+      <p class="footnote">
+        Each instruction is editable in Settings ▸ Styles, and you can add your own. The
+        prompt-injection frame around them is not editable, on purpose.
+        <a href="https://github.com/kabrapratik28/Everest/blob/main/EverestKit/Sources/RewriteCore/Presets.swift" target="_blank" rel="noopener noreferrer">Read the shipped prompts</a>.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ──────────────── Model and requirements ──────────────── -->
+<section class="wrap" id="requirements">
+  <h2>Local inference on modern Macs.</h2>
+  <div class="cards two">
+    <div class="panel">
+      <h3>Requirements</h3>
+      <ul class="dots">
+        <li>macOS 26 or later</li>
+        <li>An Apple-silicon Mac</li>
+        <li>About 2.3&nbsp;GB of free space for the default model, which is stored outside the app</li>
+        <li>A network connection for the first model download and for update checks. Rewriting itself works offline.</li>
+      </ul>
+    </div>
+    <div class="panel">
+      <h3>Models</h3>
+      <ul class="dots">
+        <li><strong>Qwen3-4B-Instruct-2507, 4-bit, through MLX.</strong> The default, about 2.3&nbsp;GB.</li>
+        <li><strong>Qwen3-30B-A3B-Instruct-2507, 4-bit.</strong> Higher quality, about 17.2&nbsp;GB, offered only on Macs with the memory to hold it.</li>
+        <li><strong>Apple Intelligence.</strong> Zero download, on-device, and available only where the system offers it. Its guardrails can cut off ordinary text mid-sentence.</li>
+      </ul>
+    </div>
+  </div>
+  <p class="footnote">
+    Model weights are downloaded from Hugging Face at a pinned commit, never a branch, and they
+    carry their own Apache-2.0 licence. They are not bundled with Everest and are not covered by
+    its MIT licence. A local model can still produce wrong text, so review changes that matter
+    and use <kbd>⌘</kbd><kbd>Z</kbd> when you need to.
+  </p>
+</section>
+
+<!-- ─────────────────────── Open source ─────────────────────── -->
+<section class="wrap" id="open-source">
+  <h2>Built in the open.</h2>
+  <p class="section-lede">
+    Everest is an MIT-licensed Swift app. The source, the issue tracker, the release history,
+    the privacy policy, the security policy, and the contribution guide are all public on GitHub.
+  </p>
+  <p class="cta-row">
+    <a class="btn btn-ghost" href="https://github.com/kabrapratik28/Everest" target="_blank" rel="noopener noreferrer">View repository</a>
+    <a class="btn btn-ghost" href="https://github.com/kabrapratik28/Everest/issues" target="_blank" rel="noopener noreferrer">Report an issue</a>
+    <a class="btn btn-ghost" href="https://github.com/kabrapratik28/Everest/blob/main/CONTRIBUTING.md" target="_blank" rel="noopener noreferrer">Contribute</a>
+  </p>
+</section>
+
+<!-- ───────────────────────────  FAQ  ─────────────────────────── -->
+<section class="wrap" id="faq">
+  <h2>Questions.</h2>
+
+  <details>
+    <summary>Is Everest free?</summary>
+    <p>Yes. Everest is free and open source under the MIT licence. There is no trial, no subscription, and no upsell inside the app.</p>
+  </details>
+
+  <details>
+    <summary>Does my text leave my Mac?</summary>
+    <p>Your selections and your rewrites are not uploaded. Model downloads contact Hugging Face, and update checks contact GitHub; neither request carries your text. The clipboard fallback is the one real exception, because anything on the general clipboard is eligible for Handoff and for clipboard-history apps. The <a href="https://github.com/kabrapratik28/Everest/blob/main/PRIVACY.md" target="_blank" rel="noopener noreferrer">privacy policy</a> is the full account.</p>
+  </details>
+
+  <details>
+    <summary>Why does Everest need Accessibility permission?</summary>
+    <p>It is how macOS lets one app read the focused selection in another app and write a replacement back. macOS has no narrower permission for this, and it is also why Everest cannot be sandboxed or sold on the Mac App Store. Without it, Everest cannot do the one thing it is for.</p>
+  </details>
+
+  <details>
+    <summary>Why does macOS block the first launch?</summary>
+    <p>This build is signed but not notarised, and notarisation requires Apple's paid Developer Program. Follow the <a href="#install">Open Anyway steps</a> once and every later launch is normal. A notarised build would remove the step.</p>
+  </details>
+
+  <details>
+    <summary>Does it work in terminals and PDFs?</summary>
+    <p>It reads the selection there, but it does not paste into them. A paste in a terminal lands at the live prompt rather than replacing a selection, and a PDF has no editable buffer at all. In both cases Everest keeps the rewrite in the panel and says so, so you can paste it where you want it.</p>
+  </details>
+
+  <details>
+    <summary>Does it read password fields?</summary>
+    <p>Everest refuses the secure fields and secure-input states it can recognise, checked once before reading and again immediately before any synthetic copy. Both checks need the app to expose something, and an app exposing neither is a case the checks cannot see, so you can exclude any app you would rather Everest never inspected in Settings ▸ Privacy.</p>
+  </details>
+
+  <details>
+    <summary>Does it work offline?</summary>
+    <p>Rewriting does, once the model is on disk. Installing the model and checking for updates need a network connection.</p>
+  </details>
+
+  <details>
+    <summary>How are updates delivered?</summary>
+    <p><strong>Automatic update checks are on by default</strong>, because a build that is not notarised can only be corrected by an update that actually reaches people. The switch is in Settings ▸ Privacy ▸ Software updates, and <em>Check for Updates…</em> in the menu-bar menu keeps working whichever way you set it. Updates come from <a href="https://sparkle-project.org" target="_blank" rel="noopener noreferrer">Sparkle</a> and a signed feed in the repository; every build is signed with an EdDSA key, and Sparkle refuses an update whose signature does not verify. Version 0.1.0 predates the updater and has to be updated by hand once.</p>
+  </details>
+
+  <details>
+    <summary>How do I uninstall it?</summary>
+    <p>Quit Everest and move it from Applications to the Trash. Then delete the model directory and the preferences file, and remove Everest from System Settings ▸ Privacy &amp; Security ▸ Accessibility. The <a href="https://github.com/kabrapratik28/Everest/blob/main/PRIVACY.md" target="_blank" rel="noopener noreferrer">privacy policy</a> lists the exact paths.</p>
+  </details>
+
+  <details>
+    <summary>Does it support Intel Macs?</summary>
+    <p>No. Everest is an Apple-silicon app, and the local model runs through MLX, which targets Apple silicon.</p>
+  </details>
+</section>
+
+<!-- ─────────────────────── Final CTA ─────────────────────── -->
+<section class="wrap final">
+  <img src="./assets/app-icon-128.png"
+       srcset="./assets/app-icon-128.png 1x, ./assets/app-icon-256.png 2x, ./assets/app-icon-512.png 4x"
+       width="96" height="96" loading="lazy" decoding="async" alt="">
+  <h2>Improve the sentence without sending it away.</h2>
+  <p class="cta-row">
+    <a class="btn btn-primary"
+       href="https://github.com/kabrapratik28/Everest/releases/latest/download/Everest.dmg">Download developer preview</a>
+    <a class="btn btn-ghost"
+       href="https://github.com/kabrapratik28/Everest" target="_blank" rel="noopener noreferrer">View source on GitHub</a>
+  </p>
+  <p class="note">
+    Developer preview for Apple-silicon Macs running macOS 26 or later. This build is signed
+    but not notarised, so the first launch needs Apple's <strong>Open Anyway</strong> step.
+    Everest downloads a local model of about 2.3&nbsp;GB during setup.
+    <a href="https://github.com/kabrapratik28/Everest/releases" target="_blank" rel="noopener noreferrer">All releases and checksums</a>
+  </p>
+</section>
+
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <ul class="foot-links">
+      <li><a href="https://github.com/kabrapratik28/Everest" target="_blank" rel="noopener noreferrer">GitHub</a></li>
+      <li><a href="https://github.com/kabrapratik28/Everest/releases" target="_blank" rel="noopener noreferrer">Releases</a></li>
+      <li><a href="https://github.com/kabrapratik28/Everest/issues" target="_blank" rel="noopener noreferrer">Issues</a></li>
+      <li><a href="https://github.com/kabrapratik28/Everest/blob/main/PRIVACY.md" target="_blank" rel="noopener noreferrer">Privacy</a></li>
+      <li><a href="https://github.com/kabrapratik28/Everest/blob/main/SECURITY.md" target="_blank" rel="noopener noreferrer">Security policy</a></li>
+      <li><a href="https://github.com/kabrapratik28/Everest/blob/main/CONTRIBUTING.md" target="_blank" rel="noopener noreferrer">Contributing</a></li>
+      <li><a href="https://github.com/kabrapratik28/Everest/blob/main/LICENSE" target="_blank" rel="noopener noreferrer">MIT Licence</a></li>
+    </ul>
+    <p class="colophon">
+      Made for macOS. Not affiliated with or endorsed by Apple.<br>
+      Model weights are Apache-2.0 and separately licensed.<br>
+      © 2026 Pratik Kabara. Everest is MIT licensed.
+    </p>
+  </div>
+</footer>
+
+</body>
+</html>

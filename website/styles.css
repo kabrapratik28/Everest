@@ -1,0 +1,523 @@
+/* Everest — one-page site.
+   No framework, no build step, no remote font, no JavaScript.
+   Colours are the plan's palette with the accent darkened: #146EF5 on the
+   light page background measures 4.35:1, under the 4.5:1 AA floor for body
+   text. #0B5ED7 measures 5.54:1 there and 5.84:1 on a white card. */
+
+:root {
+  color-scheme: light dark;
+
+  --page:      #f7f9fc;
+  --surface:   #ffffff;
+  --sunken:    #eef2f8;
+  --text:      #0b1220;
+  --muted:     #526174;
+  --accent:    #0b5ed7;
+  --on-accent: #ffffff;
+  --border:    #d2dbe8;
+  --shadow:    0 1px 2px rgba(11, 18, 32, .05), 0 8px 24px rgba(11, 18, 32, .05);
+
+  --wrap: 1120px;
+  --radius: 18px;
+  --radius-lg: 24px;
+
+  --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI",
+          system-ui, Roboto, Helvetica, Arial, sans-serif;
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --page:      #07101f;
+    --surface:   #0d1a2f;
+    --sunken:    #0a1527;
+    --text:      #f5f8ff;
+    --muted:     #a9b7ca;
+    --accent:    #5a9cff;
+    --on-accent: #07101f;
+    --border:    #27395a;
+    --shadow:    0 1px 2px rgba(0, 0, 0, .3), 0 8px 24px rgba(0, 0, 0, .28);
+  }
+}
+
+/* ───────────────────────────── Base ───────────────────────────── */
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html {
+  scroll-behavior: smooth;
+  /* Anchors must clear the sticky header. */
+  scroll-padding-top: 5.5rem;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--page);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 17px;
+  line-height: 1.6;
+  /* A long URL or bundle id must not push the page wider than 320px. */
+  overflow-wrap: break-word;
+}
+
+img { max-width: 100%; height: auto; }
+
+a { color: var(--accent); text-decoration-thickness: 1px; text-underline-offset: 2px; }
+a:hover { text-decoration-thickness: 2px; }
+
+:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+h1, h2, h3 { line-height: 1.2; letter-spacing: -0.015em; margin: 0 0 .6em; }
+h1 { font-size: clamp(2rem, 1.3rem + 3vw, 3.1rem); font-weight: 700; }
+h2 { font-size: clamp(1.5rem, 1.15rem + 1.6vw, 2.1rem); font-weight: 650; max-width: 22ch; }
+h3 { font-size: 1.0625rem; font-weight: 650; }
+p  { margin: 0 0 1rem; max-width: 68ch; }
+
+code, pre { font-family: var(--mono); font-size: .875em; }
+
+pre {
+  background: var(--sunken);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: .75rem 1rem;
+  /* Scrolls inside its own box rather than widening the page. */
+  overflow-x: auto;
+}
+pre code { background: none; padding: 0; }
+code {
+  background: var(--sunken);
+  border-radius: 5px;
+  padding: .1em .35em;
+}
+
+kbd {
+  font-family: var(--font);
+  font-size: .8125em;
+  font-weight: 600;
+  line-height: 1;
+  display: inline-block;
+  min-width: 1.6em;
+  text-align: center;
+  padding: .28em .45em;
+  margin: 0 .05em;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-bottom-width: 2px;
+  border-radius: 6px;
+  white-space: nowrap;
+}
+
+.wrap { width: min(100% - 2.5rem, var(--wrap)); margin-inline: auto; }
+
+.skip {
+  position: absolute;
+  left: 1rem;
+  top: -4rem;
+  z-index: 100;
+  padding: .75rem 1.25rem;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-weight: 600;
+  border-radius: 0 0 10px 10px;
+  text-decoration: none;
+  transition: top .15s ease;
+}
+.skip:focus { top: 0; }
+
+main > section { padding-block: clamp(3rem, 6vw, 5.5rem); }
+.section-lede { color: var(--muted); font-size: 1.0625rem; margin-bottom: 2rem; }
+
+/* ───────────────────────────── Header ───────────────────────────── */
+
+.site-header {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  background: color-mix(in srgb, var(--page) 88%, transparent);
+  backdrop-filter: saturate(180%) blur(14px);
+  border-bottom: 1px solid var(--border);
+}
+
+.nav {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  min-height: 60px;
+  padding-block: .5rem;
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: .5rem;
+  font-weight: 700;
+  font-size: 1.0625rem;
+  letter-spacing: -0.01em;
+  color: var(--text);
+  text-decoration: none;
+  margin-right: auto;
+}
+.brand img { display: block; }
+
+.nav-links {
+  display: flex;
+  gap: .25rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.nav-links a {
+  display: inline-block;
+  padding: .6rem .7rem;
+  color: var(--muted);
+  font-size: .9375rem;
+  font-weight: 500;
+  text-decoration: none;
+  border-radius: 8px;
+}
+.nav-links a:hover { color: var(--text); background: var(--sunken); }
+
+/* The logo and the Download button stay at every width; the rest of the nav
+   folds away, because the page is short enough to scroll. */
+@media (max-width: 800px) { .nav-links { display: none; } }
+
+/* ───────────────────────────── Buttons ───────────────────────────── */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  /* 44px minimum touch target. */
+  min-height: 44px;
+  padding: .6rem 1.35rem;
+  border-radius: 11px;
+  border: 1px solid transparent;
+  font-size: 1rem;
+  font-weight: 600;
+  text-decoration: none;
+  text-align: center;
+}
+.btn-sm { min-height: 38px; padding: .35rem 1rem; font-size: .9375rem; }
+@media (min-width: 801px) { .btn-sm { min-height: 44px; } }
+
+.btn-primary { background: var(--accent); color: var(--on-accent); }
+.btn-primary:hover { filter: brightness(1.08); }
+
+.btn-ghost {
+  background: var(--surface);
+  color: var(--text);
+  border-color: var(--border);
+  box-shadow: var(--shadow);
+}
+.btn-ghost:hover { border-color: var(--accent); color: var(--accent); }
+
+.cta-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .75rem;
+  max-width: none;
+  margin: 1.75rem 0 1rem;
+}
+@media (max-width: 480px) {
+  .cta-row { flex-direction: column; align-items: stretch; }
+  .cta-row .btn { width: 100%; }
+}
+
+/* ───────────────────────────── Hero ───────────────────────────── */
+
+.hero {
+  display: grid;
+  gap: clamp(2rem, 4vw, 3.5rem);
+  align-items: center;
+  padding-block: clamp(2.5rem, 5vw, 4.5rem) clamp(2rem, 4vw, 3.5rem);
+}
+@media (min-width: 901px) {
+  .hero { grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); }
+}
+
+/* No text-transform: uppercase here. It renders "macOS" as "MACOS", and a
+   brand whose casing is the whole point is not something to flatten. */
+.eyebrow {
+  font-size: .875rem;
+  font-weight: 650;
+  letter-spacing: .01em;
+  color: var(--accent);
+  margin-bottom: 1rem;
+}
+
+.lede { font-size: 1.125rem; color: var(--muted); }
+.lede kbd { font-size: .78em; }
+
+.note {
+  font-size: .9375rem;
+  line-height: 1.55;
+  color: var(--muted);
+  background: var(--sunken);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: .9rem 1.1rem;
+  max-width: 62ch;
+}
+
+.demo { margin: 0; }
+.demo img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+  background: var(--surface);
+}
+.demo figcaption {
+  margin-top: .9rem;
+  font-size: .9375rem;
+  color: var(--muted);
+  max-width: 62ch;
+}
+
+/* ───────────────────── Trust / requirements strip ───────────────────── */
+
+/* Overrides the section rhythm above: the list supplies its own padding, and
+   taking both left a band of empty surface twice the height of its content. */
+.strip {
+  padding-block: 0;
+  border-block: 1px solid var(--border);
+  background: var(--surface);
+}
+.facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 1.5rem 2rem;
+  list-style: none;
+  margin: 0;
+  padding: 2.25rem 0;
+}
+.facts strong { display: block; font-size: .9375rem; }
+.facts span { display: block; font-size: .9375rem; color: var(--muted); }
+
+/* ───────────────────────────── Cards ───────────────────────────── */
+
+.cards {
+  display: grid;
+  gap: 1.25rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.cards > li, .panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 1.5rem;
+  box-shadow: var(--shadow);
+}
+.cards p:last-child, .panel p:last-child { margin-bottom: 0; }
+.cards p, .panel p { color: var(--muted); font-size: .9375rem; }
+.panel h3 { margin-top: 1.4rem; }
+.panel h3:first-child { margin-top: 0; }
+
+.steps { grid-template-columns: 1fr; counter-reset: none; }
+.features { grid-template-columns: 1fr; }
+.two { grid-template-columns: 1fr; }
+
+@media (min-width: 620px) {
+  .features { grid-template-columns: repeat(2, 1fr); }
+}
+/* The step cards and the side-by-side panels need more room than the feature
+   cards: at 620px the shortcut table's action column wrapped to three lines
+   and the compatibility lists read as two narrow gutters. */
+@media (min-width: 760px) {
+  .steps { grid-template-columns: repeat(3, 1fr); }
+  .two   { grid-template-columns: repeat(2, 1fr); }
+}
+@media (min-width: 960px) {
+  .features { grid-template-columns: repeat(3, 1fr); }
+}
+
+.step-n {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  margin-bottom: .75rem;
+  border-radius: 9px;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: .9375rem;
+  font-weight: 700;
+}
+
+.aside { margin-top: 1.5rem; font-size: .9375rem; }
+
+/* ───────────────────────────── Lists ───────────────────────────── */
+
+.ticks, .dots {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-size: .9375rem;
+  color: var(--muted);
+}
+.ticks li, .dots li {
+  position: relative;
+  padding-left: 1.5rem;
+  margin-bottom: .6rem;
+}
+.ticks li:last-child, .dots li:last-child { margin-bottom: 0; }
+/* The glyph is decoration; the column heading above it carries the meaning,
+   so nothing here is conveyed by colour or shape alone. */
+.ticks li::before, .dots li::before {
+  position: absolute;
+  left: 0;
+  top: -0.05em;
+  color: var(--accent);
+  font-weight: 700;
+}
+.ticks li::before { content: "\2713"; }
+.dots li::before  { content: "\2022"; font-size: 1.3em; line-height: 1.1; }
+.dots li strong { color: var(--text); font-weight: 650; }
+
+.styles { list-style: none; margin: 0; padding: 0; }
+.styles li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .1rem .6rem;
+  align-items: baseline;
+  padding: .55rem 0;
+  border-bottom: 1px solid var(--border);
+  font-size: .9375rem;
+}
+.styles li:last-child { border-bottom: 0; padding-bottom: 0; }
+.styles span { color: var(--muted); }
+
+.footnote {
+  margin-top: 1.25rem;
+  font-size: .875rem;
+  line-height: 1.55;
+  color: var(--muted);
+}
+
+/* ───────────────────────────── Install ───────────────────────────── */
+
+.steps-list {
+  margin: 0 0 2rem;
+  padding-left: 1.4rem;
+  max-width: 68ch;
+}
+.steps-list li { margin-bottom: .75rem; padding-left: .25rem; }
+
+.callout { max-width: 68ch; }
+.callout h3 { font-size: 1rem; }
+
+/* ───────────────────────────── Keys table ───────────────────────────── */
+
+.keys {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: .9375rem;
+}
+.keys th, .keys td {
+  text-align: left;
+  padding: .55rem .5rem .55rem 0;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+.keys th {
+  font-size: .75rem;
+  font-weight: 600;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.keys td:first-child { white-space: nowrap; padding-right: 1rem; }
+.keys td:last-child { color: var(--muted); }
+.keys tbody tr:last-child td { border-bottom: 0; }
+
+/* ───────────────────────────── FAQ ───────────────────────────── */
+
+details {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  margin-bottom: .75rem;
+  box-shadow: var(--shadow);
+}
+summary {
+  /* 44px target at the default font size. */
+  padding: .85rem 1.25rem;
+  font-weight: 600;
+  cursor: pointer;
+  /* Inside, not outside: an outside marker is laid out beyond the content
+     box and so renders past the card's rounded border, in the page gutter. */
+  list-style-position: inside;
+  border-radius: 14px;
+}
+summary > * { display: inline; }
+summary::marker { color: var(--accent); }
+summary:hover { color: var(--accent); }
+details[open] summary { border-bottom: 1px solid var(--border); border-radius: 14px 14px 0 0; }
+details p {
+  margin: 0;
+  padding: 1rem 1.25rem 1.15rem;
+  color: var(--muted);
+  font-size: .9375rem;
+  max-width: 74ch;
+}
+
+/* ───────────────────────────── Final CTA ───────────────────────────── */
+
+.final { text-align: center; }
+.final img { display: block; margin: 0 auto 1.25rem; }
+.final h2 { max-width: 20ch; margin-inline: auto; }
+.final .cta-row { justify-content: center; }
+.final .note { margin-inline: auto; text-align: left; }
+
+/* ───────────────────────────── Footer ───────────────────────────── */
+
+.site-footer {
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+  padding-block: 2.5rem 3rem;
+}
+.foot-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .25rem 1.5rem;
+  list-style: none;
+  margin: 0 0 1.25rem;
+  padding: 0;
+  font-size: .9375rem;
+}
+.foot-links a { display: inline-block; padding: .35rem 0; }
+.colophon { font-size: .875rem; line-height: 1.7; color: var(--muted); margin: 0; }
+
+/* ───────────────────────── Reduced motion ─────────────────────────
+   The animated demo is swapped for a still frame in the markup, with a
+   <picture> source keyed to this same query, so only one of the two is
+   ever fetched. */
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after {
+    animation-duration: .001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .001ms !important;
+  }
+}
+
+/* ───────────────────────── Narrow phones ───────────────────────── */
+
+@media (max-width: 380px) {
+  body { font-size: 16px; }
+  .wrap { width: calc(100% - 1.75rem); }
+  .cards > li, .panel { padding: 1.15rem; }
+}
