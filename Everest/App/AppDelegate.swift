@@ -1,5 +1,7 @@
 import AppCore
 import AppKit
+import Carbon.HIToolbox
+import KeyboardShortcuts
 import Overlay
 import RewriteCore
 import SwiftUI
@@ -82,7 +84,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return try selection.capture()
         },
         engineFor: EngineFactory.live(for:),
-        apply: { [replacement] text, target in replacement.apply(text, to: target) }
+        // Both flags arrive as arguments and are forwarded unchanged. The
+        // coordinator reads them inside the transaction, so nothing here
+        // holds a value that could go stale — the `excludedBundleIDs` rule.
+        apply: { [replacement] text, target, autoReplace, keepOutOfHistory in
+            replacement.apply(
+                text,
+                to: target,
+                autoReplace: autoReplace,
+                keepOutOfHistory: keepOutOfHistory
+            )
+        }
     )
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -152,7 +164,60 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// having been said before: it describes what is in the recorder, so it
     /// has to be true every time the recorder is looked at.
     static func collisionCaution() -> String? {
-        HotkeyManager.quickImproveShortcut.flatMap(ShortcutNotice.caution(for:))
+        guard var shortcut = HotkeyManager.quickImproveShortcut else { return nil }
+        if let live = KeyboardShortcuts.getShortcut(for: .quickImprove), isDeadKey(live) {
+            shortcut = ShortcutNotice.Shortcut(
+                key: shortcut.key,
+                command: shortcut.command,
+                shift: shortcut.shift,
+                option: shortcut.option,
+                control: shortcut.control,
+                isDeadKey: true
+            )
+        }
+        return ShortcutNotice.caution(for: shortcut)
+    }
+
+    /// Whether this chord starts an accent on the **active keyboard layout**.
+    ///
+    /// Measured, never inferred from the letter. `⌥I ⌥E ⌥U ⌥N` are dead keys
+    /// on a US layout and ordinary keys on others, so a hardcoded set would
+    /// warn the wrong people and miss the right ones — the same reason
+    /// shortcut *rendering* lives in this target rather than in `AppCore`.
+    ///
+    /// `UCKeyTranslate` reports a dead key by producing no characters and
+    /// leaving a non-zero `deadKeyState`. It is called with a zeroed state so
+    /// the answer is about this chord alone and not about whatever the user
+    /// pressed before it.
+    private static func isDeadKey(_ shortcut: KeyboardShortcuts.Shortcut) -> Bool {
+        guard
+            let source = TISCopyCurrentKeyboardLayoutInputSource()?.takeRetainedValue(),
+            let raw = TISGetInputSourceProperty(source, kTISPropertyUnicodeKeyLayoutData)
+        else { return false }
+
+        let data = Unmanaged<CFData>.fromOpaque(raw).takeUnretainedValue() as Data
+        // Carbon modifier bits sit in the high byte; `UCKeyTranslate` wants
+        // them in the low 8 as its own `modifierKeyState`.
+        let modifiers = UInt32(shortcut.carbonModifiers >> 8) & 0xFF
+        var deadKeyState: UInt32 = 0
+        var length = 0
+        var characters = [UniChar](repeating: 0, count: 4)
+
+        let status = data.withUnsafeBytes { buffer in
+            UCKeyTranslate(
+                buffer.bindMemory(to: UCKeyboardLayout.self).baseAddress!,
+                UInt16(shortcut.carbonKeyCode),
+                UInt16(kUCKeyActionDown),
+                modifiers,
+                UInt32(LMGetKbdType()),
+                0,  // dead keys reported, not suppressed — they are the question
+                &deadKeyState,
+                characters.count,
+                &length,
+                &characters
+            )
+        }
+        return status == noErr && length == 0 && deadKeyState != 0
     }
 
     /// Activate, *then* open — the order is load-bearing.

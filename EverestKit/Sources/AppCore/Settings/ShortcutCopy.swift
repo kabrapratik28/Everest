@@ -4,8 +4,8 @@ import Foundation
 ///
 /// Here rather than in the views because a shortcut in prose is a copy of the
 /// binding, and copies go stale. This one already did: the defaults moved from
-/// `⌘I` / `⌘⇧I` to `⌃⌥I` / `⌃⌥⇧I` and onboarding, the Settings help text, the
-/// README and several comments all went on saying `⌘I` — so a new user
+/// `⌘I` to `⌃⌥I` and then again to `⌥R`, and onboarding, the Settings help
+/// text, the README and several comments went on saying `⌘I` — so a new user
 /// followed the setup guide, pressed a key that did nothing, and concluded the
 /// app was broken. A fixed collision became a broken first run.
 ///

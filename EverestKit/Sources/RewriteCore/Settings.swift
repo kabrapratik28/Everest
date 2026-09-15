@@ -24,6 +24,24 @@ public final class AppSettings: ObservableObject {
         didSet { store.set(excludedBundleIDs, forKey: Keys.excludedBundleIDs) }
     }
 
+    /// Post the paste ourselves where Everest cannot write in place, instead
+    /// of leaving the rewrite on the clipboard and asking for ⌘V.
+    ///
+    /// Read fresh per transaction and handed to `ReplacementService` as a
+    /// parameter, never closed over — the `excludedBundleIDs` rule, for the
+    /// same reason: a value frozen at launch goes stale the moment the user
+    /// changes it and nothing tells them.
+    @Published public var replacesAutomatically: Bool {
+        didSet { store.set(replacesAutomatically, forKey: Keys.replacesAutomatically) }
+    }
+
+    /// Mark each rewrite `org.nspasteboard.TransientType` so clipboard
+    /// managers skip it. A convention they honour, not something macOS
+    /// enforces — see `ReplacementCopy.historyCaveat`, which says so.
+    @Published public var keepsOutOfClipboardHistory: Bool {
+        didSet { store.set(keepsOutOfClipboardHistory, forKey: Keys.keepsOutOfClipboardHistory) }
+    }
+
     private let store: UserDefaults
 
     private enum Keys {
@@ -31,6 +49,8 @@ public final class AppSettings: ObservableObject {
         static let quickImprove = "everest.settings.quickImprove"
         static let styles = "everest.settings.styles"
         static let excludedBundleIDs = "everest.settings.excludedBundleIDs"
+        static let replacesAutomatically = "everest.settings.replacesAutomatically"
+        static let keepsOutOfClipboardHistory = "everest.settings.keepsOutOfClipboardHistory"
     }
 
     public init(store: UserDefaults = .standard) {
@@ -65,6 +85,18 @@ public final class AppSettings: ObservableObject {
             "org.keepassxc.keepassxc",
             "com.dashlane.Dashlane",
         ]
+
+        self.replacesAutomatically = Self.flag(store, Keys.replacesAutomatically, default: true)
+        self.keepsOutOfClipboardHistory = Self.flag(store, Keys.keepsOutOfClipboardHistory, default: true)
+    }
+
+    /// `bool(forKey:)` answers `false` for a key that was never written, so
+    /// it cannot distinguish "unset" from "the user turned this off" — and
+    /// both of these default **on**. `object(forKey:)` is the only thing that
+    /// can, so the default is applied on absence alone and a stored `false`
+    /// survives every relaunch.
+    private static func flag(_ store: UserDefaults, _ key: String, default fallback: Bool) -> Bool {
+        store.object(forKey: key) == nil ? fallback : store.bool(forKey: key)
     }
 
     public func resetQuickImprove() {

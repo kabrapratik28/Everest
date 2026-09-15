@@ -183,3 +183,23 @@ that needs the running app.
 32. **`Expand` on a short sentence.** It has never worked: the 3× output guard
     refused every honest expansion. With the guard gone it should now produce
     something several times longer than the source.
+33. **Do the Prompts fields now read as editable?** Only Pratik can answer
+    this; it is the one item on the list whose acceptance criterion is a
+    feeling. `PresetField` was a borderless `TextField` in a `Form`, which
+    macOS draws flat to match System Settings — so a populated field looked
+    exactly like static label text. It now has `.roundedBorder` and a
+    persistent caption above it. *Do:* Settings ▸ Prompts, look at a Style
+    with all three fields filled in, and say whether it is obvious you can
+    type in them and obvious which is which. The caption matters as much as
+    the border: the field name used to be only a placeholder, and placeholders
+    disappear the moment there is content.
+34. **Both replacement toggles actually do something.** Settings ▸ General ▸
+    Replacing text. *Do:* with "Replace automatically" on, rewrite in a
+    terminal or PDF — the rewrite should paste itself rather than telling you
+    to press ⌘V. Switch it off mid-session and rewrite again *without
+    relaunching*: it must go back to handing you the clipboard, because both
+    flags are read per transaction and a stale capture is the failure mode
+    they are written to avoid. Then check a clipboard manager (Maccy, Alfred,
+    Raycast) records nothing while "Keep rewrites out of clipboard history"
+    is on — and note that a manager ignoring `TransientType` is allowed to
+    record anyway, which is what the caveat under the toggle says.

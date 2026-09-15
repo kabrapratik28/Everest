@@ -2,7 +2,8 @@
 
 Everything the menu-bar app decides lives here: an app target has no test
 runner, which is how four subsystems ended up untested and forced a rebuild.
-**Any branch there belongs here.** No SwiftUI, no KeyboardShortcuts.
+**Any branch there belongs here.** No SwiftUI, no KeyboardShortcuts. The
+screens' own decisions are next door in `Settings/`.
 
 ## `RewriteCoordinator`
 
@@ -20,9 +21,9 @@ engine told to stop **and** its late output discarded — or a buffered
 - **Capture before any panel, always** (root §7), read once into `pending`.
 - **`.finished` is the engine stopping, not the transaction ending**, so this
   drives the terminal state; `Overlay` only maps it to `.applying`.
-- **Every exit is terminal, including the empty stream.** Returning silently
-  on no `.finished` stranded the panel on "Rewriting" forever, with the check
-  above having already proved the transaction current.
+- **Every exit is terminal, including the empty stream.** The check above has
+  already proved the transaction current, so a silent return on no
+  `.finished` stranded the panel on "Rewriting" with nothing else coming.
 - **`prepare` checks the generation and cancels its task**, or a percentage
   arriving after Escape re-presents a panel whose key monitors are already
   released — unclosable — while the abandoned 2.3 GB fetch runs on.
@@ -47,35 +48,6 @@ until its weights are *seen*, or a press mid-download drops the engine that
 download spent minutes warming. **`supersede()` nils `active` at the *next*
 transaction's start** — held through idle, dropped as wanted, 1x not 2x peak.
 
-## The Settings screens
-
-- **No glyph is ever written down.** `ShortcutCopy` builds shortcut sentences
-  from the live binding, `nil` changing their shape rather than leaving a
-  hole. `⌘I`→`⌃⌥I` moved once and every screen kept saying `⌘I`: a literal is
-  correct only until someone rebinds.
-- **Selection and install state are separate facts on a row**, and conflating
-  them broke first run: the default engine is the *absent* one on a new Mac,
-  so a disabled "In use" offered nothing. `fitsInMemory` gates ahead of both —
-  17.2 GB on a 16 GB Mac must not say "Installed", and after the download is
-  too late. `select(_:)` is the only mover, onboarding included.
-- **A path that clears its output ends by setting something.** `download`'s
-  callers used `try?` and `runTest` returned silently, so a failed fetch left
-  a vanished bar and an interrupted test its "appears here" placeholder.
-- **Onboarding completion is stored, never inferred from the TCC grant**,
-  which cannot say whether anyone chose an engine — so whoever granted the
-  permission first never saw the model step. The step persists too.
-- **`AppPresence` is the ⌘Tab switch, with its own `UserDefaults`.** ⌘Tab, the
-  Dock and the menu bar are one activation policy, so the label must name the
-  Dock; `start()` is required because `LSUIElement` pins launch to
-  `.accessory` and a change-only preference resets overnight.
-- **`MenuCommand.hotkey` is `nil` for Settings, Setup Guide and Quit** — `⌘,`
-  and `⌘Q` work only while an Everest window is key, and this menu is read
-  over other apps. Rendering is the app target's: a key code needs the layout.
-- **Each `Preset` field carries its own rule** into `PresetField`: a blank
-  subtitle is allowed, a blank name is not — nothing can label that row.
-- **`PrivacyCopy` is pinned by a test**, like `exclusionCaveat`: it claimed
-  text goes "Nowhere", which three `NSPasteboard.general` writes make false.
-
 ## Seams, and their one production type each
 
 | Protocol | Production type | Tested with |
@@ -83,8 +55,6 @@ transaction's start** — held through idle, dropped as wanted, 1x not 2x peak.
 | `Sleeping` | `TaskSleeper` | `RecordingSleeper` |
 | `capture` / `apply` | assigned in `AppDelegate` | closures |
 | `engineFor` | `EngineFactory.live(for:)` | `StubEngine` |
-| `AppPresence.setPolicy` | `NSApp.setActivationPolicy` | `PolicyRecorder` |
 
 `SystemProbing`'s conformer is **`TextBridge.SystemProbe`**: import it, never
-add a second — two public types with one name do not compile. Tests:
-`swift build --target AppCoreTests && xcrun xctest .build/out/Products/Debug/AppCoreTests.xctest`
+add a second — two public types with one name do not compile.

@@ -75,7 +75,12 @@ let package = Package(
         .target(
             name: "AppCore",
             dependencies: ["RewriteCore", "TextBridge", "Engines", "Overlay"],
-            exclude: docs
+            // `Settings/` has its own pair: the transaction engine and the
+            // settings screens share no types and no reasoning, and one
+            // `AGENTS.md` carrying both had grown past the budget with
+            // nothing redundant left to cut. Nested docs need naming
+            // explicitly or SwiftPM warns on them once per file per build.
+            exclude: docs + docs.map { "Settings/\($0)" }
         ),
         .testTarget(name: "AppCoreTests", dependencies: ["AppCore"]),
     ]

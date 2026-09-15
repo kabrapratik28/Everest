@@ -1,6 +1,6 @@
 # Settings, onboarding and menu — report
 
-**AppCore: 63 tests, all green.** Baseline when I started was 35; I added 23,
+**AppCore: 65 tests, all green.** Baseline when I started was 35; I added 25,
 other agents added the rest. Every app-target file is `swiftc -parse` only —
 see *Not type-checked*.
 
@@ -531,7 +531,48 @@ supersede. The audit item closes as a memory guard, not as a write guard.
 AppCore. I have not touched them — they need dispatching to whoever owns
 `Overlay`.
 
-## 23. Three smaller ones
+## 23. Auto-replace and clipboard-history settings — **part landed, part blocked**
+
+**Files so far:** `AppCore/ReplacementCopy.swift`,
+`AppCoreTests/ReplacementCopyTests.swift`, `AppCore/AGENTS.md`
+
+Two settings from Pratik: *Replace automatically* (post the paste rather than
+telling the user to press ⌘V) and *Keep rewrites out of clipboard history*
+(mark the write `org.nspasteboard.TransientType`), both defaulting ON.
+
+**Landed: the copy, pinned.** `ReplacementCopy.historyCaveat` states the
+honour-system part plainly — `TransientType` is a convention between apps, not
+a macOS rule, and a manager ignoring it still records. It also avoids implying
+the rewrite skips the clipboard, because it does not and usually cannot: the
+clipboard *is* how a rewrite reaches an app Accessibility cannot write to.
+
+`ReplacementCopy.retrievalNote(autoPaste:keepOutOfHistory:)` is **conditional**
+— non-nil only when both are on, which is the only combination leaving the
+rewrite nowhere but the document. Against the other three it would warn about
+nothing (the text is on the clipboard to paste, or in the manager's history),
+and a caution that fires when nothing is at stake is one people learn to skip.
+
+**Blocked, and why:**
+
+- **The two booleans need `AppSettings`**, which is `RewriteCore` —
+  `audit-correctness`' per `docs/OWNERSHIP.md`. Carve-out requested. I argued
+  for `AppSettings` rather than a workaround because these are exactly
+  `excludedBundleIDs`: read fresh, passed as a parameter. Putting them
+  elsewhere would make one rule look like three.
+- **The success outcome of an auto-paste is undecided.** `.copiedOnly` carries
+  a promise — text is on the clipboard, user must paste — and
+  `PanelOutcome.state(for:)` maps every cause to a state telling them to go
+  and paste. If a successful auto-paste returns `.copiedOnly`, the panel
+  instructs the user to do the thing that just happened. Proposed a `.pasted`
+  case to `fix-docs`, whose file it is; my switch has no `default`, so a new
+  case is a compile error here rather than a silent fall-through.
+
+**Not decided by me:** whether auto-paste should be refused for some copy-only
+causes. Posting ⌘V sends text wherever focus now is, which is TextBridge's
+revalidation call — but if it is refused for some, the panel needs different
+words, and that is mine.
+
+## 24. Three smaller ones
 
 - **The practice field could not be typed in.** `TextEditor(text: .constant(…))`
   on the step that says "type something below" — the one screen that would
@@ -566,8 +607,13 @@ existing test and exposed the `.standard`-store leak.
 **Final:**
 
 ```
-✔ Test run with 63 tests in 1 suite passed after 0.041 seconds.
+✔ Test run with 65 tests in 1 suite passed after 0.038 seconds.
 ```
+
+**§23 mutations**, on a copy: dropping the honour-system admission from
+`historyCaveat` failed the overclaim test; making `retrievalNote`
+unconditional failed the conditional test on all three of the combinations
+that must stay silent.
 
 **Round 2 generation work** (§20-22), mutations on a copy: re-sampling
 `generation` in `run` instead of carrying it failed the supersession test;

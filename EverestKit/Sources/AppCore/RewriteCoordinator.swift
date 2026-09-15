@@ -17,7 +17,13 @@ public actor RewriteCoordinator {
     /// and nothing tells them it has.
     private let capture: @MainActor @Sendable ([String]) throws -> TargetSnapshot
     private let engineFor: @Sendable (EngineID) -> any RewriteEngine
-    private let apply: @MainActor @Sendable (String, TargetSnapshot) -> ReplaceOutcome
+    /// Writes the rewrite back, told at call time how the user wants it done.
+    ///
+    /// The two flags are parameters rather than something the closure reads
+    /// for itself, for the `excludedBundleIDs` reason: a value captured when
+    /// the app was built is the value from then, so a switch flipped mid
+    /// session would not take and nothing would say so.
+    private let apply: @MainActor @Sendable (String, TargetSnapshot, Bool, Bool) -> ReplaceOutcome
     private let sleeper: any Sleeping
 
     /// Bumped by every new transaction. A generation that finds the counter
@@ -57,7 +63,7 @@ public actor RewriteCoordinator {
         settings: AppSettings,
         capture: @escaping @MainActor @Sendable ([String]) throws -> TargetSnapshot,
         engineFor: @escaping @Sendable (EngineID) -> any RewriteEngine,
-        apply: @escaping @MainActor @Sendable (String, TargetSnapshot) -> ReplaceOutcome,
+        apply: @escaping @MainActor @Sendable (String, TargetSnapshot, Bool, Bool) -> ReplaceOutcome,
         sleeper: any Sleeping = TaskSleeper()
     ) {
         self.panel = panel
@@ -211,7 +217,13 @@ public actor RewriteCoordinator {
         case let .failure(failure):
             await settle(.refused(reason: failure.message), generation: mine)
         case let .success(text):
-            let outcome = await MainActor.run { apply(text, snapshot) }
+            // Read here, inside the transaction, not held from construction.
+            let (autoReplace, keepOutOfHistory) = await MainActor.run {
+                (settings.replacesAutomatically, settings.keepsOutOfClipboardHistory)
+            }
+            let outcome = await MainActor.run {
+                apply(text, snapshot, autoReplace, keepOutOfHistory)
+            }
             guard mine == generation else { return }
             await settle(PanelOutcome.state(for: outcome, text: text), generation: mine)
         }

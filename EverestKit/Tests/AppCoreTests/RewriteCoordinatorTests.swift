@@ -253,7 +253,9 @@ func asecondPressSupersedesTheFirst() async {
         settings: makeSettings(),
         capture: { _ in .stub() },
         engineFor: { _ in queue.next() },
-        apply: { text, target in recorder.apply(text, to: target) },
+        apply: { text, target, autoReplace, keepOutOfHistory in
+            recorder.apply(text, to: target, autoReplace: autoReplace, keepOutOfHistory: keepOutOfHistory)
+        },
         sleeper: RecordingSleeper()
     )
 
@@ -288,7 +290,9 @@ func pickingAStyleUsesTheSelectionCapturedBeforeThePicker() async {
         settings: makeSettings(),
         capture: { source.next(excluding: $0) },
         engineFor: { _ in engine },
-        apply: { text, target in recorder.apply(text, to: target) },
+        apply: { text, target, autoReplace, keepOutOfHistory in
+            recorder.apply(text, to: target, autoReplace: autoReplace, keepOutOfHistory: keepOutOfHistory)
+        },
         sleeper: RecordingSleeper()
     )
 
@@ -455,7 +459,7 @@ func theEngineIsResolvedFromSettingsEveryTime() async {
             asked.withLock { $0.append(id) }
             return StubEngine(id: id, events: [.finished("Tightened.")])
         },
-        apply: { _, _ in .replaced },
+        apply: { _, _, _, _ in .replaced },
         sleeper: RecordingSleeper()
     )
 
@@ -756,4 +760,39 @@ func supersedingReleasesTheHeldSelection() async {
     await coordinator.cancel()
 
     #expect(await coordinator.pending == nil)
+}
+
+/// Both replacement settings reach `ReplacementService` as arguments read at
+/// the moment of the write, never captured when the coordinator was built.
+///
+/// The `excludedBundleIDs` rule and the same failure: a value closed over at
+/// launch is the value from launch, so a user who turns auto-replace off mid
+/// session keeps getting pastes and nothing tells them the switch did not
+/// take. The setting object is shared, so the only way to be wrong here is to
+/// snapshot it — which is exactly what a closure capture does.
+@Test("the replacement settings are read per transaction, not captured at launch")
+@MainActor
+func replacementSettingsAreReadFresh() async {
+    let log = CallLog()
+    let (panel, _) = makePanel(log: log)
+    let settings = makeSettings()
+    let recorder = ApplyRecorder(log: log)
+    let coordinator = makeCoordinator(
+        panel: panel,
+        settings: settings,
+        engine: StubEngine(events: [.finished("rewritten")]),
+        apply: recorder
+    )
+
+    // Defaults are both on.
+    await coordinator.quickImprove()
+    #expect(recorder.options == [.init(autoReplace: true, keepOutOfHistory: true)])
+
+    // Changed after the coordinator was constructed, and after a transaction
+    // has already run — a captured value would still report the old pair.
+    settings.replacesAutomatically = false
+    settings.keepsOutOfClipboardHistory = false
+
+    await coordinator.quickImprove()
+    #expect(recorder.options.last == .init(autoReplace: false, keepOutOfHistory: false))
 }

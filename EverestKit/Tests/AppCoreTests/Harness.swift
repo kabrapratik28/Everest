@@ -123,7 +123,9 @@ func makeCoordinator(
         settings: settings,
         capture: capture ?? { _ in snapshot },
         engineFor: { _ in engine },
-        apply: { text, target in apply.apply(text, to: target) },
+        apply: { text, target, autoReplace, keepOutOfHistory in
+            apply.apply(text, to: target, autoReplace: autoReplace, keepOutOfHistory: keepOutOfHistory)
+        },
         sleeper: sleeper
     )
 }
@@ -198,17 +200,32 @@ enum UnexpectedFailure: Error { case somethingElse }
 /// was told in return.
 @MainActor
 final class ApplyRecorder {
+    /// The two replacement settings as they stood at the moment of the write.
+    /// Recorded per call, because the bug this guards is a value captured
+    /// once rather than read each time.
+    struct Options: Equatable {
+        let autoReplace: Bool
+        let keepOutOfHistory: Bool
+    }
+
     let log: CallLog
     var outcome: ReplaceOutcome = .replaced
     private(set) var applied: [String] = []
+    private(set) var options: [Options] = []
 
     init(log: CallLog, outcome: ReplaceOutcome = .replaced) {
         self.log = log
         self.outcome = outcome
     }
 
-    func apply(_ text: String, to snapshot: TargetSnapshot) -> ReplaceOutcome {
+    func apply(
+        _ text: String,
+        to snapshot: TargetSnapshot,
+        autoReplace: Bool,
+        keepOutOfHistory: Bool
+    ) -> ReplaceOutcome {
         applied.append(text)
+        options.append(Options(autoReplace: autoReplace, keepOutOfHistory: keepOutOfHistory))
         log.record("apply")
         return outcome
     }

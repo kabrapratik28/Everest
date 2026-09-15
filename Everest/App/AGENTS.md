@@ -18,12 +18,12 @@ highlighted. See `Everest/Resources/AGENTS.md`.
 nil, sending the action down a responder chain this app has no key window to
 start — every item would be permanently greyed out.
 
-**Still no `keyEquivalent`** — bindings show as an `NSMenuItemBadge`, trailing
-text only. A key equivalent is a second, separately-editable copy of a hotkey
-the user can re-record, stale the moment they do; `menuWillOpen` re-reads
-`KeyboardShortcuts.getShortcut(for:)` on every open instead. Rendering stays
-here: key code to character needs the active keyboard layout, and a rival
-formatter could disagree with the recorder. `MenuCommand.hotkey` picks which.
+**No `keyEquivalent` for a *recordable* hotkey** — those get an
+`NSMenuItemBadge`, because a key equivalent is a second editable copy that
+goes stale the moment the user re-records; `menuWillOpen` re-reads
+`KeyboardShortcuts` every open instead. `⌘,` on Settings *is* a real one:
+fixed convention, cannot drift, and it fires while the menu is open.
+`MenuCommand` picks which. Rendering stays here — a key code needs the layout.
 
 **Settings opens with `OpenSettingsAction`, never `showSettingsWindow:`.** On
 macOS 26.6.2 neither that selector nor `showPreferencesWindow:` exists on

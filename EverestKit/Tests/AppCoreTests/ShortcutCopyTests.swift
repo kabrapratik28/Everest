@@ -5,9 +5,9 @@ import Testing
 
 /// Every screen that names a shortcut has to name the one that is bound now.
 ///
-/// This has already gone wrong once. The defaults moved from `⌘I` / `⌘⇧I` to
-/// `⌃⌥I` / `⌃⌥⇧I` and every instruction screen kept saying `⌘I`, so a new
-/// user followed onboarding, pressed `⌘I`, and nothing happened — a fixed
+/// This has already gone wrong. The default moved from `⌘I` to `⌃⌥I` and
+/// then again to `⌥R`, while every instruction screen kept saying `⌘I`, so a
+/// new user followed onboarding, pressed `⌘I`, and nothing happened — a fixed
 /// collision turned into a broken setup flow. Users can also re-record both
 /// bindings at any time, so a correct literal is only correct until they do.
 @Test("the try-it instruction names the shortcut that is actually bound")
@@ -58,6 +58,53 @@ func theCautionIsNotSilencedByTheOnceGate() {
     // The help text is not.
     #expect(ShortcutNotice.caution(for: italic) != nil)
     // And it still says nothing about a binding that collides with nothing —
-    // ⌃⌥I, the current default, is Italic in no app.
+    // ⌃⌥I is Italic in no app, so it earns no caution on that ground.
     #expect(ShortcutNotice.caution(for: .init(key: "i", option: true, control: true)) == nil)
+}
+
+/// A dead-key binding breaks accented typing, silently, and the recorder is
+/// the only place it can be caught.
+///
+/// `⌥I`, `⌥E`, `⌥U`, `⌥N` and `⌥\`` compose `î é ü ñ ǹ` by swallowing the
+/// next keystroke. A Carbon global hotkey *consumes* the event, so binding
+/// one takes the composition away everywhere — and the user has no reason to
+/// connect "I can no longer type î" to a shortcut they set in a rewriting
+/// app weeks ago. That is what cost this project the I-for-Improve mnemonic.
+///
+/// **Whether a chord is dead is a property of the active keyboard layout**,
+/// not of the letter: the same key is dead on a US layout and ordinary on
+/// others. So `AppCore` does not guess it — the app target measures it with
+/// `UCKeyTranslate` and passes the answer in, exactly as it does for
+/// rendering. This decides only what to say about it.
+///
+/// Ordered ahead of the Italic caution because it is the worse failure:
+/// Italic is visible and reversible, a dead key is neither.
+@Test("a dead-key binding is cautioned about, ahead of a merely inconvenient one")
+func aDeadKeyBindingIsCautioned() {
+    let dead = ShortcutNotice.Shortcut(key: "i", option: true, isDeadKey: true)
+    let caution = ShortcutNotice.caution(for: dead)
+
+    #expect(caution != nil)
+    #expect(caution?.localizedCaseInsensitiveContains("accent") == true)
+
+    // The same chord measured as ordinary on this layout says nothing.
+    #expect(ShortcutNotice.caution(for: .init(key: "i", option: true)) == nil)
+}
+
+/// The launch alert stays Italic-only, and must not inherit the dead-key
+/// caution.
+///
+/// `warnAboutItalicOnce` builds an `NSAlert` whose title is literally
+/// "Everest uses ⌘I" — correct by construction while `warning` fires only
+/// for `⌘I`, and a lie the moment it fires for `⌥I`. The recorder's help
+/// text is where a dead key belongs: the user is looking at the box they
+/// just typed it into.
+@Test("the launch alert does not fire for a dead key, whose title would be wrong")
+func theLaunchAlertStaysItalicOnly() {
+    let store = UserDefaults(suiteName: "com.kabrapratik.Everest.deadkey.\(UUID().uuidString)")!
+    let notice = ShortcutNotice(store: store)
+
+    #expect(notice.warning(for: .init(key: "i", option: true, isDeadKey: true)) == nil)
+    // Positive control: the alert still fires for the case it is titled for.
+    #expect(notice.warning(for: .init(key: "i", command: true)) != nil)
 }

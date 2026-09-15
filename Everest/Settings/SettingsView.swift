@@ -19,6 +19,7 @@ struct SettingsView: View {
     var body: some View {
         TabView {
             GeneralTab(
+                settings: settings,
                 presence: presence,
                 isAccessibilityTrusted: isAccessibilityTrusted,
                 collisionCaution: collisionCaution
@@ -38,6 +39,7 @@ struct SettingsView: View {
 // MARK: - General
 
 private struct GeneralTab: View {
+    @ObservedObject var settings: AppSettings
     @ObservedObject var presence: AppPresence
     let isAccessibilityTrusted: () -> Bool
     let collisionCaution: @MainActor () -> String?
@@ -59,7 +61,7 @@ private struct GeneralTab: View {
                 KeyboardShortcuts.Recorder("Choose Style", name: .chooseStyle)
                 // Shown only while the binding in the box above actually
                 // collides. This used to state flatly that Everest uses ⌘I;
-                // the defaults then moved to ⌃⌥I and the sentence became
+                // the default then moved twice and the sentence became
                 // simply false, which is the whole reason no glyph is written
                 // down anywhere any more. Re-read on the poll below, because
                 // the recorder that changes the answer is on this screen.
@@ -86,6 +88,34 @@ private struct GeneralTab: View {
                     .onChange(of: launchesAtLogin) { _, wanted in setLoginItem(wanted) }
                 if let loginItemError {
                     Text(loginItemError).font(.callout).foregroundStyle(.red)
+                }
+            }
+
+            // All three sentences are `ReplacementCopy`, pinned by tests in
+            // `AppCore`. The history caveat especially: `TransientType` is a
+            // convention managers opt into, and a toggle implying macOS
+            // enforces it would be the Privacy screen's "Nowhere" again.
+            Section("Replacing text") {
+                Toggle("Replace automatically", isOn: $settings.replacesAutomatically)
+                Text(ReplacementCopy.autoReplaceExplanation)
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+
+                Toggle(
+                    "Keep rewrites out of clipboard history",
+                    isOn: $settings.keepsOutOfClipboardHistory
+                )
+                Text(ReplacementCopy.historyCaveat)
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+
+                // Only for the one combination that leaves the rewrite
+                // nowhere else. `retrievalNote` decides that, not this view.
+                if let note = ReplacementCopy.retrievalNote(
+                    autoReplace: settings.replacesAutomatically,
+                    keepOutOfHistory: settings.keepsOutOfClipboardHistory
+                ) {
+                    Text(note).font(.callout).foregroundStyle(.secondary)
                 }
             }
 
@@ -370,8 +400,40 @@ private struct PresetField: View {
         self.lineLimit = lineLimit
     }
 
+    /// Caption above, bordered field below — and the caption is why the
+    /// field is wrapped at all.
+    ///
+    /// Two problems, one shape. A `TextField` in a macOS `Form` draws flat
+    /// and borderless to match System Settings, so a populated one is
+    /// indistinguishable from static label text: nothing says you may type.
+    /// `.roundedBorder` is the native affordance for that and is the whole
+    /// fix for it.
+    ///
+    /// The second is that the field's name was only its *placeholder*, which
+    /// disappears the moment there is content. In the Styles rows the fields
+    /// sit inside `HStack`/`VStack`, so `Form`'s automatic label column never
+    /// applies either — leaving three populated boxes with no border and no
+    /// label, unidentifiable and apparently inert. The caption is a real
+    /// label that stays. Wrapping also makes Quick Improve behave the same
+    /// way rather than getting `Form`'s side label, which is what keeps one
+    /// component from rendering two different ways on one screen.
+    ///
+    /// The prompt stays on the `TextField` for VoiceOver and for the empty
+    /// state; the caption is hidden from accessibility so it is not read
+    /// twice.
     var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(prompt)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .accessibilityHidden(true)
+            field
+        }
+    }
+
+    private var field: some View {
         TextField(prompt, text: $draft, axis: .vertical)
+            .textFieldStyle(.roundedBorder)
             .lineLimit(lineLimit)
             .onAppear { draft = value }
             .onChange(of: draft) { _, edited in
@@ -431,7 +493,12 @@ private struct PrivacyTab: View {
                 }
 
                 HStack {
+                    // Same borderless-in-a-Form problem, but only that half:
+                    // this field is empty in its steady state — Add clears
+                    // it — so its placeholder never disappears and it needs
+                    // no separate label.
                     TextField("Bundle identifier, e.g. com.example.bank", text: $newEntry)
+                        .textFieldStyle(.roundedBorder)
                     Button("Add") { add() }
                 }
                 if rejected {

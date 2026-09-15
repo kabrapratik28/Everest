@@ -58,12 +58,13 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         let menu = NSMenu()
         menu.delegate = self
 
-        // Still no `keyEquivalent` on any of these, and the bindings are shown
-        // anyway — as a badge, which is trailing text and nothing else. A key
-        // equivalent would be a second, separately-editable copy of a binding
-        // the user can re-record, and it goes stale the moment they do. The
-        // badge is re-read from `KeyboardShortcuts` on every open instead, so
-        // it cannot disagree with the hotkey that is actually registered.
+        // No `keyEquivalent` for a *recordable* binding: that would be a
+        // second, separately-editable copy which goes stale the moment the
+        // user re-records. Those get a badge instead, re-read from
+        // `KeyboardShortcuts` on every open, so it cannot disagree with the
+        // hotkey actually registered. `⌘,` on Settings is the exception and
+        // a real equivalent — a fixed convention cannot drift, and while
+        // this menu is open Everest is handling events, so it fires.
         add(.quickImprove, "Quick Improve", #selector(runQuickImprove), to: menu)
         add(.chooseStyle, "Choose Style…", #selector(runChooseStyle), to: menu)
         menu.addItem(.separator())
@@ -93,7 +94,11 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     /// window to start that chain, so every item would be permanently greyed
     /// out. Setting the target explicitly is what makes them clickable.
     private func add(_ command: MenuCommand, _ title: String, _ action: Selector, to menu: NSMenu) {
-        let item = NSMenuItem(title: title, action: action, keyEquivalent: "")
+        // A real key equivalent only where `MenuCommand` says there is a
+        // fixed convention — `⌘,` — never for a recordable hotkey, which
+        // gets the badge instead. `NSMenuItem` defaults the modifier mask to
+        // `.command`, so "," is ⌘,.
+        let item = NSMenuItem(title: title, action: action, keyEquivalent: command.fixedKeyEquivalent ?? "")
         item.target = self
         menu.addItem(item)
         commandItems.append((item, command))
