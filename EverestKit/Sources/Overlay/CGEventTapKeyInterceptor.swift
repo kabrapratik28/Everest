@@ -74,10 +74,13 @@ public final class CGEventTapKeyInterceptor: KeyMonitoring {
             },
             userInfo: context
         ) else {
-            // Accessibility was revoked. The picker still works through the
-            // monitors; it just cannot keep its keys from the app underneath.
+            // Accessibility was revoked. Reported as inactive rather than
+            // handed back as a handle indistinguishable from a working one:
+            // the controller has to be able to tell, or it keeps acting on
+            // keys it can no longer take, and a picker digit lands in the
+            // document while appearing to work.
             Unmanaged<Context>.fromOpaque(context).release()
-            return KeyMonitorHandle {}
+            return KeyMonitorHandle(isActive: { false }) {}
         }
 
         Unmanaged<Context>.fromOpaque(context).takeUnretainedValue().tap = tap
@@ -86,7 +89,15 @@ public final class CGEventTapKeyInterceptor: KeyMonitoring {
         CGEvent.tapEnable(tap: tap, enable: true)
 
         // The returned handle is the only thing keeping the tap alive.
-        return KeyMonitorHandle {
+        //
+        // `isActive` asks the tap rather than reporting that creation
+        // succeeded, which is what makes `.tapDisabledByUserInput` safe
+        // without a second mechanism: the system switches the tap off, this
+        // starts answering false, and the controller stops acting on keys it
+        // can no longer take. Only `.tapDisabledByTimeout` is re-enabled in
+        // the callback, because that one is our own slow callback and is
+        // ours to recover from; a disable the system imposed is not.
+        return KeyMonitorHandle(isActive: { CGEvent.tapIsEnabled(tap: tap) }) {
             CGEvent.tapEnable(tap: tap, enable: false)
             CFRunLoopRemoveSource(CFRunLoopGetMain(), source, .commonModes)
             CFMachPortInvalidate(tap)

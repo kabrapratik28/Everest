@@ -78,16 +78,21 @@ nothing.
    press ⌘V while the panel is still up**: it must paste. Those are the two
    halves of the same mechanism — the tap consumes ⌘C and passes everything
    else — and one keystroke checks both.
-12. **With Accessibility revoked, ⌘C at the panel is no longer consumed.**
-   Stated rather than fixed: consumption now depends entirely on the event
-   tap, and `tapCreate` is signature-keyed. The key-window version used to
-   cover this case, at the cost of eating every other key. If you revoke the
-   grant mid-session, the source app's Copy can still overwrite the rewrite.
-13. **The event tap under Everest's own signature.** Tap creation is
-   signature-keyed. Open the style picker, press `3`, and confirm no `3`
-   appears in the source app. If `tapCreate` returns nil the picker silently
-   degrades to the old leaking behaviour — which is why "capture before showing
-   the picker" stays in `Overlay/AGENTS.md`.
+12. **With Accessibility revoked, ⌘C at the panel does nothing at all.**
+   Deliberate, and the lesser of two losses: honouring it would write the
+   rewrite, dismiss the panel, and let the source app's Copy land over the
+   top — you would think you had saved it and the only copy would be gone.
+   Refusing costs a keystroke. **The Copy button still works**, and the ⌘C
+   hint is still drawn in that state, so the panel advertises a shortcut that
+   will not fire. Known and left: hiding it would make `keyHints` depend on
+   whether the tap is live, and a pure function of state should not.
+13. **The event tap under Everest's own signature, and what happens without
+   it.** Normal case: open the style picker, press `3`, confirm no `3` appears
+   in the source app. **Then revoke Accessibility and repeat** — the picker
+   must now do *nothing at all* on `3`, and no `3` may reach the document.
+   That is the fail-closed path: previously it picked a style *and* typed into
+   your text while reporting success. Escape must still close the picker, and
+   the mouse must still work.
 14. **Chord still held during clipboard fallback.** `onKeyDown` fires while the
    hotkey is physically down, and capture rung 9 posts a synthetic ⌘C. Confirm
    a clipboard-fallback target (a terminal, a PDF) still captures with the

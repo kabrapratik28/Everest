@@ -197,9 +197,30 @@ public final class FloatingPanelController {
         // the clipboard — in `heldForManualCopy`, the user's only copy of it.
         // The verdict belongs to the state the keystroke was dispatched
         // against, not to whatever `state` became along the way.
-        let dispatchedAgainst = state
-        let acted = perform(keystroke)
-        return acted && (dispatchedAgainst?.acceptsKeyWindow ?? false)
+        guard let dispatchedAgainst = state,
+              let action = PanelKeyMap.action(for: keystroke, in: dispatchedAgainst)
+        else { return false }
+
+        // Fail closed. These monitors observe and cannot consume, so in a
+        // state that needs a key taken from the app underneath they are only
+        // safe to act on while the tap is there to take it. Without one, a
+        // digit picks a style *and* lands in the document, and a ⌘C we
+        // honour is overwritten by the source app's own Copy a moment later
+        // — with `onCopy` having already dismissed the panel and the only
+        // copy of the rewrite gone with it. Half-working while editing the
+        // user's text is worse than visibly doing nothing.
+        //
+        // Escape is the one exception: a leaked Escape is harmless, which is
+        // why Return was never bound, and without it the keyboard has no way
+        // out of a panel that has stopped answering.
+        if dispatchedAgainst.needsKeyInterception,
+           armedInterceptor?.isActive != true,
+           action != .cancel {
+            return false
+        }
+
+        let acted = run(action)
+        return acted && dispatchedAgainst.acceptsKeyWindow
     }
 
     /// The tap's answer: whether the keystroke was consumed.
@@ -256,15 +277,6 @@ public final class FloatingPanelController {
         guard !pickerIsSpent else { return }
         pickerIsSpent = true
         cancel()
-    }
-
-    /// Runs whatever this keystroke means in this state. Returns whether it
-    /// meant anything *and* found something to apply itself to.
-    private func perform(_ keystroke: Keystroke) -> Bool {
-        guard let state, let action = PanelKeyMap.action(for: keystroke, in: state) else {
-            return false
-        }
-        return run(action)
     }
 
     /// Returns whether the action found anything to act on. Reaching the key

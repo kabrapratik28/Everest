@@ -57,9 +57,23 @@ public protocol PanelSurface: AnyObject {
 /// and the handle to them has been lost.
 @MainActor
 public final class KeyMonitorHandle {
+    /// Whether the thing behind this handle is actually doing its job.
+    ///
+    /// Asked every time rather than recorded at install, because a
+    /// `CGEventTap` can be switched off by the system long after it was
+    /// created. A tap that failed to install and a tap that has since been
+    /// disabled are the same condition to a caller — neither can take a key
+    /// away from the frontmost app — so they get the same answer.
+    public var isActive: Bool { isActiveCheck() }
+
+    private let isActiveCheck: @MainActor () -> Bool
     private let teardown: @MainActor () -> Void
 
-    public init(teardown: @escaping @MainActor () -> Void) {
+    public init(
+        isActive: @escaping @MainActor () -> Bool = { true },
+        teardown: @escaping @MainActor () -> Void
+    ) {
+        isActiveCheck = isActive
         self.teardown = teardown
     }
 

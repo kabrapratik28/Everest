@@ -43,12 +43,17 @@ final class SpyKeyMonitor: KeyMonitoring {
     private(set) var removals = 0
     private var handler: (@MainActor (Keystroke) -> Bool)?
 
+    /// Whether the thing behind the handle is really working. A real tap
+    /// reports this by asking the tap; set it false to model `tapCreate`
+    /// having failed, or the system having switched the tap off afterwards.
+    var isActive = true
+
     var isInstalled: Bool { installs > removals }
 
     func install(_ handler: @escaping @MainActor (Keystroke) -> Bool) -> KeyMonitorHandle {
         installs += 1
         self.handler = handler
-        return KeyMonitorHandle { [weak self] in
+        return KeyMonitorHandle(isActive: { [weak self] in self?.isActive ?? false }) { [weak self] in
             self?.removals += 1
             self?.handler = nil
         }
@@ -848,6 +853,62 @@ struct FloatingPanelControllerTests {
         // so the zero above is a verdict rather than a dead spy.
         #expect(tap.send(PanelKeyMapTests.commandC) == true)
         #expect(copied.value == "the whole rewrite")
+    }
+
+    /// Fail closed: the panel acts on a key only while it can take that key
+    /// away from the app underneath.
+    ///
+    /// `tapCreate` returns nil without Accessibility, and the adapter used to
+    /// hand back a handle indistinguishable from a working one. The monitors
+    /// stayed armed and kept *executing* — so a bare digit picked a style and
+    /// landed in the document, which is the original bug with no sign that
+    /// anything had degraded. Degrading to doing nothing is honest; degrading
+    /// to half-working while editing the user's text is not.
+    ///
+    /// Checked live rather than at install, which is what also covers the tap
+    /// being switched off later: a dead tap and a tap that was never created
+    /// are the same condition and get the same answer.
+    ///
+    /// **Escape is the exception**, and the only one. A leaked Escape is
+    /// harmless — that is why Return was never bound — and without it the
+    /// keyboard has no way out of a panel that has stopped responding.
+    @Test("with nothing able to consume, the panel acts only on Escape")
+    func failsClosedWhenConsumptionIsUnavailable() {
+        let monitor = SpyKeyMonitor()
+        let tap = SpyKeyMonitor()
+        let controller = makeController(keyMonitor: monitor, keyInterceptor: tap)
+        let picked = Box<Preset>()
+        let copied = Box<String>()
+        let cancels = Counter()
+        controller.onPickStyle = { picked.value = $0 }
+        controller.onCopy = { copied.value = $0 }
+        controller.onCancel = { cancels.bump() }
+
+        // The tap could not be created at all.
+        tap.isActive = false
+        controller.show(.stylePicker(presets: PanelKeyMapTests.fiveStyles))
+
+        monitor.send(PanelKeyMapTests.digit(3))
+        #expect(picked.value == nil)
+        monitor.send(PanelKeyMapTests.arrowDown)
+        #expect(controller.highlightedStyleIndex == 0)
+
+        // Positive control, and the way out: Escape still works.
+        monitor.send(PanelKeyMapTests.escape)
+        #expect(cancels.count == 1)
+
+        // A ⌘C we honoured here would be overwritten by the source app's own
+        // Copy a moment later — with the panel already dismissed by `onCopy`
+        // and the only copy of the rewrite gone with it.
+        controller.show(.heldForManualCopy(text: "the whole rewrite", reason: "the window moved"))
+        monitor.send(PanelKeyMapTests.commandC)
+        #expect(copied.value == nil)
+
+        // The tap comes back, and so does the panel.
+        tap.isActive = true
+        controller.show(.stylePicker(presets: PanelKeyMapTests.fiveStyles))
+        monitor.send(PanelKeyMapTests.digit(3))
+        #expect(picked.value == PanelKeyMapTests.fiveStyles[2])
     }
 
     /// Announcing is once per kind *per presentation*. What was last said
