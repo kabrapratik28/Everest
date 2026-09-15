@@ -3,11 +3,12 @@ import TextBridge
 
 /// A capture refusal, in words the user can act on.
 ///
-/// Five refusals with five different remedies, so five sentences. Resist
-/// folding them into "Everest could not read your selection": that sends the
-/// user looking in the wrong place four times out of five — granting a
-/// permission they already granted, hunting for a selection they did make,
-/// shortening text that was never too long.
+/// One sentence per refusal, because each has a different remedy. Deliberately
+/// not a count: this said "five" through the addition of a sixth, which is how
+/// a comment stops being read. Resist folding them into "Everest could not read
+/// your selection" — that sends the user looking in the wrong place almost
+/// every time: granting a permission they already granted, hunting for a
+/// selection they did make, shortening text that was never too long.
 ///
 /// The secure-field sentence earns its second clause specifically. That refusal
 /// is the app working exactly as designed, and without being told so the user

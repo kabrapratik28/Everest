@@ -18,7 +18,7 @@ public enum PresetEdit {
 
     /// The name to store, or `nil` when the edit must be refused.
     ///
-    /// The name is the whole of a style's identity in the ⌘⇧I picker: the row
+    /// The name is the whole of a style's identity in the picker: the row
     /// label and the VoiceOver label are both `preset.name`. Emptying it leaves
     /// a row that can only be picked by counting, is announced as nothing, and
     /// is indistinguishable from the next empty one.
@@ -63,5 +63,22 @@ public enum ExclusionEdit {
         guard !existing.contains(where: { $0.caseInsensitiveCompare(trimmed) == .orderedSame })
         else { return nil }
         return existing + [trimmed]
+    }
+
+    /// The new list with `entry` gone.
+    ///
+    /// The list has to be removable because a refusal message sends the user
+    /// here to remove from it: `CaptureFailure.message(for: .excludedApp)`
+    /// says so in as many words. The only affordance was `.onDelete`, a
+    /// `List` gesture that does nothing inside a macOS `Form` — so the app
+    /// instructed the user to do something it had not implemented.
+    ///
+    /// By identity rather than by index, so no view holds a position into an
+    /// array it is mutating. Case-insensitive to match `add` and
+    /// `SelectionCoordinator.isExcluded`, so an entry refused as a duplicate
+    /// of a differently-cased one can still be removed by either spelling.
+    /// An absent entry is a no-op, never a trap.
+    public static func remove(_ entry: String, from existing: [String]) -> [String] {
+        existing.filter { $0.caseInsensitiveCompare(entry) != .orderedSame }
     }
 }
