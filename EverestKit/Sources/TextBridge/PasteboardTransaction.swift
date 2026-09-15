@@ -17,12 +17,33 @@ public enum Fidelity: Equatable, Sendable {
     case lossy
 }
 
+/// Why a borrow was declined.
+///
+/// Deliberately **not** folded into `Fidelity`. That type answers how
+/// complete our copy of the clipboard is, which is what `canBorrow` turns
+/// on; this answers why we stopped. One enum answering two questions is how
+/// the next reader switches on the wrong one — and inferring the message
+/// from `Fidelity` is what told a user "another rewrite is using the
+/// clipboard" when they had simply copied something.
+public enum BorrowRefusal: Equatable, Sendable {
+    /// Another transaction holds this pasteboard.
+    case alreadyBorrowed
+    /// Something on it is too large to put back afterwards.
+    case tooLargeToRestore
+    /// It changed while we were reading it, so what we hold spans two.
+    case changedDuringRead
+}
+
 /// Borrows the general pasteboard and gives it back.
 public final class PasteboardTransaction {
     private let pasteboard: NSPasteboard
     private var saved: [[(type: NSPasteboard.PasteboardType, data: Data)]] = []
 
     public private(set) var fidelity: Fidelity = .notTaken
+
+    /// Set whenever `snapshot()` returns false, and the thing callers should
+    /// build a sentence from.
+    public private(set) var refusal: BorrowRefusal?
 
     private var expectedChangeCount: Int?
     private var holdsBorrow = false
@@ -32,6 +53,9 @@ public final class PasteboardTransaction {
     public var canBorrow: Bool { fidelity == .faithful }
 
     private let borrow: PasteboardBorrow
+
+    /// See `SelectionCoordinator.trace`.
+    var trace: Tracing = OSLogTrace()
 
     /// The registry is injected so a test suite can own its own and stay
     /// hermetic. Production always uses the shared one: the exclusion has to
@@ -58,9 +82,18 @@ public final class PasteboardTransaction {
         // answer: no snapshot exists, and none was lost either.
         guard borrow.acquire(pasteboard.name) else {
             fidelity = .notTaken
+            refusal = .alreadyBorrowed
             return false
         }
         holdsBorrow = true
+
+        // Recorded *before* a single byte is read, and checked again after.
+        // Reading forces every lazy provider to deliver, which is exactly
+        // where a promise — a file from Finder, a large image — takes long
+        // enough for another process to write. Taking the count afterwards
+        // blessed that write as ours: we would go on to clear their newer
+        // clipboard and restore bytes spanning two different ones.
+        let before = pasteboard.changeCount
 
         var budgetRemaining = Self.snapshotByteBudget
         var collected: [[(type: NSPasteboard.PasteboardType, data: Data)]] = []
@@ -74,7 +107,10 @@ public final class PasteboardTransaction {
                 // No bytes of its own: a flavour AppKit derives on demand, and
                 // the same machinery re-advertises it once the base types are
                 // restored. Nothing is lost, so this is not lossiness.
-                guard let data = item.data(forType: type) else { continue }
+                guard let data = item.data(forType: type) else {
+                    trace.record(.snapshotSkippedType(type.rawValue))
+                    continue
+                }
 
                 guard data.count <= budgetRemaining else {
                     // Refuse the whole borrow rather than restoring a partial
@@ -83,6 +119,7 @@ public final class PasteboardTransaction {
                     saved = []
                     expectedChangeCount = nil
                     fidelity = .lossy
+                    refusal = .tooLargeToRestore
                     releaseBorrow()
                     return false
                 }
@@ -92,8 +129,22 @@ public final class PasteboardTransaction {
             collected.append(fields)
         }
 
+        // What we hold now spans two clipboards and there is no telling
+        // which parts came from which, so the only safe answer is to have
+        // taken no snapshot at all. `notTaken` is literally true here:
+        // nothing exists, and nothing was lost either — their newer content
+        // is untouched because we have not written yet.
+        guard pasteboard.changeCount == before else {
+            saved = []
+            expectedChangeCount = nil
+            fidelity = .notTaken
+            refusal = .changedDuringRead
+            releaseBorrow()
+            return false
+        }
+
         saved = collected
-        expectedChangeCount = pasteboard.changeCount
+        expectedChangeCount = before
         fidelity = .faithful
         return true
     }

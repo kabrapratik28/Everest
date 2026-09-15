@@ -479,6 +479,59 @@ struct ReplacementTests {
         }
     }
 
+    /// Resolves its promise and lets something else write first, so the
+    /// snapshot's change count moves mid-read.
+    private final class RacingProvider: NSObject, NSPasteboardItemDataProvider,
+        @unchecked Sendable
+    {
+        let onResolve: @Sendable () -> Void
+        init(onResolve: @escaping @Sendable () -> Void) { self.onResolve = onResolve }
+
+        func pasteboard(
+            _ pasteboard: NSPasteboard?, item: NSPasteboardItem,
+            provideDataForType type: NSPasteboard.PasteboardType
+        ) {
+            onResolve()
+            item.setData(Data("resolved".utf8), forType: type)
+        }
+    }
+
+    /// Third wrong-cause message on this path today, and the same sentence
+    /// each time: "another rewrite is using the clipboard" when nothing is.
+    /// It names a cause the user can do nothing about — they did not start a
+    /// second rewrite, they copied something.
+    ///
+    /// The refusal now carries its own reason rather than being inferred from
+    /// `Fidelity`, which answers *how complete our copy is* — a different
+    /// question, and one enum answering both is how the next reader switches
+    /// on the wrong one.
+    @Test("a clipboard that moved under the snapshot is reported as changed, not as busy")
+    func aClipboardThatMovedUnderTheSnapshotIsNotReportedAsBusy() throws {
+        withPrivatePasteboard { pasteboard in
+            nonisolated(unsafe) let board = pasteboard
+            let provider = RacingProvider {
+                board.clearContents()
+                board.setString("what the user just copied", forType: .string)
+            }
+            let item = NSPasteboardItem()
+            item.setDataProvider(provider, forTypes: [.tiff])
+            pasteboard.clearContents()
+            pasteboard.writeObjects([item])
+
+            let ax = liveTarget()
+            ax.settable = false  // route one declines, so route two snapshots
+
+            let outcome = service(ax, keystroke: FakeKeystroke(), pasteboard: pasteboard)
+                .apply(
+                    "the rewrite", to: snapshot(),
+                    autoReplace: false, keepOutOfHistory: false)
+
+            if case .heldForManualCopy(cause: .clipboardChanged, _) = outcome {} else {
+                Issue.record("expected a changed-clipboard hold, got \(outcome)")
+            }
+        }
+    }
+
     /// The Sublime shape, which every other clipboard fixture here missed.
     ///
     /// Rung 9 is reached two different ways and they look nothing alike to

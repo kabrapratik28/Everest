@@ -93,7 +93,7 @@ Never bundle a model in the .app; download to `~/Library/Application Support/Eve
 
 ## 6. Guards that must not be simplified away
 
-Each caused a real defect. Each has a test.
+Each caused a real defect. Each has a test. **And a user-facing cause carries its own signal — never derive it from the nearest available enum.** Four instances here: Google Docs blamed for a full clipboard, "another rewrite is using the clipboard" twice from a leaked borrow and then from `Fidelity`, and a doc row standing in for a claim it did not support, which cost a P0 investigation. Each time the code was right about the thing it measured and wrong about the thing it said.
 
 | Guard | Without it |
 |---|---|

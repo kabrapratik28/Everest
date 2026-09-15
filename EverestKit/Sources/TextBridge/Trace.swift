@@ -30,6 +30,13 @@ enum TraceEvent: Equatable {
     /// which is precisely the confusion this exists to make visible.
     case writeRefused(TargetValidator.Refusal)
 
+    /// A declared type that had no bytes of its own and was left out of the
+    /// snapshot. Almost always a flavour AppKit re-advertises from the base
+    /// types, and sometimes a promise whose provider refused — the two are
+    /// indistinguishable, so the skip is an assumption, and this is what
+    /// makes it visible when it turns out wrong.
+    case snapshotSkippedType(String)
+
     case pasteOverrideEntered
     case pasteOverrideSkipped(OverrideSkip)
     case reRead(matched: Bool)

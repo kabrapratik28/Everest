@@ -223,8 +223,8 @@ public final class ReplacementService {
         let transaction = PasteboardTransaction(pasteboard: pasteboard, borrow: borrow)
         guard transaction.snapshot() else {
             return .heldForManualCopy(
-                cause: Self.heldCause(transaction.fidelity),
-                reason: Self.heldReason(writeRefused, transaction.fidelity))
+                cause: Self.heldCause(transaction.refusal),
+                reason: Self.heldReason(writeRefused, transaction.refusal))
         }
 
         transaction.writeTransient(text)
@@ -303,8 +303,8 @@ public final class ReplacementService {
         // pasteboard, and there is nothing left to be careful with.
         guard transaction.snapshot() else {
             return .heldForManualCopy(
-                cause: Self.heldCause(transaction.fidelity),
-                reason: Self.heldReason(writeRefused, transaction.fidelity))
+                cause: Self.heldCause(transaction.refusal),
+                reason: Self.heldReason(writeRefused, transaction.refusal))
         }
 
         transaction.writeTransient(text)
@@ -417,18 +417,24 @@ public final class ReplacementService {
 
     /// Two ways a borrow can be refused, and the user deserves to be told
     /// which: their clipboard is irreplaceable, or another rewrite has it.
-    private static func heldCause(_ fidelity: Fidelity) -> HoldCause {
-        fidelity == .lossy ? .clipboardTooLarge : .clipboardBusy
+    private static func heldCause(_ refusal: BorrowRefusal?) -> HoldCause {
+        switch refusal {
+        case .tooLargeToRestore: .clipboardTooLarge
+        case .changedDuringRead: .clipboardChanged
+        case .alreadyBorrowed, nil: .clipboardBusy
+        }
     }
 
     /// Switched on `Fidelity` rather than on the cause, so the two stay a
     /// pair without `.clipboardChanged` having to appear as a case that
     /// `heldCause` cannot return. That one is not a borrow refusal: it is
     /// raised where the newer content is known, and carries its own sentence.
-    private static func heldReason(_ reason: String, _ fidelity: Fidelity) -> String {
-        switch fidelity {
-        case .lossy: "\(reason), and your clipboard is too large to put back"
-        case .notTaken, .faithful: "\(reason), and another rewrite is using the clipboard"
+    private static func heldReason(_ reason: String, _ refusal: BorrowRefusal?) -> String {
+        switch refusal {
+        case .tooLargeToRestore: "\(reason), and your clipboard is too large to put back"
+        case .changedDuringRead:
+            "\(reason), and something else was copied while it ran"
+        case .alreadyBorrowed, nil: "\(reason), and another rewrite is using the clipboard"
         }
     }
 
@@ -447,8 +453,8 @@ public final class ReplacementService {
         // nothing and let the user decide.
         guard transaction.snapshot() else {
             return .heldForManualCopy(
-                cause: Self.heldCause(transaction.fidelity),
-                reason: Self.heldReason(reason, transaction.fidelity))
+                cause: Self.heldCause(transaction.refusal),
+                reason: Self.heldReason(reason, transaction.refusal))
         }
 
         transaction.writeDurable(text, keepOutOfHistory: keepOutOfHistory)

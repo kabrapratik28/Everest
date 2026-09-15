@@ -90,6 +90,99 @@ struct PasteboardTransactionTests {
         }
     }
 
+    /// Resolves a promise when asked, and lets something else write the
+    /// pasteboard first. That is the real window: `data(forType:)` forces a
+    /// lazy provider to deliver, and a provider is exactly where the read
+    /// takes long enough for another process to get in.
+    private final class SlowProvider: NSObject, NSPasteboardItemDataProvider, @unchecked Sendable {
+        let onResolve: @Sendable () -> Void
+        init(onResolve: @escaping @Sendable () -> Void) { self.onResolve = onResolve }
+
+        func pasteboard(
+            _ pasteboard: NSPasteboard?, item: NSPasteboardItem,
+            provideDataForType type: NSPasteboard.PasteboardType
+        ) {
+            onResolve()
+            item.setData(Data("resolved".utf8), forType: type)
+        }
+    }
+
+    /// The count was recorded *after* materialising, so a write landing
+    /// during the read got blessed as ours: we would later clear the newer
+    /// clipboard and restore the bytes we had read before it arrived.
+    ///
+    /// Refusing is the only safe answer — by the time we notice, what we hold
+    /// is a mixture of two clipboards and we cannot tell which parts.
+    @Test("a clipboard that changes while it is being read is not snapshotted")
+    func aClipboardWrittenDuringTheReadIsRefused() throws {
+        withPrivatePasteboard { pasteboard in
+            nonisolated(unsafe) let board = pasteboard
+            let provider = SlowProvider {
+                // Another process copies while our promise resolves.
+                board.clearContents()
+                board.setString("what the user just copied", forType: .string)
+            }
+            let item = NSPasteboardItem()
+            item.setDataProvider(provider, forTypes: [.tiff])
+            pasteboard.clearContents()
+            pasteboard.writeObjects([item])
+
+            let transaction = PasteboardTransaction(pasteboard: pasteboard)
+
+            #expect(transaction.snapshot() == false, "the bytes we hold span two clipboards")
+            #expect(transaction.canBorrow == false)
+            #expect(
+                pasteboard.string(forType: .string) == "what the user just copied",
+                "and their newer content is left exactly alone")
+        }
+    }
+
+    /// A promise whose provider cannot deliver. `data(forType:)` then
+    /// returns nil for that type — and, measured, for derivable flavours
+    /// alongside it whose content is sitting in the same item.
+    private final class RefusingProvider: NSObject, NSPasteboardItemDataProvider,
+        @unchecked Sendable
+    {
+        func pasteboard(
+            _ pasteboard: NSPasteboard?, item: NSPasteboardItem,
+            provideDataForType type: NSPasteboard.PasteboardType
+        ) {}
+    }
+
+    /// Skipping a nil type is the right call and it rests on an assumption
+    /// nobody can check from outside: that the flavour is derivable and the
+    /// restore will bring it back. Measured, that assumption is sometimes
+    /// wrong — a refused promise and a derivable flavour produce the same
+    /// nil — and there is no property to tell them apart, so the skip stays.
+    ///
+    /// What changes is that it stops being invisible. If a user reports a
+    /// clipboard that came back poorer than it went in, the trail names the
+    /// types we dropped.
+    @Test("a declared type with no bytes of its own is recorded as skipped")
+    func askippedTypeIsRecorded() throws {
+        withPrivatePasteboard { pasteboard in
+            let item = NSPasteboardItem()
+            item.setString("plain", forType: .string)
+            item.setDataProvider(RefusingProvider(), forTypes: [.rtf])
+            pasteboard.clearContents()
+            pasteboard.writeObjects([item])
+
+            let trace = FakeTrace()
+            let transaction = PasteboardTransaction(pasteboard: pasteboard)
+            transaction.trace = trace
+
+            #expect(transaction.snapshot(), "the snapshot still succeeds — nothing is refused")
+
+            let skipped = trace.events.compactMap { event -> String? in
+                if case let .snapshotSkippedType(type) = event { return type }
+                return nil
+            }
+            #expect(
+                skipped.contains("public.rtf"),
+                "the refused promise is named; recorded \(skipped)")
+        }
+    }
+
     /// Declining is right, and the transaction is still over. It did not say
     /// so: the change-count path returned without releasing, and the borrow
     /// outlived the work. `ReplacementService.pasteReplace` calls `handOff` on
