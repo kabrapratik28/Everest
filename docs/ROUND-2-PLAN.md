@@ -27,6 +27,26 @@ rediscover. Being wrong about these is a useful result too.
 | `fix-docs` changes the capture chain **and** `fix-keys` changes when capture happens | Capture ordering relative to the picker is a data-loss guard. |
 | Engine memoisation **and** cancellation/supersede | A retained engine outlives the transaction that created it. `cancel()` semantics were written for a per-transaction engine. |
 
+## Carried in from round 1 — verified findings with no fix
+
+Named by agents on their way out, so they have no tracker row anywhere else.
+The first two were logged **"could not rule out"** and kept that way
+deliberately; do not upgrade them without constructing the case.
+
+| Finding | State |
+|---|---|
+| `RewriteCoordinator.chooseStyle:74` has **no generation guard after `begin()`** | The missing guard is **confirmed** — I read it; every other post-suspension site in that file guards. The *harm* is "could not rule out": if a second press supersedes while `chooseStyle` is suspended in capture, the older call writes `pending` stamped with the new generation, and since `pickStyle` never supersedes, two `run`s can share one generation and both reach `apply`. The main thread blocks during capture, so nobody could construct a schedule the runtime is certain to produce. One line either way. |
+| `NSPanelSurface.contentHeight:150` measures at height 1 on the live hosting view | Could clamp the clip view and post `boundsDidChange` with content height 1, resetting `followsTail` to true roughly every streamed frame — so "streaming stops following once the user scrolls up" would not hold on a long rewrite. "Could not rule out": needs AppKit run, not read. |
+| Deleting every style still shows an empty picker | Confirmed. `chooseStyle` shows `.stylePicker(presets: [])` with nothing in it. Mostly defused by `fix-keys`' any-unanswerable-key-dismisses rule, so it is no longer a dead end, but it should not be shown. Fix belongs at the delete, not the picker. |
+
+**And one warning about a note you will read in `AppCore/AGENTS.md`.** The
+known-and-bounded write window is written assuming *one* in-flight
+transaction. It is bounded against supersession, not against a genuine double
+write. If engine memoisation now lets two generations reach `apply`
+concurrently, that note must be revisited rather than trusted — which is
+exactly the first row of the interaction table above meeting the first row of
+this one.
+
 ## Scope for each round-2 auditor
 
 1. **Regression auditor.** Diff `3954ef1..HEAD`. For each fix: does it do what its

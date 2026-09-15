@@ -19,18 +19,18 @@ ranked highest.
 | EVE-001 | P0 | Truncated generation replaces the selection | **Fixed** — decoder stop reason, budget `contextCap - inputTokens`, completeness backstop |
 | EVE-002 | P0 | Picker keys edit the source document | **Fixed** — consuming `CGEventTap`, measured against a live TextEdit |
 | EVE-003 | P1 | Engine reloads 2.3 GB per rewrite | **Fixed** — `EngineRegistry` memoises one per `EngineID`, evicts on delete (`2c94d16`) |
-| EVE-004 | P1 | Preparation is not cancellable | In progress |
+| EVE-004 | P1 | Preparation is not cancellable | **Fixed** — the `prepare` task is stored and cancelled, and progress is generation-checked before touching the panel |
 | EVE-005 | P1 | `LoadedModel` admits duplicate concurrent loads | **Fixed** — `LoadOnce` caches the in-flight `Task`, not just the result (`00614ae`) |
-| EVE-006 | P1 | Onboarding cannot download the default model | In progress |
-| EVE-007 | P1 | Shortcut labels hardcoded, contradict the default | In progress |
-| EVE-008 | P1 | 30B offered on Macs that cannot run it | In progress |
+| EVE-006 | P1 | Onboarding cannot download the default model | **Fixed** — selection and install state are separate facts on a row |
+| EVE-007 | P1 | Shortcut labels hardcoded, contradict the default | **Fixed** — `ShortcutCopy` renders from the live binding; no glyph is written down |
+| EVE-008 | P1 | 30B offered on Macs that cannot run it | **Fixed** — `fitsInMemory` gates ahead of both selection and install |
 | EVE-009 | P1 | Posted ⌘C/⌘V can fire after their timeout | **Fixed** — copy half `302ff94`, paste half `943da4f` (restore only after the full budget) |
 | EVE-010 | P1 | Panel ⌘C not consumed, source app overwrites it | **Fixed** — `makeKey()` on terminal states; a non-activating panel can hold key without activating (`f941a5f`) |
 | EVE-011 | P2 | Google Docs rejected before clipboard fallback | **Fixed** (`fb76aa9`) |
 | EVE-012 | P2 | `clean()` corrupts legitimate content | **Fixed** — `56f671b` + **`6b0eea9`**, which repairs a greedy-match wrong-write in `56f671b` itself; 3× ratio removed (`79dcb62`) |
-| EVE-013 | P2 | Onboarding keyed to permission, not completion | In progress |
-| EVE-014 | P2 | Model-management failures swallowed | In progress |
-| EVE-015 | P2 | Unusable style/privacy states | Partly fixed (blank names refused); rest in progress |
+| EVE-013 | P2 | Onboarding keyed to permission, not completion | **Fixed** — completion and current step both persisted |
+| EVE-014 | P2 | Model-management failures swallowed | **Fixed** — `download` records rather than throws, since the error's only consumer is a label |
+| EVE-015 | P2 | Unusable style/privacy states | **Mostly** — blank names refused, exclusions removable and validated. **Open:** deleting every style still shows an empty picker (see below) |
 | EVE-016 | P2 | AX per-app fallback skips the PID ownership check | **Fixed** (`a704b56`) — and the audit understated it; that branch is the common one on macOS 26 |
 | EVE-017 | P2 | Prompt delimiter forgeable | **Fixed** — per-prompt 64-bit id in the tag name (`b52e822`) |
 | EVE-018 | P3 | Clean checkout is machine-specific | Partly — README and `Package.resolved` fixed (`f8fc86d`); signing cert is a deliberate open question |
@@ -58,6 +58,21 @@ document, and the only surviving effect of that code was deleting the tag from
 content a user legitimately wrote. It had lost its purpose and kept its damage.
 Two correct fixes, landed separately in one pipeline, made a third bug. Fixed
 in `56f671b`; the rule it produced is in `RewriteCore/AGENTS.md`.
+
+## Still open
+
+**EVE-015's empty picker.** Nothing stops a user deleting every style, and
+`chooseStyle` then shows `.stylePicker(presets: [])` — a panel listing nothing.
+Largely defused by an unrelated fix: `fix-keys`' rule that any key the picker
+cannot answer ends the picker means the first keystroke now dismisses it, where
+the audit found only Escape worked. Still wrong to show, and the fix belongs
+where the delete happens rather than at the picker.
+
+**EVE-018's certificate**, deliberately — see below.
+
+Everything else on the list is fixed. Statuses above were re-checked against
+the code rather than taken from the agent reports, which is how EVE-004 turned
+out to be done and EVE-015 turned out not to be.
 
 ## Where we diverged
 

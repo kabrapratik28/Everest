@@ -65,11 +65,13 @@ public actor RewriteCoordinator {
     /// The Choose Style hotkey. Reads the selection, *then* offers the styles.
     ///
     /// The ordering is the whole guard, and it is the coordinator's alone.
-    /// `Overlay`'s key monitor observes keystrokes without consuming them, so
-    /// the `3` that picks style 3 is also typed into the frontmost app — the
-    /// one holding the text about to be rewritten. Capturing first means the
-    /// stray digit lands after the bytes are already in hand. A panel shown
-    /// first can also move accessibility focus before it is read.
+    /// `Overlay` now arms a consuming `CGEventTap` while the picker is up, so
+    /// the `3` that picks style 3 no longer reaches the frontmost app — but
+    /// that tap is keyed to the code signature and `tapCreate` returns nil
+    /// without the grant, and then the digit lands in the very text about to
+    /// be rewritten. Capturing first means it arrives after the bytes are in
+    /// hand either way. A panel shown first can also move accessibility focus
+    /// before it is read.
     public func chooseStyle() async {
         guard let snapshot = await begin() else { return }
         pending = snapshot
