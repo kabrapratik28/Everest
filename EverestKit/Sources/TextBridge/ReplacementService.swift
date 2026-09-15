@@ -35,17 +35,30 @@ public final class ReplacementService {
         self.consumptionPollInterval = consumptionPollInterval
     }
 
-    public func apply(_ text: String, to snapshot: TargetSnapshot) -> ReplaceOutcome {
+    /// `autoReplace` is the user's setting, passed per call rather than held,
+    /// for the reason `excludedBundleIDs` is: a value frozen at launch goes
+    /// stale the moment they change it, and nothing tells them it has. No
+    /// default — the product default lives in `AppSettings`, and a default
+    /// here would be a second place for it to disagree from.
+    public func apply(
+        _ text: String, to snapshot: TargetSnapshot,
+        autoReplace: Bool, keepOutOfHistory: Bool
+    ) -> ReplaceOutcome {
         // Re-checked here, not only at capture: a password field can take
         // focus between capture and apply, and the user can revoke the
         // permission mid-rewrite. While secure input is on, synthetic
         // keystrokes are not delivered anyway, so route two would fail
         // silently rather than visibly.
         if system.isSecureEventInputEnabled() {
-            return handOff(text, cause: .secureField, reason: "a password field has focus")
+            return handOff(
+                text, cause: .secureField, reason: "a password field has focus",
+                keepOutOfHistory: keepOutOfHistory)
         }
         if !system.isAccessibilityTrusted() {
-            return handOff(text, cause: .noAccessibility, reason: "Accessibility permission was revoked")
+            return handOff(
+                text, cause: .noAccessibility,
+                reason: "Accessibility permission was revoked",
+                keepOutOfHistory: keepOutOfHistory)
         }
 
         // Before the validator, on purpose, so nobody can later read a
@@ -55,15 +68,16 @@ public final class ReplacementService {
         // *same* shifted string, and confirms a match with itself.
         if snapshot.isRangeDerived {
             return handOff(
-                text,
-                cause: .rangeDerived,
-                reason: "the selection was reconstructed from a range and cannot be verified"
-            )
+                text, cause: .rangeDerived,
+                reason: "the selection was reconstructed from a range and cannot be verified",
+                keepOutOfHistory: keepOutOfHistory)
         }
 
         let validator = TargetValidator(system: system, accessibility: accessibility)
         if let refusal = validator.validate(snapshot) {
-            return handOff(text, cause: refusal.cause, reason: refusal.reason)
+            return handOff(
+                text, cause: refusal.cause, reason: refusal.reason,
+                keepOutOfHistory: keepOutOfHistory)
         }
 
         // Route one. Settability is re-checked live rather than trusted from
@@ -79,14 +93,35 @@ public final class ReplacementService {
             return .replaced
         }
 
-        // Route two. Editability is re-derived live here rather than read
+        // Route two. Editability is still re-derived live rather than read
         // from `snapshot.isEditable`, matching the live settability check
         // above: having one of the pair stale invites a future edit that
         // resolves the inconsistency the wrong way.
-        guard accessibility.isEditable(snapshot.element) else {
-            return handOff(text, cause: .notEditable, reason: writeRefused)
+        //
+        // With auto-replace on, `isEditable` stops being a veto and is not
+        // consulted at all. It was always the weakest signal here: by this
+        // line the validator has proved the
+        // focused element reports our exact text at our exact range, which
+        // says more about the target than any role or settability flag does.
+        // Real editors — WebKit `contenteditable` among them — accept typing
+        // while reporting neither attribute settable, and those were the
+        // targets handing the user a clipboard and asking them to paste.
+        //
+        // Safe because of what cannot get here, not because of optimism. A
+        // rung-9 snapshot carries a nil range, so `compare` answers `.unknown`
+        // and the validator refuses it above — terminals, PDFs and Google Docs
+        // are all rung 9 and none of them reaches this line. A rung-7 snapshot
+        // is refused earlier still by `isRangeDerived`.
+        //
+        // And if the target really is read-only the paste is ignored,
+        // consumption is not observed, and the outcome is the same copy-only
+        // as before — one budget later.
+        if !autoReplace, !accessibility.isEditable(snapshot.element) {
+            return handOff(
+                text, cause: .notEditable, reason: writeRefused,
+                keepOutOfHistory: keepOutOfHistory)
         }
-        return pasteReplace(text, to: snapshot)
+        return pasteReplace(text, to: snapshot, keepOutOfHistory: keepOutOfHistory)
     }
 
     private let writeRefused = "the target would not accept the write"
@@ -107,7 +142,9 @@ public final class ReplacementService {
     /// the transaction has to become a process-wide resource with an owner,
     /// so a second rewrite is refused or queued rather than nested. That is a
     /// design change, not a keyword change.
-    private func pasteReplace(_ text: String, to snapshot: TargetSnapshot) -> ReplaceOutcome {
+    private func pasteReplace(
+        _ text: String, to snapshot: TargetSnapshot, keepOutOfHistory: Bool
+    ) -> ReplaceOutcome {
         let transaction = PasteboardTransaction(pasteboard: pasteboard, borrow: borrow)
 
         // The front check. By the time you are in `restoreIfUnchanged` the
@@ -147,7 +184,10 @@ public final class ReplacementService {
         transaction.restoreIfUnchanged()
 
         guard consumed else {
-            return handOff(text, cause: .pasteNotConsumed, reason: "the target did not accept the paste")
+            return handOff(
+                text, cause: .pasteNotConsumed,
+                reason: "the target did not accept the paste",
+                keepOutOfHistory: keepOutOfHistory)
         }
         return .replaced
     }
@@ -221,7 +261,9 @@ public final class ReplacementService {
     /// Every refusal path goes through here, so the promise carried by
     /// `copiedOnly` — "we did not place it for you, so it is on your
     /// clipboard" — cannot be forgotten in a new branch.
-    private func handOff(_ text: String, cause: CopyOnlyCause, reason: String) -> ReplaceOutcome {
+    private func handOff(
+        _ text: String, cause: CopyOnlyCause, reason: String, keepOutOfHistory: Bool
+    ) -> ReplaceOutcome {
         let transaction = PasteboardTransaction(pasteboard: pasteboard, borrow: borrow)
 
         // A durable write destroys whatever is on the clipboard. That is the
@@ -235,7 +277,7 @@ public final class ReplacementService {
                 reason: Self.heldReason(reason, transaction.fidelity))
         }
 
-        transaction.writeDurable(text)
+        transaction.writeDurable(text, keepOutOfHistory: keepOutOfHistory)
         return .copiedOnly(cause: cause, reason: reason)
     }
 }

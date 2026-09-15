@@ -83,14 +83,14 @@ struct ReentrancyTests {
             keystroke.onPaste = {
                 // A second ⌘I arrives while the first transaction is open,
                 // between `writeTransient` and `restoreIfUnchanged`.
-                nested.value = second.apply("the second rewrite", to: self.snapshot())
+                nested.value = second.apply("the second rewrite", to: self.snapshot(), autoReplace: false, keepOutOfHistory: false)
                 // Then the first paste lands.
                 ax.selected = ""
                 ax.range = CFRange(location: 14, length: 0)
             }
 
             let first = service(ax, keystroke, pasteboard, borrow)
-                .apply("the rewrite", to: snapshot())
+                .apply("the rewrite", to: snapshot(), autoReplace: false, keepOutOfHistory: false)
 
             #expect(first == .replaced)
             #expect(
@@ -135,7 +135,7 @@ struct ReentrancyTests {
                 ax.range = CFRange(location: 14, length: 0)
             }
 
-            _ = service(ax, keystroke, pasteboard, borrow).apply("the rewrite", to: snapshot())
+            _ = service(ax, keystroke, pasteboard, borrow).apply("the rewrite", to: snapshot(), autoReplace: false, keepOutOfHistory: false)
 
             // Not merely "nothing": the nested capture is told *why*, which
             // is what stops it reporting an unreadable app.

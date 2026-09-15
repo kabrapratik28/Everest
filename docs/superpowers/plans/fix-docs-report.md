@@ -1,4 +1,122 @@
-# TextBridge — Google Docs capture, plus four audited defects
+# TextBridge — Google Docs capture, audited defects, and two features
+
+## Commits 8–9 — auto-replace, and keeping rewrites out of clipboard history
+
+**TextBridge 74 → 78, all green.** `Sources/TextBridge/ReplacementService.swift`,
+`PasteboardTransaction.swift`, `AGENTS.md`, and four test files.
+
+### The safety gate, answered — and the stated reason was wrong
+
+No clipboard-derived snapshot can reach the editability check. **But not
+because of `isRangeDerived`, which is `false` on every rung-9 capture** —
+`readViaClipboard` hardcodes it, and it guards rung 7, not rung 9.
+
+What actually excludes them is the **nil range**: `compare` returns `.unknown`
+the moment `snapshot.range` is nil, `validate` turns that into
+`.unverifiable`, and `apply` hands off. That is now pinned by
+`clipboardCaptureNeverReachesRouteTwo`, whose fixture makes every *other*
+signal say yes — the element matches and `isEditable` is true — so the nil
+range alone has to carry it. Mutating `compare` to treat a nil range as a
+match:
+
+```
+✘ "a clipboard-derived snapshot never reaches route two"
+  Expectation failed: keystroke.pastes == 0
+  Expectation failed: outcome == .copiedOnly(
+```
+
+A ⌘V would have gone into a shell prompt. The distinction matters because
+anyone reading `isRangeDerived` as the guard will remove the real one.
+
+### Feature 1 — auto-replace
+
+`isEditable` stops being a veto when the setting is on. RED:
+```
+✘ "auto-replace offers the paste even when accessibility calls the target read-only"
+  Expectation failed: outcome == .replaced
+  Expectation failed: keystroke.pastes == 1
+✘ Test run with 76 tests in 10 suites failed after 1.048 seconds with 2 issues.
+```
+GREEN: `✔ 76 tests passed`.
+
+### Feature 2 — clipboard history
+
+`writeDurable(_:recordInHistory:)` marks the item transient and
+auto-generated when the user keeps rewrites out of history. Two tests, because
+the unit test alone would pass if `handOff` hardcoded the flag — which is
+exactly the intermediate state I built to get the RED:
+```
+✘ "keeping rewrites out of history reaches the copy-only write"
+  Expectation failed: pasteboard.types?.contains(.init("org.nspasteboard.TransientType")) == true
+✘ Test run with 78 tests in 10 suites failed after 0.945 seconds with 1 issue.
+```
+GREEN: `✔ 78 tests passed`.
+
+Three writes now have three different marking rules, recorded in `AGENTS.md`:
+scratch always marked, restore **never** (it is the user's own content, and
+marking it would make a manager drop their real clipboard), durable marked
+only on request.
+
+### The agreed signature
+
+```swift
+public func apply(
+    _ text: String, to snapshot: TargetSnapshot,
+    autoReplace: Bool, keepOutOfHistory: Bool
+) -> ReplaceOutcome
+```
+
+Two labelled parameters, no struct, no defaults — `fix-settings` proposed the
+shape and it is right on all three counts.
+
+`keepOutOfHistory` is theirs and is the better name: it matches the UI label,
+so the call site is a pass-through with no mental negation, and the guard
+reads positively (`if keepOutOfHistory { mark }`). I had `recordInHistory`,
+which inverted against the label — the kind of thing that silently flips a
+privacy setting at one call site.
+
+`autoReplace` stays rather than their `autoPaste`, for one reason: the caller
+is stating the user's intent, and which mechanism satisfies it is this
+module's business. Pasting is how route two happens to work today; if that
+changed, `autoPaste` would be a lie at the API boundary while `autoReplace`
+would still be true.
+
+**No `.pasted` case.** The relaxed path reaches `pasteReplace`, which already
+returns `.replaced` on success, `.copiedOnly(.pasteNotConsumed)` when the
+paste did not land, and `.heldForManualCopy` when the borrow fails. A new
+case would make every consumer distinguish two outcomes with no behavioural
+difference. And the panel cannot tell the user to paste something already
+pasted, because that wording is on `.copiedOnly`, which is now returned
+exactly when the paste genuinely failed.
+
+**Auto-replace never applies to `.secureField` or `.targetChanged`.** Both
+refuse *above* the editability guard — secure input at the top of `apply`,
+target-changed from the validator — so neither reaches route two and neither
+changes behaviour. Nothing new for the panel to say.
+
+### The app target no longer compiles — needs you
+
+`Everest/App/AppDelegate.swift:85` is
+`apply: { [replacement] text, target in replacement.apply(text, to: target) }`
+and `apply` now takes two more arguments. `swift build` cannot see this: the
+app target is not in the SwiftPM graph, so all five suites stay green while
+the app build is broken. That file is `fix-settings`'.
+
+Two shapes, and the choice is yours:
+
+- **(a)** the closure captures `settings` and reads both flags per call — one
+  line in `AppDelegate`, no AppCore change.
+- **(b)** `RewriteCoordinator` passes them, as it already does for
+  `excludedBundleIDs` — consistent with `capture`, keeps the shell a pure
+  wiring line, costs a closure-type change in AppCore.
+
+I lean **(b)**: reading current settings is already the coordinator's job, and
+`capture` proves the pattern. Either way the read must happen per call, not at
+construction.
+
+---
+
+# Round 1 and 2 — Google Docs capture, plus four audited defects
 
 **TextBridge: 65 → 73 tests, all passing.** Doc at exactly 60 lines.
 

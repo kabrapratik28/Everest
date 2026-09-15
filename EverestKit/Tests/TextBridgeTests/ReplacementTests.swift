@@ -145,7 +145,7 @@ struct ReplacementTests {
             _ = service(
                 ax, keystroke: keystroke, pasteboard: pasteboard,
                 consumptionBudget: .milliseconds(300)
-            ).apply("the rewrite", to: snapshot())
+            ).apply("the rewrite", to: snapshot(), autoReplace: false, keepOutOfHistory: false)
 
             let deadline = ContinuousClock.now + .seconds(2)
             while !reader.hasRead, ContinuousClock.now < deadline {
@@ -157,6 +157,119 @@ struct ReplacementTests {
                 pasteboard.string(forType: .string) == "the user's clipboard",
                 "and the clipboard is still given back afterwards"
             )
+        }
+    }
+
+    /// Auto-replace, and what it actually changes: `isEditable` stops being a
+    /// veto on route two.
+    ///
+    /// It was always the weakest signal in `apply`. By the time control
+    /// reaches it the validator has proved the focused element reports our
+    /// exact text *at our exact range*, which is a stronger statement about
+    /// the target than any role or settability flag — `AXSelectionAdapter`
+    /// already says so in its own comment. Real editors, WebKit
+    /// `contenteditable` among them, accept typing while reporting neither
+    /// attribute settable, and those are the targets that were returning
+    /// copy-only and asking the user to paste by hand.
+    ///
+    /// The downside is bounded and already built: if the target really is
+    /// read-only the paste is ignored, `observeConsumption` sees the
+    /// selection unchanged, and the outcome is the same copy-only the user
+    /// got before, one budget later.
+    @Test("auto-replace offers the paste even when accessibility calls the target read-only")
+    func autoReplacePastesIntoATargetReportedNotEditable() throws {
+        withPrivatePasteboard { pasteboard in
+            let ax = liveTarget()
+            ax.settable = false  // route one declines
+            ax.editable = false  // and accessibility calls the target read-only
+            let keystroke = FakeKeystroke()
+            keystroke.onPaste = {
+                // The target takes it: the selection collapses to a caret.
+                ax.selected = ""
+                ax.range = CFRange(location: 15, length: 0)
+            }
+
+            let outcome = service(ax, keystroke: keystroke, pasteboard: pasteboard)
+                .apply("the rewrite", to: snapshot(), autoReplace: true, keepOutOfHistory: false)
+
+            #expect(outcome == .replaced)
+            #expect(keystroke.pastes == 1)
+        }
+    }
+
+    /// The setting has to reach the write, not merely exist. `handOff` is the
+    /// single funnel every copy-only outcome goes through, so a flag that
+    /// stops short of it is a preference the user can toggle with no effect —
+    /// and `PasteboardTransaction`'s own test would still pass, because it
+    /// calls `writeDurable` directly.
+    @Test("keeping rewrites out of history reaches the copy-only write")
+    func historySettingReachesTheDurableWrite() throws {
+        withPrivatePasteboard { pasteboard in
+            let ax = liveTarget()
+            let keystroke = FakeKeystroke()
+            pasteboard.clearContents()
+            pasteboard.setString("the user's clipboard", forType: .string)
+
+            // Range-derived, so this refuses early and lands in `handOff`
+            // without any of route one or two running.
+            let outcome = service(ax, keystroke: keystroke, pasteboard: pasteboard)
+                .apply(
+                    "the rewrite", to: snapshot(isRangeDerived: true),
+                    autoReplace: true, keepOutOfHistory: true)
+
+            #expect(outcome == .copiedOnly(
+                cause: .rangeDerived,
+                reason: "the selection was reconstructed from a range and cannot be verified"))
+            #expect(pasteboard.string(forType: .string) == "the rewrite", "still pasteable")
+            #expect(
+                pasteboard.types?.contains(.init("org.nspasteboard.TransientType")) == true,
+                "and marked so a clipboard manager skips it")
+        }
+    }
+
+    /// The precondition for auto-replace, pinned rather than reasoned about.
+    ///
+    /// A rung-9 snapshot carries no range and no real element — `element` is
+    /// the *application* element, which is not a thing anyone can paste into.
+    /// `compare` therefore returns `.unknown` the moment it sees a nil range,
+    /// `validate` turns that into `.unverifiable`, and `apply` hands off long
+    /// before the editability check. Terminals, PDFs and Google Docs are all
+    /// rung 9, so nothing that reaches the editability check can be one.
+    ///
+    /// The fixture deliberately makes every *other* signal say yes: the
+    /// element matches, and `isEditable` is true. The nil range alone has to
+    /// be enough, because it is the only one of the three that a rung-9
+    /// snapshot always has.
+    @Test("a clipboard-derived snapshot never reaches route two")
+    func clipboardCaptureNeverReachesRouteTwo() throws {
+        withPrivatePasteboard { pasteboard in
+            let ax = liveTarget()
+            ax.settable = false  // route one declines
+            ax.editable = true  // and accessibility would call the target editable
+            let keystroke = FakeKeystroke()
+
+            // Exactly what `SelectionCoordinator.readViaClipboard` builds.
+            let viaClipboard = TargetSnapshot(
+                pid: 501,
+                bundleID: "com.example.terminal",
+                appVersion: "1.0",
+                element: AXUIElementCreateApplication(501),
+                text: "the original",
+                range: nil,
+                role: nil,
+                isEditable: false,
+                isRangeDerived: false
+            )
+
+            let outcome = service(ax, keystroke: keystroke, pasteboard: pasteboard)
+                .apply("the rewrite", to: viaClipboard, autoReplace: false, keepOutOfHistory: false)
+
+            #expect(keystroke.pastes == 0, "no ⌘V is posted at a shell prompt")
+            #expect(ax.writes.isEmpty)
+            #expect(
+                outcome
+                    == .copiedOnly(
+                        cause: .unverifiable, reason: "the target could not be verified"))
         }
     }
 
@@ -180,7 +293,7 @@ struct ReplacementTests {
             pasteboard.setString("the user's clipboard", forType: .string)
 
             let outcome = service(ax, keystroke: keystroke, pasteboard: pasteboard)
-                .apply("the rewrite", to: snapshot())
+                .apply("the rewrite", to: snapshot(), autoReplace: false, keepOutOfHistory: false)
 
             #expect(outcome == .replaced)
             #expect(ax.writes == ["the rewrite"])
@@ -216,7 +329,7 @@ struct ReplacementTests {
                         pid: 999, bundleID: "com.example.other", appVersion: "1.0"
                     )
                 )
-            ).apply("the rewrite", to: snapshot())
+            ).apply("the rewrite", to: snapshot(), autoReplace: false, keepOutOfHistory: false)
 
             #expect(outcome == .copiedOnly(cause: .targetChanged, reason: "the target app is no longer frontmost"))
             #expect(ax.writes.isEmpty, "the other app's document is untouched")
@@ -233,7 +346,7 @@ struct ReplacementTests {
             let keystroke = FakeKeystroke()
 
             let outcome = service(ax, keystroke: keystroke, pasteboard: pasteboard)
-                .apply("the rewrite", to: snapshot())
+                .apply("the rewrite", to: snapshot(), autoReplace: false, keepOutOfHistory: false)
 
             #expect(outcome == .copiedOnly(cause: .targetChanged, reason: "the selection changed"))
             #expect(ax.writes.isEmpty)
@@ -249,7 +362,7 @@ struct ReplacementTests {
             let keystroke = FakeKeystroke()
 
             let outcome = service(ax, keystroke: keystroke, pasteboard: pasteboard)
-                .apply("the rewrite", to: snapshot())
+                .apply("the rewrite", to: snapshot(), autoReplace: false, keepOutOfHistory: false)
 
             #expect(outcome == .copiedOnly(cause: .targetChanged, reason: "the selection changed"))
             #expect(ax.writes.isEmpty)
@@ -265,7 +378,7 @@ struct ReplacementTests {
             let keystroke = FakeKeystroke()
 
             let outcome = service(ax, keystroke: keystroke, pasteboard: pasteboard)
-                .apply("the rewrite", to: snapshot())
+                .apply("the rewrite", to: snapshot(), autoReplace: false, keepOutOfHistory: false)
 
             #expect(outcome == .copiedOnly(cause: .targetChanged, reason: "focus moved to another element"))
             #expect(ax.writes.isEmpty)
@@ -282,7 +395,7 @@ struct ReplacementTests {
             let keystroke = FakeKeystroke()
 
             let outcome = service(ax, keystroke: keystroke, pasteboard: pasteboard)
-                .apply("the rewrite", to: snapshot())
+                .apply("the rewrite", to: snapshot(), autoReplace: false, keepOutOfHistory: false)
 
             #expect(outcome == .copiedOnly(cause: .secureField, reason: "the target is a secure field"))
             #expect(ax.writes.isEmpty)
@@ -302,7 +415,7 @@ struct ReplacementTests {
             let keystroke = FakeKeystroke()
 
             let outcome = service(ax, keystroke: keystroke, pasteboard: pasteboard)
-                .apply("the rewrite", to: snapshot(range: nil))
+                .apply("the rewrite", to: snapshot(range: nil), autoReplace: false, keepOutOfHistory: false)
 
             #expect(outcome == .copiedOnly(cause: .unverifiable, reason: "the target could not be verified"))
             #expect(ax.writes.isEmpty)
@@ -335,7 +448,7 @@ struct ReplacementTests {
             // Everything a validator could check still agrees: same process,
             // same element, same range, same text.
             let outcome = service(ax, keystroke: keystroke, pasteboard: pasteboard)
-                .apply("the rewrite", to: snapshot(isRangeDerived: true))
+                .apply("the rewrite", to: snapshot(isRangeDerived: true), autoReplace: false, keepOutOfHistory: false)
 
             #expect(
                 outcome
@@ -359,7 +472,7 @@ struct ReplacementTests {
             let keystroke = FakeKeystroke()
 
             _ = service(ax, keystroke: keystroke, pasteboard: pasteboard)
-                .apply("the rewrite", to: snapshot(isRangeDerived: true))
+                .apply("the rewrite", to: snapshot(isRangeDerived: true), autoReplace: false, keepOutOfHistory: false)
 
             #expect(ax.focusResolutions == 0, "the validator never ran")
             #expect(ax.textReads == 0)
@@ -373,7 +486,7 @@ struct ReplacementTests {
             // and repeating it would make one regression look like two.
             let readable = liveTarget()
             _ = service(readable, keystroke: FakeKeystroke(), pasteboard: pasteboard)
-                .apply("the rewrite", to: snapshot(isRangeDerived: false))
+                .apply("the rewrite", to: snapshot(isRangeDerived: false), autoReplace: false, keepOutOfHistory: false)
             #expect(readable.focusResolutions > 0, "the validator runs when it is allowed to")
         }
     }
@@ -391,7 +504,7 @@ struct ReplacementTests {
             let keystroke = FakeKeystroke()
 
             let outcome = service(ax, keystroke: keystroke, pasteboard: pasteboard)
-                .apply("the rewrite", to: snapshot())
+                .apply("the rewrite", to: snapshot(), autoReplace: false, keepOutOfHistory: false)
 
             #expect(
                 outcome
@@ -427,7 +540,7 @@ struct ReplacementTests {
             let keystroke = FakeKeystroke()
 
             let outcome = service(ax, keystroke: keystroke, pasteboard: pasteboard)
-                .apply("the rewrite", to: snapshot())
+                .apply("the rewrite", to: snapshot(), autoReplace: false, keepOutOfHistory: false)
 
             #expect(
                 outcome
@@ -459,7 +572,7 @@ struct ReplacementTests {
             let keystroke = FakeKeystroke()
 
             let outcome = service(ax, keystroke: keystroke, pasteboard: pasteboard)
-                .apply("the rewrite", to: snapshot())
+                .apply("the rewrite", to: snapshot(), autoReplace: false, keepOutOfHistory: false)
 
             #expect(outcome == .copiedOnly(cause: .targetChanged, reason: "the selection changed"))
             #expect(pasteboard.string(forType: .string) == "the rewrite")
@@ -482,7 +595,7 @@ struct ReplacementTests {
 
             let outcome = service(
                 ax, keystroke: keystroke, pasteboard: pasteboard, system: system
-            ).apply("the rewrite", to: snapshot())
+            ).apply("the rewrite", to: snapshot(), autoReplace: false, keepOutOfHistory: false)
 
             #expect(outcome == .copiedOnly(cause: .secureField, reason: "a password field has focus"))
             #expect(ax.writes.isEmpty)
@@ -504,7 +617,7 @@ struct ReplacementTests {
 
             let outcome = service(
                 ax, keystroke: keystroke, pasteboard: pasteboard, system: system
-            ).apply("the rewrite", to: snapshot())
+            ).apply("the rewrite", to: snapshot(), autoReplace: false, keepOutOfHistory: false)
 
             #expect(outcome == .copiedOnly(cause: .noAccessibility, reason: "Accessibility permission was revoked"))
             #expect(ax.writes.isEmpty)
@@ -538,7 +651,7 @@ struct ReplacementTests {
             }
 
             let outcome = service(ax, keystroke: keystroke, pasteboard: pasteboard)
-                .apply("the rewrite", to: snapshot())
+                .apply("the rewrite", to: snapshot(), autoReplace: false, keepOutOfHistory: false)
 
             #expect(outcome == .replaced)
             #expect(keystroke.pastes == 1)
@@ -560,7 +673,7 @@ struct ReplacementTests {
             let keystroke = FakeKeystroke()  // the target ignores the paste
 
             let outcome = service(ax, keystroke: keystroke, pasteboard: pasteboard)
-                .apply("the rewrite", to: snapshot())
+                .apply("the rewrite", to: snapshot(), autoReplace: false, keepOutOfHistory: false)
 
             #expect(keystroke.pastes == 1)
             #expect(outcome == .copiedOnly(cause: .pasteNotConsumed, reason: "the target did not accept the paste"))
@@ -586,7 +699,7 @@ struct ReplacementTests {
             let keystroke = FakeKeystroke()
 
             let outcome = service(ax, keystroke: keystroke, pasteboard: pasteboard)
-                .apply("the rewrite", to: snapshot())
+                .apply("the rewrite", to: snapshot(), autoReplace: false, keepOutOfHistory: false)
 
             #expect(
                 outcome
@@ -625,7 +738,7 @@ struct ReplacementTests {
 
             let outcome = service(
                 ax, keystroke: keystroke, pasteboard: pasteboard, system: system
-            ).apply("the rewrite", to: snapshot())
+            ).apply("the rewrite", to: snapshot(), autoReplace: false, keepOutOfHistory: false)
 
             #expect(outcome == .copiedOnly(cause: .pasteNotConsumed, reason: "the target did not accept the paste"))
         }
