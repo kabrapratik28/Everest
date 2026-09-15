@@ -18,6 +18,14 @@ Download the latest `.dmg` from [Releases](../../releases), open it, and drag Ev
 
 Since macOS 15 that pane is the only route — the old right-click ▸ Open shortcut no longer works. You do this once; every later launch is normal.
 
+**On a managed or work Mac**, IT policy often removes the Open Anyway button entirely. If it is not there, clear the download flag from Terminal instead:
+
+```bash
+xattr -dr com.apple.quarantine /Applications/Everest.app
+```
+
+That is not a way around the signature check — the app is signed either way. It removes the "downloaded from the internet" marker, which is the thing that triggers the block.
+
 On first run Everest asks for Accessibility permission (System Settings ▸ Privacy & Security ▸ Accessibility) and then downloads the rewrite model — about 2.3 GB, with a progress bar. **The model is not bundled in the app.**
 
 The weights are [Qwen3-4B-Instruct-2507-4bit](https://huggingface.co/mlx-community/Qwen3-4B-Instruct-2507-4bit) (or [Qwen3-30B-A3B-Instruct-2507-4bit](https://huggingface.co/mlx-community/Qwen3-30B-A3B-Instruct-2507-4bit) if you pick it), pulled from Hugging Face at a pinned revision. They are Apache-2.0 and are **not** covered by Everest's MIT licence. Hugging Face availability and rate limits are outside Everest's control.
