@@ -11,11 +11,19 @@ struct SettingsView: View {
     @ObservedObject var models: ModelSettingsModel
     @ObservedObject var presence: AppPresence
     let isAccessibilityTrusted: () -> Bool
+    /// The caution for the Quick Improve binding *as it stands now*, or nil.
+    /// A closure rather than a value because the recorder on this very screen
+    /// can change the answer while it is open.
+    let collisionCaution: @MainActor () -> String?
 
     var body: some View {
         TabView {
-            GeneralTab(presence: presence, isAccessibilityTrusted: isAccessibilityTrusted)
-                .tabItem { Label("General", systemImage: "gearshape") }
+            GeneralTab(
+                presence: presence,
+                isAccessibilityTrusted: isAccessibilityTrusted,
+                collisionCaution: collisionCaution
+            )
+            .tabItem { Label("General", systemImage: "gearshape") }
             ModelTab(models: models)
                 .tabItem { Label("Model", systemImage: "cpu") }
             PromptsTab(settings: settings)
@@ -32,8 +40,10 @@ struct SettingsView: View {
 private struct GeneralTab: View {
     @ObservedObject var presence: AppPresence
     let isAccessibilityTrusted: () -> Bool
+    let collisionCaution: @MainActor () -> String?
 
     @State private var isTrusted = false
+    @State private var caution: String?
     @State private var launchesAtLogin = SMAppService.mainApp.status == .enabled
     @State private var loginItemError: String?
 
@@ -47,9 +57,15 @@ private struct GeneralTab: View {
             Section("Shortcuts") {
                 KeyboardShortcuts.Recorder("Quick Improve", name: .quickImprove)
                 KeyboardShortcuts.Recorder("Choose Style", name: .chooseStyle)
-                Text("⌘I is Italic in most apps. Everest takes it globally while it is set.")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
+                // Shown only while the binding in the box above actually
+                // collides. This used to state flatly that Everest uses ⌘I;
+                // the defaults then moved to ⌃⌥I and the sentence became
+                // simply false, which is the whole reason no glyph is written
+                // down anywhere any more. Re-read on the poll below, because
+                // the recorder that changes the answer is on this screen.
+                if let caution {
+                    Text(caution).font(.callout).foregroundStyle(.secondary)
+                }
             }
 
             Section("Accessibility") {
@@ -86,8 +102,13 @@ private struct GeneralTab: View {
             }
         }
         .formStyle(.grouped)
-        .onAppear { isTrusted = isAccessibilityTrusted() }
-        .onReceive(poll) { _ in isTrusted = isAccessibilityTrusted() }
+        .onAppear { refresh() }
+        .onReceive(poll) { _ in refresh() }
+    }
+
+    private func refresh() {
+        isTrusted = isAccessibilityTrusted()
+        caution = collisionCaution()
     }
 
     /// `SMAppService` throws rather than returning a result, and the toggle
@@ -174,7 +195,13 @@ private struct ModelRow: View {
                         // learns that Apple's engine has a content filter they
                         // cannot switch off before it cuts a rewrite in half.
                         Text(row.spec.blurb).font(.callout).foregroundStyle(.secondary)
-                        Text(status).font(.caption).foregroundStyle(.secondary)
+                        Text(row.installSummary).font(.caption).foregroundStyle(.secondary)
+                        // A download that stopped has to say so here, or the
+                        // bar just vanishes and the user retries the same
+                        // failure with nothing to go on.
+                        if let failure = models.downloadFailure[row.spec.id] {
+                            Text(failure).font(.caption).foregroundStyle(.red)
+                        }
                     }
 
                     // The blurb and the empty space beside it are part of the
@@ -185,7 +212,11 @@ private struct ModelRow: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("\(row.spec.displayName). \(row.spec.blurb). \(status)")
+            // Still listed, and `installSummary` says why it is off. Hiding
+            // the row sends someone who read about the model hunting for it,
+            // and greying one out with no reason is its own dead end.
+            .disabled(!row.fitsInMemory)
+            .accessibilityLabel("\(row.spec.displayName). \(row.spec.blurb). \(row.installSummary)")
             .accessibilityAddTraits(row.isSelected ? [.isSelected] : [])
             .accessibilityHint("Rewrites with this model")
 
@@ -193,8 +224,11 @@ private struct ModelRow: View {
                 ProgressView(value: progress).frame(width: 120)
             } else {
                 VStack(alignment: .trailing) {
-                    if case .needsDownload = row.availability, !row.spec.repoID.isEmpty {
-                        Button("Download") { Task { try? await models.download(row.spec) } }
+                    // `row.needsDownload`, never "is it selected" — they are
+                    // different facts, and the default engine on a new Mac is
+                    // both selected and absent.
+                    if row.needsDownload {
+                        Button("Download") { Task { await models.download(row.spec) } }
                     }
                     Button("Delete", role: .destructive) {
                         Task { try? await models.delete(row.spec) }
@@ -202,19 +236,6 @@ private struct ModelRow: View {
                     .disabled(!models.canDelete(row.spec))
                 }
             }
-        }
-    }
-
-    private var status: String {
-        switch row.availability {
-        case .ready:
-            "Installed"
-        case let .needsDownload(bytes):
-            row.spec.repoID.isEmpty
-                ? "No download needed"
-                : "\(Measurement(value: Double(bytes), unit: UnitInformationStorage.bytes).formatted(.byteCount(style: .file))) to download"
-        case let .unavailable(reason):
-            reason
         }
     }
 }
@@ -226,18 +247,18 @@ private struct PromptsTab: View {
 
     var body: some View {
         Form {
-            // Name, subtitle and instruction — every field of the preset the
-            // user owns. `PromptBuilder.safetyFrame` is the one that is not
-            // theirs, and it is not reachable from this screen and must never
+            // Instruction only, and deliberately. Quick Improve has no row in
+            // the ⌘⇧I picker — that picker lists `settings.styles` — so its
+            // name and subtitle render nowhere in the app. Fields for them
+            // were built and removed: one you can type in that changes
+            // nothing on screen reads as a bug, which is worse than its
+            // absence. Styles keep all three, because the picker shows them.
+            //
+            // `PromptBuilder.safetyFrame` is the field that is not the user's
+            // at all, and it is not reachable from this screen and must never
             // become so: it is the prompt-injection frame, and a user-editable
             // frame is not a frame. See RewriteCore/AGENTS.md.
             Section("Quick Improve") {
-                PresetField("Name", text: $settings.quickImprove.name, validate: PresetEdit.name(from:))
-                PresetField(
-                    "Subtitle",
-                    text: $settings.quickImprove.subtitle,
-                    validate: { PresetEdit.subtitle(from: $0) as String? }
-                )
                 PresetField(
                     "Instruction",
                     text: $settings.quickImprove.instruction,
@@ -262,8 +283,15 @@ private struct PromptsTab: View {
                             Button { move(index, by: 1) } label: { Image(systemName: "arrow.down") }
                                 .disabled(index == settings.styles.count - 1)
                                 .accessibilityLabel("Move \(style.name) down")
+                            // By id, not by the captured `index`. The row
+                            // closure outlives the array it indexes: after a
+                            // delete the list is shorter while a retained
+                            // closure still holds the old position, and
+                            // `remove(at:)` traps on an index that no longer
+                            // exists. `removeAll(where:)` on identity cannot.
                             Button(role: .destructive) {
-                                settings.styles.remove(at: index)
+                                let id = style.id
+                                settings.styles.removeAll { $0.id == id }
                             } label: {
                                 Image(systemName: "trash")
                             }
@@ -293,9 +321,17 @@ private struct PromptsTab: View {
         .formStyle(.grouped)
     }
 
+    /// Both ends are checked, not just the destination.
+    ///
+    /// `index` is captured by a row closure that can outlive the array it
+    /// indexes — delete a style and the list is shorter while the old
+    /// position is still held — so `swapAt` can trap on the *source* as
+    /// readily as on the target.
     private func move(_ index: Int, by offset: Int) {
         let destination = index + offset
-        guard settings.styles.indices.contains(destination) else { return }
+        guard settings.styles.indices.contains(index),
+              settings.styles.indices.contains(destination)
+        else { return }
         settings.styles.swapAt(index, destination)
     }
 }
@@ -363,20 +399,36 @@ private struct PrivacyTab: View {
     var body: some View {
         Form {
             Section("Where your text goes") {
-                Text(
-                    """
-                    Nowhere. Everest runs the model on this Mac. No selection, no rewrite and \
-                    no telemetry is sent anywhere, and nothing you select or generate is \
-                    written to the system log.
-                    """
-                )
+                // Pinned by a test in `AppCore`. This said "Nowhere.", which
+                // was false: the clipboard is how a selection is read in a
+                // terminal or a PDF, and the general pasteboard syncs over
+                // Handoff. There is no API to opt out, so the claim is what
+                // got corrected.
+                Text(PrivacyCopy.whereTextGoes)
                 Text("Password and secure fields are refused before they are read.")
+                    .foregroundStyle(.secondary)
+                Text("Nothing you select or generate is written to the system log.")
                     .foregroundStyle(.secondary)
             }
 
             Section("Never read from these apps") {
-                ForEach(settings.excludedBundleIDs, id: \.self) { Text($0).monospaced() }
-                    .onDelete { settings.excludedBundleIDs.remove(atOffsets: $0) }
+                // An explicit button, not `.onDelete`. That is a `List`
+                // gesture and does nothing inside a macOS `Form` — the same
+                // trap already recorded for the Styles list, which this row
+                // had too. It mattered more here: the excluded-app refusal
+                // message tells the user to come and remove the entry.
+                ForEach(settings.excludedBundleIDs, id: \.self) { entry in
+                    HStack {
+                        Text(entry).monospaced()
+                        Spacer()
+                        Button(role: .destructive) {
+                            settings.excludedBundleIDs = ExclusionEdit.remove(entry, from: settings.excludedBundleIDs)
+                        } label: {
+                            Image(systemName: "trash")
+                        }
+                        .accessibilityLabel("Stop excluding \(entry)")
+                    }
+                }
 
                 HStack {
                     TextField("Bundle identifier, e.g. com.example.bank", text: $newEntry)

@@ -125,6 +125,46 @@ func aRowKnowsWhetherItIsInstalled() async {
     #expect(rows[.apple]!.installSummary == "Apple Intelligence is turned off.")
 }
 
+/// The 17.2 GB option is offered on Macs that cannot hold it.
+///
+/// `ModelCatalog` lists it unconditionally. On a 16 GB Mac the weights alone
+/// exceed physical memory before any KV cache, so the honest outcome is
+/// severe swapping or a failed load — after a 17.2 GB download. Catching that
+/// afterwards is too late; the download is the expensive part.
+///
+/// Shown with the reason rather than hidden. A row that silently disappears
+/// leaves a user who read about the model hunting for it, and a greyed row
+/// with no explanation is its own dead end. The gate takes precedence over
+/// install state: a model that cannot run here must not report "Installed".
+@Test("a model too large for this Mac is shown with the reason, not hidden")
+@MainActor
+func anOversizedModelSaysWhyItCannotRun() async {
+    let sixteenGB: UInt64 = 16 * 1024 * 1024 * 1024
+    let model = ModelSettingsModel(
+        settings: makeSettings(),
+        engineFor: { StubEngine(id: $0) },
+        physicalMemory: sixteenGB
+    )
+    await model.refresh()
+    let rows = Dictionary(uniqueKeysWithValues: model.rows.map { ($0.id, $0) })
+
+    #expect(rows[.qwen4B]!.fitsInMemory)
+    #expect(rows[.qwen30B]!.fitsInMemory == false)
+    // Still listed, and saying why. `StubEngine` reports `.ready`, so without
+    // the gate taking precedence this row would read "Installed".
+    #expect(rows[.qwen30B]!.installSummary.localizedCaseInsensitiveContains("memory"))
+    #expect(rows[.qwen30B]!.installSummary != "Installed")
+
+    // A Mac that can hold it is not gated.
+    let roomy = ModelSettingsModel(
+        settings: makeSettings(),
+        engineFor: { StubEngine(id: $0) },
+        physicalMemory: 64 * 1024 * 1024 * 1024
+    )
+    await roomy.refresh()
+    #expect(roomy.rows.first { $0.id == .qwen30B }!.fitsInMemory)
+}
+
 /// A download that fails has to say so, or the user retries the same failure
 /// forever with no diagnostic: the bar vanishes, the status is unchanged, and
 /// nothing distinguishes "finished" from "gave up".
@@ -277,4 +317,30 @@ func exclusionEntriesAreNormalisedAndDeduplicated() {
     #expect(ExclusionEdit.add("   ", to: existing) == nil)
     #expect(ExclusionEdit.add("com.1password.1password", to: existing) == nil)
     #expect(ExclusionEdit.add("COM.1Password.1Password", to: existing) == nil)
+}
+
+/// The list has to be removable, because a refusal message sends the user
+/// here to remove from it.
+///
+/// `CaptureFailure.message(for: .excludedApp)` says "Remove it from the
+/// excluded apps in Settings ▸ Privacy to rewrite here" — and the only
+/// affordance was `.onDelete`, which is a `List` gesture that does nothing
+/// inside a macOS `Form`. `Everest/Settings/AGENTS.md` already recorded that
+/// for `onMove`/`onDelete` on the Styles list; the Privacy list had the same
+/// bug and the same note did not reach it. So the app instructed the user to
+/// perform an action it did not implement.
+///
+/// By identity and case-insensitively, matching `add` and
+/// `SelectionCoordinator.isExcluded`. By identity so no view holds an index
+/// into an array it is mutating, and case-insensitively so an entry that was
+/// refused as a duplicate of a differently-cased one can still be removed by
+/// either spelling.
+@Test("an excluded bundle id can be removed, matching the same way adding does")
+func exclusionEntriesCanBeRemoved() {
+    let existing = ["com.1password.1password", "com.example.bank"]
+
+    #expect(ExclusionEdit.remove("com.1password.1password", from: existing) == ["com.example.bank"])
+    #expect(ExclusionEdit.remove("COM.1Password.1Password", from: existing) == ["com.example.bank"])
+    // Removing something absent leaves the list alone rather than trapping.
+    #expect(ExclusionEdit.remove("com.nothing.here", from: existing) == existing)
 }

@@ -1,7 +1,12 @@
+import Foundation
 import Synchronization
 import Testing
 
 @testable import AppCore
+
+private func makeOnboardingStore() -> UserDefaults {
+    UserDefaults(suiteName: "com.kabrapratik.Everest.onboarding.\(UUID().uuidString)")!
+}
 
 /// The permission gate, and the reason it has to be read live.
 ///
@@ -18,7 +23,13 @@ import Testing
 @MainActor
 func onboardingGatesOnAccessibilityAndRereadsIt() {
     let trusted = Mutex(false)
-    let onboarding = OnboardingModel(isAccessibilityTrusted: { trusted.withLock { $0 } })
+    // A throwaway suite, not `.standard`. `advance()` persists the step now,
+    // so a default store would write into the real user's defaults and hand
+    // the next test a model that starts halfway through.
+    let onboarding = OnboardingModel(
+        store: makeOnboardingStore(),
+        isAccessibilityTrusted: { trusted.withLock { $0 } }
+    )
 
     #expect(onboarding.step == .accessibility)
     onboarding.advance()
@@ -35,7 +46,7 @@ func onboardingGatesOnAccessibilityAndRereadsIt() {
 @Test("the remaining steps run capabilities, then the model, then a real rewrite")
 @MainActor
 func stepsRunInOrderOnceThePermissionIsGranted() {
-    let onboarding = OnboardingModel(isAccessibilityTrusted: { true })
+    let onboarding = OnboardingModel(store: makeOnboardingStore(), isAccessibilityTrusted: { true })
 
     var visited: [OnboardingModel.Step] = [onboarding.step]
     while onboarding.step != .tryIt {
@@ -47,6 +58,53 @@ func stepsRunInOrderOnceThePermissionIsGranted() {
     // The last step does not fall off the end.
     onboarding.advance()
     #expect(onboarding.step == .tryIt)
+}
+
+/// Whether setup happened and whether the permission is on are two different
+/// questions, and the launch check was asking the wrong one.
+///
+/// It read `isAccessibilityTrusted()`. So a user who granted Accessibility
+/// before ever opening the guide — from the Settings tab, or because macOS had
+/// carried the grant over — was counted as set up and never saw the model
+/// step, which is the step that puts a model on disk. There is no substitute
+/// signal: the permission cannot tell you whether anyone read the capability
+/// table or chose an engine. It has to be recorded separately.
+@Test("setup is finished when the user finishes it, not when the permission is granted")
+@MainActor
+func completionIsRecordedSeparatelyFromThePermission() {
+    let store = makeOnboardingStore()
+
+    // Permission already on, guide never opened.
+    let first = OnboardingModel(store: store, isAccessibilityTrusted: { true })
+    #expect(first.isComplete == false)
+
+    first.markComplete()
+    #expect(first.isComplete)
+
+    // A later launch reads the same store.
+    #expect(OnboardingModel(store: store, isAccessibilityTrusted: { true }).isComplete)
+}
+
+/// Closing the window midway must not cost the user the steps they did.
+///
+/// Onboarding is an `NSWindow` with a close button, so abandoning it is one
+/// click and entirely expected. Starting again from the permission step each
+/// time makes the model step unreachable for anyone who ever closed the
+/// window — the same dead end the completion flag exists to prevent, reached
+/// from the other side.
+@Test("a guide closed midway resumes at the step it stopped on")
+@MainActor
+func theStepSurvivesClosingTheWindow() {
+    let store = makeOnboardingStore()
+
+    let first = OnboardingModel(store: store, isAccessibilityTrusted: { true })
+    first.advance()
+    first.advance()
+    #expect(first.step == .model)
+
+    let resumed = OnboardingModel(store: store, isAccessibilityTrusted: { true })
+    #expect(resumed.step == .model)
+    #expect(resumed.isComplete == false)
 }
 
 /// The capability table, and why it is a requirement rather than marketing.

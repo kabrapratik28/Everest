@@ -25,27 +25,105 @@ public final class ModelSettingsModel: ObservableObject {
         /// setting cannot disagree and there is one place that decides.
         public let isSelected: Bool
         public var id: EngineID { spec.id }
+
+        /// Bytes of RAM on this Mac, so the row can answer for itself whether
+        /// the weights would fit.
+        let physicalMemory: UInt64
+
+        /// Whether this Mac can hold the weights at all.
+        ///
+        /// `ModelCatalog` offers the 17.2 GB option unconditionally, and on a
+        /// 16 GB Mac the weights alone exceed physical memory before any KV
+        /// cache — so the real outcome is severe swapping or a failed load,
+        /// *after* a 17.2 GB download. Checked before the download rather
+        /// than caught after it, because the download is the expensive part.
+        ///
+        /// The headroom is for the OS, the app and the KV cache; without it a
+        /// model that exactly filled RAM would count as fitting and would
+        /// still thrash. Deliberately a fixed margin rather than a ratio —
+        /// what the rest of the system needs does not scale with the model.
+        public var fitsInMemory: Bool {
+            UInt64(max(spec.approxBytes, 0)) + Self.memoryHeadroom <= physicalMemory
+        }
+
+        /// 4 GB left for everything that is not the weights.
+        static let memoryHeadroom: UInt64 = 4 * 1024 * 1024 * 1024
+
+        /// Whether weights still have to be fetched before this can rewrite.
+        ///
+        /// Deliberately independent of `isSelected`. They are different facts,
+        /// and conflating them is what left onboarding with no way forward:
+        /// `engineID` defaults to `.qwen4B`, so the selected model on a new Mac
+        /// is the uninstalled one, and a row that offered only "In use"
+        /// (disabled) offered nothing at all.
+        ///
+        /// False for Apple's engine whatever its availability says — it has no
+        /// repository, so the button could not do anything.
+        public var needsDownload: Bool {
+            guard fitsInMemory, case .needsDownload = availability else { return false }
+            return !spec.repoID.isEmpty
+        }
+
+        /// What this model costs to install, in words.
+        ///
+        /// On the row so both the Model tab and onboarding say the same thing.
+        /// Onboarding said nothing at all, which is the other half of the same
+        /// dead end: a disabled button and no explanation.
+        public var installSummary: String {
+            // Ahead of install state on purpose: a model that cannot run on
+            // this Mac reporting "Installed" would be the most misleading
+            // thing the row could say.
+            guard fitsInMemory else {
+                let needed = Measurement(
+                    value: Double(spec.approxBytes) + Double(Self.memoryHeadroom),
+                    unit: UnitInformationStorage.bytes
+                )
+                return "Needs about \(needed.formatted(.byteCount(style: .memory))) of memory — this Mac has less."
+            }
+            return switch availability {
+            case .ready:
+                "Installed"
+            case let .needsDownload(bytes):
+                spec.repoID.isEmpty
+                    ? "No download needed"
+                    : "\(Measurement(value: Double(bytes), unit: UnitInformationStorage.bytes).formatted(.byteCount(style: .file))) to download"
+            case let .unavailable(reason):
+                reason
+            }
+        }
     }
 
     @Published public private(set) var rows: [Row] = []
     @Published public private(set) var downloadProgress: [EngineID: Double] = [:]
+    /// Why a download stopped, per model. Cleared when one is retried.
+    @Published public private(set) var downloadFailure: [EngineID: String] = [:]
     @Published public private(set) var testOutput: String?
     @Published public private(set) var testFailure: String?
 
     private let settings: AppSettings
     private let engineFor: @Sendable (EngineID) -> any RewriteEngine
     private let storeRoot: URL
+    private let physicalMemory: UInt64
 
     public init(
         settings: AppSettings,
         engineFor: @escaping @Sendable (EngineID) -> any RewriteEngine,
-        storeRoot: URL = EngineFactory.modelStoreRoot
+        storeRoot: URL = EngineFactory.modelStoreRoot,
+        // Measured, not assumed. Injected so a test can ask what a 16 GB Mac
+        // is told without being run on one.
+        physicalMemory: UInt64 = ProcessInfo.processInfo.physicalMemory
     ) {
         self.settings = settings
         self.engineFor = engineFor
         self.storeRoot = storeRoot
+        self.physicalMemory = physicalMemory
         rows = ModelCatalog.all.map {
-            Row(spec: $0, availability: .needsDownload(bytes: $0.approxBytes), isSelected: $0.id == settings.engineID)
+            Row(
+                spec: $0,
+                availability: .needsDownload(bytes: $0.approxBytes),
+                isSelected: $0.id == settings.engineID,
+                physicalMemory: physicalMemory
+            )
         }
     }
 
@@ -57,7 +135,14 @@ public final class ModelSettingsModel: ObservableObject {
     /// different controls — and only one of them was clickable.
     public func select(_ id: EngineID) {
         settings.engineID = id
-        rows = rows.map { Row(spec: $0.spec, availability: $0.availability, isSelected: $0.spec.id == id) }
+        rows = rows.map {
+            Row(
+                spec: $0.spec,
+                availability: $0.availability,
+                isSelected: $0.spec.id == id,
+                physicalMemory: physicalMemory
+            )
+        }
     }
 
     /// Re-asks every engine what it can do right now.
@@ -75,7 +160,8 @@ public final class ModelSettingsModel: ObservableObject {
                 Row(
                     spec: spec,
                     availability: await engineFor(spec.id).availability(),
-                    isSelected: spec.id == settings.engineID
+                    isSelected: spec.id == settings.engineID,
+                    physicalMemory: physicalMemory
                 )
             )
         }
@@ -93,12 +179,21 @@ public final class ModelSettingsModel: ObservableObject {
         spec.repoID.isEmpty == false && spec.id != settings.engineID
     }
 
-    /// Downloads and loads a model, reporting progress into `downloadProgress`.
+    /// Downloads and loads a model, reporting progress into `downloadProgress`
+    /// and any failure into `downloadFailure`.
     ///
     /// Values are drained from an `AsyncStream` in order for the same reason
     /// the coordinator does it: a task per callback is not ordered, and a bar
     /// that goes backwards reads as a failing download.
-    public func download(_ spec: ModelSpec) async throws {
+    ///
+    /// **Does not throw.** Both call sites used `try?` and swallowed the
+    /// error, leaving a user whose download had failed with a bar that
+    /// vanished, an unchanged status line and no way to tell "finished" from
+    /// "gave up" — so they retried the same failure forever. The only consumer
+    /// of this error is a label, and a recorded failure is one a caller cannot
+    /// forget to show.
+    public func download(_ spec: ModelSpec) async {
+        downloadFailure[spec.id] = nil
         let engine = engineFor(spec.id)
         let progress = AsyncStream<Double>.makeStream()
         let preparing = Task {
@@ -108,8 +203,13 @@ public final class ModelSettingsModel: ObservableObject {
         for await fraction in progress.stream {
             downloadProgress[spec.id] = fraction
         }
-        defer { downloadProgress[spec.id] = nil }
-        try await preparing.value
+        downloadProgress[spec.id] = nil
+        do {
+            try await preparing.value
+        } catch {
+            downloadFailure[spec.id] = EngineFailure.reason(for: error)
+            return
+        }
         await refresh()
     }
 

@@ -12,14 +12,46 @@ public final class OnboardingModel: ObservableObject {
         case tryIt
     }
 
-    @Published public private(set) var step: Step = .accessibility
+    @Published public private(set) var step: Step
 
     /// Read live rather than stored, because the user grants the permission in
     /// another process while this window is open.
     private let isAccessibilityTrusted: @Sendable () -> Bool
+    private let store: UserDefaults
 
-    public init(isAccessibilityTrusted: @escaping @Sendable () -> Bool) {
+    private enum Keys {
+        static let step = "everest.onboarding.step"
+        static let complete = "everest.onboarding.complete"
+    }
+
+    public init(
+        store: UserDefaults = .standard,
+        isAccessibilityTrusted: @escaping @Sendable () -> Bool
+    ) {
+        self.store = store
         self.isAccessibilityTrusted = isAccessibilityTrusted
+        // Resumed, not restarted. The window has a close button, so
+        // abandoning setup partway is one click and entirely expected;
+        // restarting at the permission step each time would put the model
+        // step out of reach of anyone who ever closed it.
+        step = Step(rawValue: store.integer(forKey: Keys.step)) ?? .accessibility
+    }
+
+    /// Whether the user has been all the way through.
+    ///
+    /// Recorded separately from the Accessibility permission, and it has to
+    /// be. The launch check used to read the permission, so anyone who
+    /// granted it before opening the guide counted as set up and never saw
+    /// the model step — the one step that puts a model on disk. A TCC grant
+    /// cannot tell you whether someone read the capability table or chose an
+    /// engine; nothing but a record of finishing can.
+    public var isComplete: Bool {
+        store.bool(forKey: Keys.complete)
+    }
+
+    /// Called when the user presses Done. Closing the window does not.
+    public func markComplete() {
+        store.set(true, forKey: Keys.complete)
     }
 
     /// Whether the permission is granted right now. The view polls this to
@@ -39,6 +71,7 @@ public final class OnboardingModel: ObservableObject {
         if step == .accessibility, !isAccessibilityTrusted() { return }
         guard let next = Step(rawValue: step.rawValue + 1) else { return }
         step = next
+        store.set(next.rawValue, forKey: Keys.step)
     }
 }
 
