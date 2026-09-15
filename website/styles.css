@@ -1084,3 +1084,20 @@ details p {
   .shot { padding: 6px; border-radius: 18px; }
   .shot img { border-radius: 13px; }
 }
+
+/* The honest caveats live in Install and the FAQ, not under the buttons. A
+   hero that answers "should I download this" with three warnings loses the
+   reader it just convinced, and the notarisation step is real but it is a
+   one-time install detail, not a property of the product. This is the one
+   line that belongs next to a CTA: platform, and where to read the rest. */
+.fineprint {
+  max-width: 54ch;
+  margin: 1.1rem auto 0;
+  font-size: .875rem;
+  line-height: 1.6;
+  color: var(--muted);
+}
+.fineprint a { color: inherit; text-decoration-color: color-mix(in srgb, currentColor 45%, transparent); }
+.fineprint a:hover { color: var(--accent); }
+.fineprint-onDark { color: color-mix(in srgb, #fff 72%, transparent); }
+.fineprint-onDark a:hover { color: #fff; }
