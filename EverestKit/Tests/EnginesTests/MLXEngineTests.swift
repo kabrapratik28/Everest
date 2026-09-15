@@ -191,23 +191,46 @@ struct MLXEngineTests {
         #expect(finished == "The quarterly report is ready for your rev")
     }
 
-    /// The stop reason is the exact signal, and it is also a dependency's
-    /// promise. This is what holds if that promise stops being kept.
+    /// **An exact answer is not second-guessed by a heuristic.**
     ///
-    /// `MLXTokenProducer` reads `stopReason` off the single `.info` that
-    /// `mlx-swift-lm` yields before finishing. A version that stopped emitting
-    /// it, or emitted `.stop` where it meant `.length`, would silently restore
-    /// the original defect — and it would do so invisibly, because the only
-    /// symptom is a rewrite that ends early. So the text is checked too:
-    /// here the decoder *claims* it finished cleanly and the output still
-    /// stops mid-word, and the engine still refuses.
-    @Test("output that stops mid-sentence is refused even when the decoder claims it finished")
-    func truncatedOutputIsRefusedEvenWhenTheStopReasonSaysOtherwise() async throws {
+    /// `.endOfText` means the model emitted its stop token: the rewrite is
+    /// complete, on the decoder's own account. Running the punctuation check
+    /// over that as well can only ever produce false refusals, because a real
+    /// truncation reports `.budgetExhausted` and is caught a line earlier. It
+    /// cost valid rewrites — a heading, a list item, anything ending in a
+    /// colon — whenever the source happened to end as a sentence. Taking the
+    /// decoder's reason was the whole point of reading `stopReason` at all,
+    /// and then overriding it gave back the guesswork it replaced.
+    @Test("a rewrite the decoder reports complete is not re-judged from its punctuation")
+    func anEndOfTextRewriteIsTrusted() async throws {
+        let temp = try TempDirectory()
+        let engine = Self.engine(
+            producer: ScriptedTokenProducer(deltas: ["Quarterly report:"], stop: .endOfText),
+            root: temp.url
+        )
+
+        var finished: String?
+        for try await event in engine.stream(Self.request("the quarterly report, in brief.")) {
+            if case let .finished(text) = event { finished = text }
+        }
+
+        #expect(finished == "Quarterly report:")
+    }
+
+    /// …but the text check still covers the case it was added for.
+    ///
+    /// `stopReason` is a dependency's promise. A future `mlx-swift-lm` that
+    /// stopped yielding completion info would restore the original data-loss
+    /// bug invisibly, because the only symptom is a rewrite that ends early.
+    /// So when the producer reports **nothing**, there is no exact answer to
+    /// defer to and the text is all there is.
+    @Test("a producer that reports no stop reason has its output checked instead")
+    func aSilentProducerFallsBackToTheTextCheck() async throws {
         let temp = try TempDirectory()
         let engine = Self.engine(
             producer: ScriptedTokenProducer(
                 deltas: ["The quarterly report ", "is ready for your rev"],
-                stop: .endOfText
+                stop: nil
             ),
             root: temp.url
         )

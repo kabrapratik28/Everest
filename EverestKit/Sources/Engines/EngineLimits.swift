@@ -43,9 +43,26 @@ public enum EngineLimits {
     public static let minimumOutputTokens = 64
 
     /// A rewrite runs a little longer than its input when grammar fixes expand
-    /// a contraction, and essentially never longer than this. **This is the
-    /// guard against a rambling generation**, and it is the only one that
-    /// needs to be: it scales, so it stays proportionate at every input size.
+    /// a contraction. **This is the guard against a rambling generation**, and
+    /// it is the only one that needs to be: it scales, so it stays
+    /// proportionate at every input size.
+    ///
+    /// **It is not true of every preset, and saying so here was wrong.** The
+    /// built-in `Expand` style asks for more supporting detail, and because
+    /// the prompt's fixed overhead shrinks as a share of the budget, the
+    /// effective ceiling *tightens* with length: roughly 3× the selection at
+    /// 500 characters, 1.8× at 2,000, 1.6× at 4,000. An expansion past that
+    /// hits `maxOutputTokens` and is refused as `GenerationError.truncated`.
+    ///
+    /// Left at 1.4 deliberately. A per-preset multiplier cannot work, for the
+    /// reason that retired the 3× validator ratio: intent is not in the
+    /// length, and the only thing carrying intent is `preset.instruction`,
+    /// which the user edits freely. Raising this globally is the one real
+    /// lever and it is a product call — it buys `Expand` room at the cost of
+    /// letting a rambling generation run that much longer before the same
+    /// refusal. Unlike the ratio this fails *visibly*, with the user's text
+    /// untouched and a sentence telling them to select less, so it is a
+    /// capability limit rather than a correctness defect.
     public static let outputScale = 1.4
 
     /// `min(max(64, inputTokens * 1.4), contextCap - inputTokens)`.

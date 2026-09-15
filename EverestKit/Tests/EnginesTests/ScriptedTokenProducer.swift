@@ -31,7 +31,9 @@ final class ScriptedTokenProducer: TokenProducer {
     ///
     /// Defaults to `.endOfText` so every test that is not about truncation
     /// scripts a model that finished its sentence, which is the ordinary case.
-    let stop: GenerationStop
+    /// **`nil` scripts a producer that reports nothing** — the shape a future
+    /// `mlx-swift-lm` would have if it stopped yielding completion info.
+    let stop: GenerationStop?
 
     /// Reported as the prompt's token count, for the output budget.
     let promptTokens: Int
@@ -53,7 +55,7 @@ final class ScriptedTokenProducer: TokenProducer {
 
     init(
         deltas: [String],
-        stop: GenerationStop = .endOfText,
+        stop: GenerationStop? = .endOfText,
         promptTokens: Int = 100,
         delayBetweenDeltas: Duration = .zero,
         loadFailure: ProducerFailure? = nil
@@ -115,7 +117,7 @@ final class ScriptedTokenProducer: TokenProducer {
                     recorded.withLock { $0.deltasYielded += 1 }
                     continuation.yield(.delta(delta))
                 }
-                continuation.yield(.stopped(stop))
+                if let stop { continuation.yield(.stopped(stop)) }
                 continuation.finish()
             }
             continuation.onTermination = { _ in task.cancel() }

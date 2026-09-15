@@ -142,12 +142,22 @@ public struct MLXEngine: RewriteEngine {
                     // does not report one, so neither is evidence of anything.
                     if stop == .budgetExhausted { throw GenerationError.truncated }
 
-                    // Second layer, over the text rather than the reason.
+                    // Only when there is **no** exact answer to defer to.
+                    //
                     // `stopReason` is a dependency's promise, and a version
-                    // that stopped keeping it would restore the original
-                    // defect invisibly — the only symptom is a rewrite that
-                    // ends early. See `OutputCompleteness`.
-                    if OutputCompleteness.looksTruncated(accumulated, source: request.text) {
+                    // that stopped yielding completion info would restore the
+                    // original data-loss bug invisibly, so the text check
+                    // still has to exist. But running it over a reported
+                    // `.endOfText` overrides the exact signal with a guess,
+                    // and can only produce false refusals — a real truncation
+                    // reports `.budgetExhausted` and was caught a line above.
+                    // It cost valid rewrites ending in a colon or a list item
+                    // whenever the source happened to end as a sentence,
+                    // which is the guesswork reading `stopReason` was adopted
+                    // to remove.
+                    if stop == nil,
+                        OutputCompleteness.looksTruncated(accumulated, source: request.text)
+                    {
                         throw GenerationError.truncated
                     }
 
