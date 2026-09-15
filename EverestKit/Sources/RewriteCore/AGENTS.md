@@ -26,6 +26,10 @@ Unpredictable rather than escaped, because escaping is not available here — th
 
 Containment stays structural, not detection. If a test here fails, restore the structure; don't add a scanner.
 
+### `clean` removes the model's packaging, never the user's text
+
+Both unwrap rules once failed that test and silently edited people's writing. It deleted **every** `<selected_text>` occurrence wherever it appeared, so anyone rewriting prose or code that mentions the tag lost it out of their own sentence. And it stripped **any** outer pair of double quotes — which the safety frame explicitly tells the model to preserve — so a source holding two quoted phrases came back *unbalanced*: `"A" and "B"` → `A" and "B`. Now an envelope is unwrapped only around the **whole** output and only carrying the per-prompt id (the model is never shown a bare tag, so a bare one in the output can only be the user's), and quotes are removed only when the **source was not quoted too**. The id is matched as a pattern rather than threaded from `PromptBuilder` through both engines into `validate` — four files across three modules for an occasional cosmetic tic. **A tidy-up that damages correct input is a worse bug than the tic it was tidying**, which is the general rule here: every rule in `clean` compares against the source, because that is the only way to tell the model's packaging from the user's content.
+
 ## The model catalog, and why it must never point at Qwen3.5
 
 `ModelCatalog.all` is the fixed list of models this app will ever run. Default is `.qwen4B`; `ModelSpec.isDefault` must stay true only there — it's been changed by mistake twice already by someone reading download counts instead of model behavior.
