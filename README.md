@@ -59,17 +59,18 @@ cd EverestKit && swift test    # all logic, no app needed
 
 Xcode 26 needs the Metal toolchain: `xcodebuild -downloadComponent MetalToolchain`.
 
+## Privacy
+
+The model runs on your Mac and your text is not sent anywhere. The clipboard is the one real exception, and [PRIVACY.md](PRIVACY.md) sets out exactly what that means, what is stored on disk, and how to remove it.
+
 ## Contributing
 
-Every source directory has an `AGENTS.md` holding the decisions made there and **why**. Read the one for a directory before editing it. `CLAUDE.md` files are one-line pointers to them and hold no content.
+Start with [CONTRIBUTING.md](CONTRIBUTING.md) — setup, how to run the tests, and what a pull request needs. Two conventions are not negotiable and both are explained in the root [`AGENTS.md`](AGENTS.md): **no production code without a failing test first**, and **docs are budgeted** at 150 lines for the root and 60 per directory.
 
-Two conventions are not negotiable and are explained in the root `AGENTS.md`:
+Every source directory has its own `AGENTS.md` holding the decisions made there and why. Read the one for a directory before editing it. `docs/WORKING-RULES.md` collects the review practices that came out of building this, including five distinct ways to get a passing test run that means nothing.
 
-- **This codebase is test-driven.** No production code without a failing test first.
-- **Docs are budgeted** — 150 lines at the root, 60 per directory. Over means cut, or split the directory.
-
-`docs/WORKING-RULES.md` collects the review practices that came out of building this, including five distinct ways to get a passing test run that means nothing.
+Security issues go through [SECURITY.md](SECURITY.md), not the issue tracker.
 
 ## Licence
 
-MIT. See [LICENSE](LICENSE).
+MIT. See [LICENSE](LICENSE). The model weights are Apache-2.0 and separately licensed.
