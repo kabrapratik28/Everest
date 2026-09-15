@@ -185,20 +185,40 @@ that needs the running app.
     you get the same copy-only as before **plus a ~450 ms wait**, which is
     worse than today and would mean reverting the default.
 
+## Password fields — one measured, one not
+
+**Chrome is measured and safe.** A real `<input type=password>` in Chrome 153,
+selected, with the production ⌘C posted at it: `nothingCopied` — Blink refuses
+the copy outright — *and* `IsSecureEventInputEnabled()` came back true. Two
+independent guards, either sufficient. This is what refuted EVE-030.
+
+30. **Electron, against a real sign-in screen.** The copy refusal is Blink's so
+    it should carry, but the secure-input flag is set at app level and nothing
+    obliges an Electron host to set it. Not measured here — the only Electron
+    app on this Mac is Obsidian, and hunting for a password field meant opening
+    your notes, which the agent declined to do. *Do:* find an Electron app with
+    a real login (Slack, Discord, VS Code's account panel), select the password,
+    press the hotkey, and confirm Everest refuses rather than capturing.
+31. **Known unmeasured, recorded so "we checked Chrome" is not read as "we
+    checked everything":** an app with no accessibility tree, no secure-input
+    flag, *and* a password field that permits copy. Native `NSSecureTextField`
+    and Blink both refuse, which covers most of the surface. A custom-drawn
+    field in a Java or game toolkit is untested.
+
 ## Judgment, not pass/fail
 
-30. **An 8,000-character rewrite holds the panel ~75 s**, streaming, where it
+32. **An 8,000-character rewrite holds the panel ~75 s**, streaming, where it
     used to take 19 s and silently truncate. Complete-and-slow was the right
     trade, but if it reads as a hang the answer is better progress in the
     panel, not a shorter budget.
-31. **VoiceOver.** Turn it on and listen. The posting code is right by
+33. **VoiceOver.** Turn it on and listen. The posting code is right by
     construction — `.announcementRequested` against `NSApp`, `.high` — but
     whether it is audible, and whether `.high` is too insistent for a routine
     `success`, needs a human.
-32. **`Expand` on a short sentence.** It has never worked: the 3× output guard
+34. **`Expand` on a short sentence.** It has never worked: the 3× output guard
     refused every honest expansion. With the guard gone it should now produce
     something several times longer than the source.
-33. **Do the Prompts fields now read as editable?** Only Pratik can answer
+35. **Do the Prompts fields now read as editable?** Only Pratik can answer
     this; it is the one item on the list whose acceptance criterion is a
     feeling. `PresetField` was a borderless `TextField` in a `Form`, which
     macOS draws flat to match System Settings — so a populated field looked
@@ -208,7 +228,7 @@ that needs the running app.
     type in them and obvious which is which. The caption matters as much as
     the border: the field name used to be only a placeholder, and placeholders
     disappear the moment there is content.
-34. **Both replacement toggles actually do something.** Settings ▸ General ▸
+36. **Both replacement toggles actually do something.** Settings ▸ General ▸
     Replacing text. *Do:* with "Replace automatically" on, rewrite in a
     terminal or PDF — the rewrite should paste itself rather than telling you
     to press ⌘V. Switch it off mid-session and rewrite again *without
@@ -218,7 +238,7 @@ that needs the running app.
     Raycast) records nothing while "Keep rewrites out of clipboard history"
     is on — and note that a manager ignoring `TransientType` is allowed to
     record anyway, which is what the caveat under the toggle says.
-35. **The recorder says what the binding costs.** Settings ▸ General. With the
+37. **The recorder says what the binding costs.** Settings ▸ General. With the
     `⌥R` default it should read "…will no longer type ®" as plain secondary
     text, *not* styled as the Italic caution — it is information, and the cost
     is why `⌥R` was chosen. **Then record `⌥I`:** the line should change to the
