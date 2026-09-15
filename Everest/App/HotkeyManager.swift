@@ -2,23 +2,33 @@ import AppCore
 import KeyboardShortcuts
 
 extension KeyboardShortcuts.Name {
-    /// `⌃⌥I`, not `⌘I`.
+    /// `⌥R` — two keys, chosen after ruling out the other two families.
     ///
-    /// `⌘I` was the originally requested default and it is a bad one: a global
-    /// hotkey wins over the frontmost app, so while Everest runs it takes
-    /// Italic away from every editor and Get Info from Finder. `⌘⇧I` is no
-    /// better — it is Web Inspector in Chrome, Safari and Firefox.
+    /// A global hotkey beats the frontmost app, so the default is really a
+    /// question of *what Everest is willing to take away from every app on the
+    /// machine*.
     ///
-    /// Control+Option is the one modifier pair macOS and mainstream apps leave
-    /// almost entirely alone, so it collides with nothing common. Both remain
-    /// user-editable in Settings, and `⌘I` is still accepted if asked for; the
-    /// recorder warns once via `ShortcutNotice`.
-    static let quickImprove = Self("quickImprove", default: .init(.i, modifiers: [.control, .option]))
+    /// - **`⌘`+letter is out.** Every letter is a formatting or editing
+    ///   command somewhere: `⌘I` Italic, `⌘U` Underline, `⌘B` Bold, `⌘K` link.
+    ///   `⌘⇧I` is Web Inspector in three browsers.
+    /// - **`⌃`+letter is out, and worst of the three.** Cocoa text views carry
+    ///   emacs bindings (`⌃A` `⌃E` `⌃K` `⌃D` `⌃N` `⌃P` `⌃T` `⌃Y` `⌃W`) and
+    ///   terminals own `⌃C` `⌃D` `⌃Z` `⌃L` `⌃R` `⌃U`. Terminals are a
+    ///   first-class target here, so this family collides where it hurts most.
+    /// - **`⌥`+letter costs one character**, and that is the cheapest price
+    ///   available. `⌥R` is `®`.
+    ///
+    /// **Not `⌥I`, `⌥E`, `⌥U` or `⌥N`** — those are *dead keys*. They swallow
+    /// the next keystroke to compose `î é ü ñ`, so binding one globally breaks
+    /// accented typing outright, which is worse than shadowing a command. That
+    /// is what cost us the obvious mnemonic, I for Improve.
+    ///
+    /// `R` for Rewrite is the mnemonic that survived the elimination.
+    static let quickImprove = Self("quickImprove", default: .init(.r, modifiers: [.option]))
 
-    /// `⌃⌥⇧I`. Same reasoning, and deliberately the Quick Improve chord plus
-    /// Shift so the pair is one thing to remember rather than two.
-    static let chooseStyle = Self(
-        "chooseStyle", default: .init(.i, modifiers: [.control, .option, .shift]))
+    /// `⌥⇧R`. Deliberately the Quick Improve chord plus Shift, so the pair is
+    /// one thing to remember rather than two.
+    static let chooseStyle = Self("chooseStyle", default: .init(.r, modifiers: [.option, .shift]))
 }
 
 /// Registration, and nothing else.

@@ -2,7 +2,7 @@
 
 Menu-bar app. Select text anywhere, press a hotkey, a local model streams a rewrite into a floating panel and replaces the selection. Nothing leaves the machine.
 
-macOS 26+, Apple Silicon. `⌃⌥I` = Quick Improve (one prompt, one output). `⌃⌥⇧I` = pick a style, then rewrite. Both configurable; the defaults avoid `⌘I`, which is Italic in most editors.
+macOS 26+, Apple Silicon. `⌥R` = Quick Improve (one prompt, one output). `⌥⇧R` = pick a style, then rewrite. Both configurable. Two keys, and `⌥` because `⌘`+letter steals a formatting command and `⌃`+letter steals emacs bindings and terminal control codes; `⌥R` only costs `®`. Never `⌥I`/`⌥E`/`⌥U`/`⌥N` — dead keys, they break accented typing.
 
 ---
 
