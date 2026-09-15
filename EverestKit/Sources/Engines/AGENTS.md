@@ -53,5 +53,6 @@ Everything untestable sits behind a protocol: `ModelFetcher` → `HubModelFetche
 - **`SystemLanguageModel` only, never `PrivateCloudComputeLanguageModel`** — sits right beside it, better output, sends the text to Apple's servers.
 - **Never log prompts or output.** Type names only; `OSLog` persists. Subsystem from `Bundle.main.bundleIdentifier`, never a literal.
 - `TransactionBox` uses a lock, not an actor, so `stream()` then `cancel()` on the next line finds the task registered.
+- **`LoadOnce` publishes the in-flight `Task`, not just the finished value, because Swift actors are reentrant *across `await`*.** The old `LoadedModel` checked its cache, awaited `loadContainer`, then assigned — and every caller arriving during that await saw `nil` and started its own load: two 2.3 GB models resident, or two 17.2 GB on the 30B option. Its comment said the actor prevented exactly that, and the wrong comment is what stopped anyone checking. Mutual exclusion covers one turn on an actor, never a sequence spanning a suspension. Generic and separate from `MLXTokenProducer` only because `ModelContainer` cannot be built in a test.
 - `ChatSession` fresh per rewrite (reuse keeps the last selection resident); the prompt goes in as one user message with no `instructions:`.
 - `com.apple.security.cs.allow-jit` is required, or the app crashes the first time a model loads.

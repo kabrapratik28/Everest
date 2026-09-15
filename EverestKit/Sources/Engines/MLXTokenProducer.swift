@@ -16,19 +16,39 @@ private let log = Logger(
 /// budgeting and cancellation logic all live in `MLXEngine`, on the tested
 /// side of the `TokenProducer` seam.
 public final class MLXTokenProducer: TokenProducer {
-    private let loaded = LoadedModel()
+    /// One producer serves one engine, which serves one pinned repo and
+    /// revision, so the directory is the same on every call and the first
+    /// caller's is the right one to load.
+    private let container = LoadOnce<ModelContainer>()
 
     public init() {}
 
     /// Loads the weights, which is what proves a download.
     public func load(from directory: URL) async throws {
-        _ = try await loaded.container(at: directory)
+        _ = try await container.value {
+            try await LLMModelFactory.shared.loadContainer(
+                from: directory,
+                using: TransformersTokenizerLoader()
+            )
+        }
         log.info("model container loaded")
     }
 
     public func inputTokenCount(for prompt: String) async throws -> Int {
-        let container = try await loaded.current()
+        let container = try await current()
         return await container.encode(prompt).count
+    }
+
+    /// The loaded model, or `modelNotLoaded` if `prepare` was skipped.
+    ///
+    /// Asks `existing` rather than `value`, so this can never quietly start a
+    /// multi-minute load from inside a request that was supposed to be served
+    /// by an already-warm model.
+    private func current() async throws -> ModelContainer {
+        guard let loaded = await container.existing else {
+            throw MLXProducerError.modelNotLoaded
+        }
+        return loaded
     }
 
     /// Translates `Generation` onto `TokenEvent`. No decisions: whether a
@@ -48,7 +68,7 @@ public final class MLXTokenProducer: TokenProducer {
         AsyncThrowingStream { continuation in
             let task = Task {
                 do {
-                    let container = try await loaded.current()
+                    let container = try await current()
 
                     var parameters = GenerateParameters()
                     parameters.temperature = settings.temperature
@@ -112,30 +132,6 @@ public enum MLXProducerError: Error, Equatable, Sendable {
     /// Generation was attempted before `load(from:)`. `MLXEngine.prepare`
     /// always loads first, so this means a caller skipped it.
     case modelNotLoaded
-}
-
-/// Holds the loaded model.
-///
-/// An actor, unlike `TransactionBox`, because loading is genuinely async and
-/// two hotkey presses half a second apart must not start two loads of the
-/// same 2.3 GB model.
-private actor LoadedModel {
-    private var container: ModelContainer?
-
-    func current() throws -> ModelContainer {
-        guard let container else { throw MLXProducerError.modelNotLoaded }
-        return container
-    }
-
-    func container(at directory: URL) async throws -> ModelContainer {
-        if let container { return container }
-        let loaded = try await LLMModelFactory.shared.loadContainer(
-            from: directory,
-            using: TransformersTokenizerLoader()
-        )
-        container = loaded
-        return loaded
-    }
 }
 
 /// Supplies a tokenizer, which mlx-swift-lm 3.x no longer bundles.
