@@ -110,16 +110,51 @@ nothing.
     not say Google Docs cannot be read. No test on this machine reaches the
     real pairing of a canvas editor and an oversize pasteboard.
 
+## Joins round 2 traced but could not settle by reading
+
+Handed over rather than dropped. Each has a mechanism traced and a conclusion
+that needs the running app.
+
+22. **Download and hotkey racing the same missing model — the one to do first.**
+    `LoadOnce` single-flights the *load*; nothing single-flights the
+    *download*. The bytes are safe — `swift-huggingface` guards each blob with
+    an `flock(2)` lock and re-checks the cache inside it, which is what
+    `.locks/` is for — but the second caller **blocks on that lock**, and if no
+    progress fires before it is acquired the panel sits on
+    `preparing(progress: nil)` for minutes. `RewriteCoordinator.prepare`'s
+    generation check lives inside the `for await` body, so with nothing yielded
+    the download is never cancelled. *Do:* delete the model, click Download,
+    press the hotkey while it transfers, watch the panel and press Escape.
+23. **Two transactions sharing one generation (F2).** Needs to know whether a
+    Carbon hot-key `CFRunLoopSource` queued during the capture block is
+    serviced before an already-enqueued main-actor job — unanswerable by
+    reading. *Do:* log the generation at `begin()` and at `run:128`, then
+    hammer the hotkey during a clipboard-path capture (terminal or Google Docs)
+    and look for two `run`s reporting the same value.
+24. **F3's window in wall-clock terms.** *Do:* picker up, press an unanswerable
+    key immediately followed by a digit; see whether the digit lands in the
+    document.
+25. **A key the tap claimed never reaching our own monitor.** Measured by
+    `fix-keys`, never independently confirmed, and the whole no-double-handling
+    property rests on it.
+26. **`NSPanelSurface.contentHeight` clamping the scroll origin.** *Do:* long
+    streaming rewrite, scroll up mid-stream, see whether it snaps to the top on
+    each frame.
+27. **`LoadOnce` continuation ordering.** A caller joining `inFlight` may return
+    before the first assigns `loaded`. Actor FIFO probably makes it safe; that
+    is an assumption, not an established fact. Failure would be a spurious
+    `modelNotLoaded` on a warm model.
+
 ## Judgment, not pass/fail
 
-22. **An 8,000-character rewrite holds the panel ~75 s**, streaming, where it
+28. **An 8,000-character rewrite holds the panel ~75 s**, streaming, where it
     used to take 19 s and silently truncate. Complete-and-slow was the right
     trade, but if it reads as a hang the answer is better progress in the
     panel, not a shorter budget.
-23. **VoiceOver.** Turn it on and listen. The posting code is right by
+29. **VoiceOver.** Turn it on and listen. The posting code is right by
     construction — `.announcementRequested` against `NSApp`, `.high` — but
     whether it is audible, and whether `.high` is too insistent for a routine
     `success`, needs a human.
-24. **`Expand` on a short sentence.** It has never worked: the 3× output guard
+30. **`Expand` on a short sentence.** It has never worked: the 3× output guard
     refused every honest expansion. With the guard gone it should now produce
     something several times longer than the source.
