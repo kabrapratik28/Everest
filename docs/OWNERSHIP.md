@@ -55,6 +55,14 @@ first, and suspicion is not a mechanism.
 - **Verify before you act on a report about your own files.** Reports go stale
   fast here; so do the lead's. Two of the lead's own bug reports were of
   problems already fixed.
+- **The errors cluster around paraphrase, not around reading.** Near enough
+  every wrong claim made on this project — the lead's two already-fixed bug
+  reports, two invented commit hashes, an agent's wrong assertion about
+  `StubKeyMonitor`, another generalising the lead's test-gating from one
+  sentence — came from restating something rather than opening it. Nobody was
+  careless; they were accurate about a description of the thing. When you are
+  about to assert something about the tree, notice whether you last *read* it
+  or last *heard* it.
 - **Claim new files in your report.** Three untracked files appeared —
   `LoadOnce.swift`, `PanelKeyWindowTests.swift`, `ShortcutCopy.swift` — that no
   report mentioned, so they sat uncommitted while the lead asked around. A file
