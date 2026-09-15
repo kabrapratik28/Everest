@@ -31,6 +31,45 @@ func outputValidatorCleanUnwrapsNoncedEnvelope() {
     #expect(cleaned == "This is the rewritten text.")
 }
 
+/// Trailing chatter is outside the envelope, so the envelope still bounds the
+/// answer.
+///
+/// The id is what makes this exact rather than a guess: the user's text
+/// cannot contain an unpredictable 64-bit id, so anything outside a pair
+/// carrying one is the model talking, by construction — not a judgement about
+/// which bits look like commentary.
+@Test("OutputValidator.clean unwraps an envelope the model followed with commentary")
+func outputValidatorCleanUnwrapsAnEnvelopeFollowedByChatter() {
+    let raw = """
+        <selected_text_3f2a19bb7c0d4e51>The report is ready.</selected_text_3f2a19bb7c0d4e51>
+
+        Let me know if you'd like any other changes!
+        """
+    let cleaned = OutputValidator.clean(raw, source: "the report is ready")
+    #expect(cleaned == "The report is ready.")
+}
+
+/// **Two envelopes means we do not know which one is the answer, so we do not
+/// guess.**
+///
+/// A model that restates its input before answering emits the pair twice. The
+/// id proves both are ours; it says nothing about which delimits the rewrite.
+/// First-open-to-last-close yields a mangled splice, and first-open-to-first-
+/// close hands back *the user's own text* as the rewrite — both silent and
+/// both wrong. Leaving the tags in place fails visibly instead, which is the
+/// trade this codebase makes everywhere else.
+@Test("OutputValidator.clean leaves output alone when the envelope appears twice")
+func outputValidatorCleanRefusesToGuessBetweenTwoEnvelopes() {
+    let raw = """
+        <selected_text_3f2a19bb7c0d4e51>the report is ready</selected_text_3f2a19bb7c0d4e51>
+
+        Here is the rewrite:
+        <selected_text_3f2a19bb7c0d4e51>The report is ready.</selected_text_3f2a19bb7c0d4e51>
+        """
+    let cleaned = OutputValidator.clean(raw, source: "the report is ready")
+    #expect(cleaned == raw)
+}
+
 /// **The user's own text is not packaging.**
 ///
 /// `clean` used to delete every `<selected_text>` occurrence anywhere in the

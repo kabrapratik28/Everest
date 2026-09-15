@@ -26,26 +26,25 @@ public enum OutputValidator {
         "Sure! Here's an improved version:\n\n",
     ]
 
-    /// The prompt's wrapper, echoed back around the answer.
+    /// The tags `PromptBuilder` wraps the selection in, echoed back around the
+    /// answer.
     ///
-    /// Two deliberate narrowings. It matches only around the **whole** output,
-    /// because a tag in the middle of a rewrite is the user's sentence, not
-    /// our envelope. And it requires the **per-prompt id** `PromptBuilder`
-    /// generates: the model is never shown a bare `<selected_text>`, so a bare
-    /// one in the output can only have come from the user's own text.
+    /// Both require the **per-prompt id**, and that is what makes the unwrap
+    /// exact rather than a guess. The model is never shown a bare
+    /// `<selected_text>`, and the user's text cannot contain an unpredictable
+    /// 64-bit id, so a tag matching this came from our own envelope — by
+    /// construction, not by judging which bits look like packaging.
     ///
-    /// That id is read as a pattern rather than threaded through from
+    /// The id is read as a pattern rather than threaded through from
     /// `PromptBuilder`. Carrying the exact value would mean passing it through
     /// both engines' `stream` and into `validate` — four files across three
     /// modules — to catch an occasional cosmetic tic. This is a tidy-up, not a
     /// guard; containment is structural and lives in `PromptBuilder`.
-    /// Computed, not a `static let`: `Regex` is not `Sendable`, so a stored
-    /// one is a concurrency error under Swift 6. Built once per rewrite, not
-    /// per token.
-    private static var envelope: Regex<(Substring, Substring)> {
-        /\s*<selected_text_[0-9a-fA-F]+>(.*)<\/selected_text_[0-9a-fA-F]+>\s*/
-            .dotMatchesNewlines()
-    }
+    ///
+    /// Computed, not `static let`: `Regex` is not `Sendable`, so a stored one
+    /// is a concurrency error under Swift 6. Built once per rewrite.
+    private static var openTag: Regex<Substring> { /<selected_text_[0-9a-fA-F]+>/ }
+    private static var closeTag: Regex<Substring> { /<\/selected_text_[0-9a-fA-F]+>/ }
 
     public static func clean(_ raw: String, source: String) -> String {
         var result = raw
@@ -53,13 +52,33 @@ public enum OutputValidator {
             result.removeFirst(preamble.count)
             break
         }
-        if let match = result.wholeMatch(of: envelope) {
-            // Trimmed because the prompt puts the text on its own line, so
-            // the newlines either side belong to the envelope rather than to
-            // the rewrite.
-            result = String(match.output.1).trimmingCharacters(in: .whitespacesAndNewlines)
-        }
+        if let unwrapped = unwrappedEnvelope(result) { result = unwrapped }
         return unquoted(result, source: source)
+    }
+
+    /// What one echoed envelope contains, or `nil` if there is not exactly one.
+    ///
+    /// **Exactly one, and that bound is the whole of the safety here.** A
+    /// model that restates its input before answering emits the pair twice,
+    /// and the id proves both are ours while saying nothing about which
+    /// delimits the rewrite. Spanning them — which a single greedy match over
+    /// the whole output silently does — splices the user's own text, the
+    /// commentary between, and the rewrite into one string and writes it to
+    /// their document. Taking the first pair instead hands back their original
+    /// as the rewrite. Both are silent and wrong; leaving the tags in place
+    /// fails visibly, which is the trade this codebase makes everywhere else.
+    private static func unwrappedEnvelope(_ text: String) -> String? {
+        let opens = text.ranges(of: openTag)
+        let closes = text.ranges(of: closeTag)
+        guard opens.count == 1, closes.count == 1,
+            let open = opens.first, let close = closes.first,
+            open.upperBound <= close.lowerBound
+        else { return nil }
+
+        // Trimmed because the prompt puts the text on its own line, so the
+        // newlines either side belong to the envelope, not to the rewrite.
+        return String(text[open.upperBound ..< close.lowerBound])
+            .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     /// Removes a pair of quotes the *model* put around its answer, and leaves
