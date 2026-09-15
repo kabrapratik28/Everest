@@ -40,6 +40,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         setPolicy: { _ = NSApp.setActivationPolicy($0) }
     )
 
+    /// One instance, so the launch check and the window agree about which
+    /// step the user is on and reopening resumes rather than restarts.
+    private lazy var onboardingModel = OnboardingModel(
+        isAccessibilityTrusted: { [probe] in probe.isAccessibilityTrusted() }
+    )
+
     private lazy var accessibility = AXSelectionAdapter()
     private lazy var keystroke = SyntheticKeystroke()
 
@@ -101,9 +107,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         warnAboutItalicOnce()
 
-        // Setup is gated on the permission, so an ungranted app has nothing to
-        // offer until onboarding has been through.
-        if !probe.isAccessibilityTrusted() { showOnboarding() }
+        // Gated on having *finished* setup, not on the permission. Reading
+        // the permission counted anyone who granted Accessibility before
+        // opening the guide as set up, so they never saw the model step — the
+        // one step that puts a model on disk.
+        if !onboardingModel.isComplete { showOnboarding() }
 
         log.info("launched")
     }
@@ -126,11 +134,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         else { return }
 
         let alert = NSAlert()
+        // Safe to name the chord here: `warning` returns non-nil only for
+        // exactly ⌘I, so whenever this alert is built that *is* the binding.
+        // Everywhere the shortcut is merely described, it is rendered live.
         alert.messageText = "Everest uses ⌘I"
         alert.informativeText = message
         alert.addButton(withTitle: "OK")
         alert.runModal()
         notice.markWarned()
+    }
+
+    /// The caution for the Quick Improve binding as it stands right now.
+    ///
+    /// Composed here because `HotkeyManager` is the only thing that can read
+    /// the live binding and `ShortcutNotice` is the only thing that decides
+    /// whether it collides. Unlike `warnAboutItalicOnce`, this is not gated on
+    /// having been said before: it describes what is in the recorder, so it
+    /// has to be true every time the recorder is looked at.
+    static func collisionCaution() -> String? {
+        HotkeyManager.quickImproveShortcut.flatMap(ShortcutNotice.caution(for:))
     }
 
     /// Activate, *then* open — the order is load-bearing.
@@ -154,12 +176,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
-        let model = OnboardingModel(isAccessibilityTrusted: { [probe] in probe.isAccessibilityTrusted() })
         let view = OnboardingView(
-            model: model,
+            model: onboardingModel,
             models: modelSettings,
             requestAccessibility: { Self.openAccessibilitySettings() },
+            shortcutText: { HotkeyManager.rendered($0) },
+            collisionCaution: { Self.collisionCaution() },
+            // Done marks it finished; the window's close button deliberately
+            // does not, so an abandoned guide reopens where it stopped.
             finish: { [weak self] in
+                self?.onboardingModel.markComplete()
                 self?.onboarding?.close()
                 self?.onboarding = nil
             }

@@ -51,8 +51,22 @@ public struct ShortcutNotice {
     /// having said it, because a warning that returns every launch gets
     /// dismissed unread — and so does the next one.
     public func warning(for shortcut: Shortcut) -> String? {
-        guard shortcut.shadowsItalic else { return nil }
         guard !store.bool(forKey: Self.key) else { return nil }
+        return Self.caution(for: shortcut)
+    }
+
+    /// The same sentence with no once-gate, for the help text under the
+    /// recorder.
+    ///
+    /// Two different jobs. The alert above interrupts a launch, so it must
+    /// fire once or it gets dismissed unread. This describes the binding
+    /// sitting in the box the user is looking at, so it has to be true every
+    /// time they look — sharing the gate would blank the help text
+    /// permanently after the first launch. The `⌘I` in the sentence is safe
+    /// because `shadowsItalic` is exactly `⌘I`: whenever this returns a
+    /// string, that is the binding.
+    public static func caution(for shortcut: Shortcut) -> String? {
+        guard shortcut.shadowsItalic else { return nil }
         return "Everest uses ⌘I everywhere, which is Italic in most apps. Change it in Settings ▸ General if you would rather keep Italic."
     }
 

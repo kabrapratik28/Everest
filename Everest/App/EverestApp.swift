@@ -40,7 +40,8 @@ struct EverestApp: App {
                 settings: AppSettings.shared,
                 models: delegate.modelSettings,
                 presence: delegate.presence,
-                isAccessibilityTrusted: { SystemProbe().isAccessibilityTrusted() }
+                isAccessibilityTrusted: { SystemProbe().isAccessibilityTrusted() },
+                collisionCaution: { AppDelegate.collisionCaution() }
             )
         }
     }
