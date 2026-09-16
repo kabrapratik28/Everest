@@ -634,9 +634,11 @@ kbd {
 
 /* ───────────────────────────── Demo ───────────────────────────── */
 
+/* 776 = the capture's 760 plus the ring's 8px each side, so the GIF renders
+   at its native width instead of being upscaled a couple of percent. */
 .demo {
   margin: clamp(2.5rem, 5vw, 3.75rem) auto 0;
-  max-width: 792px;
+  max-width: 776px;
 }
 
 /* A tinted ring around the capture, not a fake window frame: the recording
@@ -737,6 +739,9 @@ kbd {
    cards: narrower, the shortcut table's action column wraps to three lines
    and the compatibility lists read as two thin gutters. */
 @media (min-width: 800px) { .steps { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+/* Two steps, not three: "keep writing" was an outcome, not something the
+   reader does. Wider cards, and they can go side by side sooner. */
+@media (min-width: 700px) { .steps-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (min-width: 820px) { .two   { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 
 .features > li {
@@ -886,6 +891,33 @@ kbd {
 }
 .chips li::before { content: "\2713"; color: var(--accent); font-weight: 700; }
 .verified .footnote { margin-top: 1.1rem; }
+
+/* ── Example apps vs verified apps ──────────────────────────────────────
+   Two chip rows sit in the same section and they make different claims.
+   The verified row above is apps someone actually opened and tried; this
+   row is illustrative of an app-agnostic mechanism. They must not look
+   alike, or the weaker row reads as a tested support matrix: no tick, no
+   accent, flat instead of raised, and the footnote says so in words. */
+.applist { margin-bottom: 2rem; }
+.applist-label {
+  margin: 0 0 .85rem;
+  font-size: .9375rem;
+  font-weight: 650;
+  color: var(--muted);
+}
+.chips-plain li {
+  background: transparent;
+  border-color: var(--border);
+  box-shadow: none;
+  font-weight: 550;
+  color: var(--muted);
+}
+.chips-plain li::before { content: none; }
+.chips-plain .chip-more {
+  border-style: dashed;
+  font-style: italic;
+}
+.applist .footnote { margin-top: 1rem; }
 
 /* ───────────────────────────── Install ───────────────────────────── */
 

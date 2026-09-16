@@ -84,7 +84,7 @@
       </a>
       <ul class="nav-links">
         <li><a href="#how">How it works</a></li>
-        <li><a href="#features">Features</a></li>
+        <li><a href="#compatibility">Where it works</a></li>
         <li><a href="#privacy">Privacy</a></li>
         <li><a href="#install">Install</a></li>
         <li><a href="#faq">FAQ</a></li>
@@ -106,8 +106,9 @@
       <p class="eyebrow"><span class="pip" aria-hidden="true"></span>Open source · Local AI · Built for macOS</p>
       <h1>Better writing, <span class="grad">one keystroke away</span>.</h1>
       <p class="lede">
-        Select any text, press <span class="kbds"><kbd>⌥</kbd><kbd>R</kbd></span>, and a clearer
-        version takes its place — in Slack, Linear, Google&nbsp;Docs, your editor, your browser.
+        Select any text, press <span class="kbds"><kbd>⌥</kbd><kbd>R</kbd></span>, and a sharper
+        version takes its place — in Slack, Linear, Google&nbsp;Docs, your favourite editors, your
+        favourite browsers, and the rest of the Mac apps you type in.
         <strong>The model runs on your Mac</strong>, so nothing you write is sent to a server,
         and it keeps working on a plane.
       </p>
@@ -149,14 +150,14 @@
         <picture>
           <source media="(prefers-reduced-motion: reduce)" type="image/webp" srcset="./assets/demo-poster.webp">
           <source media="(prefers-reduced-motion: reduce)" srcset="./assets/demo-poster.png">
-          <img src="./assets/demo.gif" width="760" height="506" decoding="async"
-               alt="A Sublime Text window holding the sentence &quot;hey so i think we should probaly push the launch back a bit becuase the numbers dont look great and i dont wanna ship somthing thats gonna break&quot;. The sentence is selected, Option-R is pressed, and Everest's floating panel streams a corrected version that then replaces the text in the document.">
+          <img src="./assets/demo.gif" width="760" height="450" decoding="async"
+               alt="The Slack message composer holding the line &quot;hey so i think we should probaly push the launch back a bit becuase the numbers dont look great&quot;. The line is selected, Option-R is pressed, and Everest's floating panel streams a corrected version that then replaces the message in the composer.">
         </picture>
       </div>
       <figcaption>
         <span class="tag">Real capture</span>
-        <span class="cap-text">A real capture in Sublime Text. Select the sentence, press <span class="kbds"><kbd>⌥</kbd><kbd>R</kbd></span>, watch the
-        rewrite stream into the panel, and it replaces the selection. <span class="kbds"><kbd>⌘</kbd><kbd>Z</kbd></span> puts the
+        <span class="cap-text">A real capture in Slack. Select what you wrote, press <span class="kbds"><kbd>⌥</kbd><kbd>R</kbd></span>, watch the
+        rewrite stream into the panel, and it replaces the message in place. <span class="kbds"><kbd>⌘</kbd><kbd>Z</kbd></span> puts the
         original back the way it always does.</span>
       </figcaption>
     </figure>
@@ -193,91 +194,65 @@
   <div class="wrap">
     <header class="sec-head">
       <p class="kicker">How it works</p>
-      <h2>Three steps, wherever you write.</h2>
-      <p class="section-lede">No window to switch to, no box to paste into. Everest works on the
-        selection you already made, in the app you already have open.</p>
+      <h2>Two steps. That is the whole product.</h2>
+      <p class="section-lede">No window to switch to, no box to paste into, no copying anything
+        anywhere. Everest works on the selection you already made, in the app you already have
+        open, and puts the result back where you were typing.</p>
     </header>
 
-    <ol class="cards steps">
+    <ol class="cards steps steps-2">
       <li>
         <span class="step-n" aria-hidden="true">1</span>
-        <h3>Select text</h3>
-        <p>Highlight a sentence or a paragraph in the app you are already typing in. Nothing to switch to, nothing to paste into.</p>
+        <h3>Select the text</h3>
+        <p>A word, a sentence, or the whole message — in the app you are already typing in. Everest reads the selection, not the app, so there is nothing to set up per app.</p>
       </li>
       <li>
         <span class="step-n" aria-hidden="true">2</span>
         <h3>Press <span class="kbds"><kbd>⌥</kbd><kbd>R</kbd></span></h3>
-        <p>Everest captures the selection and streams a local rewrite into a small floating panel. <kbd>Esc</kbd> cancels it mid-flight.</p>
-      </li>
-      <li>
-        <span class="step-n" aria-hidden="true">3</span>
-        <h3>Keep writing</h3>
-        <p>Everest replaces the selection once it has re-verified the target. Where it cannot, it holds the rewrite in the panel for you to copy.</p>
+        <p>A local rewrite streams into a small floating panel and replaces your selection the moment it lands. <kbd>Esc</kbd> cancels it mid-flight, and <span class="kbds"><kbd>⌘</kbd><kbd>Z</kbd></span> puts the original back in the app's own undo stack.</p>
       </li>
     </ol>
 
     <p class="aside">
-      <a href="#compatibility">See where it replaces in place and where it hands you the clipboard
+      Where Everest cannot verify the target after generating, it holds the rewrite in the panel
+      for you to copy instead of guessing.
+      <a href="#compatibility">See where it replaces in place
         <span class="arrow" aria-hidden="true">→</span></a>
     </p>
   </div>
 </section>
 
-<!-- ───────────────────────── Features ───────────────────────── -->
-<section class="band band-tint" id="features">
+<!-- ──────────────── Where it works ──────────────── -->
+<section class="band band-tint" id="compatibility">
   <div class="wrap">
     <header class="sec-head">
-      <p class="kicker">Features</p>
-      <h2>What you get.</h2>
-    </header>
-
-    <ul class="cards features">
-      <li>
-        <span class="ico-badge" aria-hidden="true"><svg class="ico" viewBox="0 0 24 24" focusable="false"><path d="M12 3l7.5 3v5.6c0 4.5-3.1 8.1-7.5 9.4-4.4-1.3-7.5-4.9-7.5-9.4V6z"/><path d="M8.8 12.2l2.3 2.3 4.1-4.5"/></svg></span>
-        <h3>Local by design</h3>
-        <p>The rewrite model runs with MLX on your Mac. Your selection and the generated text are not uploaded to an AI service, and there is no account and no telemetry.</p>
-      </li>
-      <li>
-        <span class="ico-badge" aria-hidden="true"><svg class="ico" viewBox="0 0 24 24" focusable="false"><rect x="3.5" y="3.5" width="7" height="7" rx="2"/><rect x="13.5" y="3.5" width="7" height="7" rx="2"/><rect x="3.5" y="13.5" width="7" height="7" rx="2"/><rect x="13.5" y="13.5" width="7" height="7" rx="2"/></svg></span>
-        <h3>Across the apps you use</h3>
-        <p>One global shortcut in Slack, Linear, Google&nbsp;Docs, ChatGPT, VS&nbsp;Code, Sublime&nbsp;Text, Mail, Notes and ordinary macOS text fields. Terminals and PDFs get an honest fallback instead of a silent failure.</p>
-      </li>
-      <li>
-        <span class="ico-badge" aria-hidden="true"><svg class="ico" viewBox="0 0 24 24" focusable="false"><path d="M12 2.8l1.9 5.3 5.3 1.9-5.3 1.9L12 17.2l-1.9-5.3L4.8 10l5.3-1.9z"/><path d="M18.2 16.4l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z"/></svg></span>
-        <h3>Streaming preview</h3>
-        <p>The answer forms in a lightweight floating panel while it generates, and <kbd>Esc</kbd> cancels the rewrite before anything is written.</p>
-      </li>
-      <li>
-        <span class="ico-badge" aria-hidden="true"><svg class="ico" viewBox="0 0 24 24" focusable="false"><path d="M4 7h16"/><path d="M4 12h16"/><path d="M4 17h16"/><circle cx="9" cy="7" r="2.2"/><circle cx="15" cy="12" r="2.2"/><circle cx="8" cy="17" r="2.2"/></svg></span>
-        <h3>Choose a style</h3>
-        <p>Proofread, Professional, Friendly, Concise, Expand, and Simplify ship with the app. Every instruction is editable in Settings, and you can add your own.</p>
-      </li>
-      <li>
-        <span class="ico-badge" aria-hidden="true"><svg class="ico" viewBox="0 0 24 24" focusable="false"><rect x="2.5" y="5.5" width="19" height="13" rx="2.5"/><path d="M6.5 9.5h.01"/><path d="M10 9.5h.01"/><path d="M13.5 9.5h.01"/><path d="M17 9.5h.01"/><path d="M8 14.5h8"/></svg></span>
-        <h3>Your shortcuts</h3>
-        <p>Start with <span class="kbds"><kbd>⌥</kbd><kbd>R</kbd></span> and <span class="kbds"><kbd>⌥</kbd><kbd>⇧</kbd><kbd>R</kbd></span>, or record bindings that suit you. Everest tells you which character a binding costs.</p>
-      </li>
-      <li>
-        <span class="ico-badge" aria-hidden="true"><svg class="ico" viewBox="0 0 24 24" focusable="false"><path d="M8.5 5.5 3 12l5.5 6.5"/><path d="M15.5 5.5 21 12l-5.5 6.5"/><path d="M13.5 4 10.5 20"/></svg></span>
-        <h3>Open and inspectable</h3>
-        <p>Everest is MIT licensed Swift. Read the prompts, read the clipboard handling, file an issue, or send a pull request.</p>
-      </li>
-    </ul>
-  </div>
-</section>
-
-<!-- ──────────────── Compatibility and limitations ──────────────── -->
-<section class="band" id="compatibility">
-  <div class="wrap">
-    <header class="sec-head">
-      <p class="kicker">Compatibility</p>
-      <h2>Useful where it can be, honest where it cannot.</h2>
+      <p class="kicker">Where it works</p>
+      <h2>It goes where you already type.</h2>
       <p class="section-lede">
-        Reading a selection works in nearly everything. Writing one back does not, because some
-        apps have no editable buffer to write into. Everest tells you which case you are in
-        instead of doing nothing.
+        There are no per-app integrations to wait for and no plugins to install. Everest acts on
+        whatever you have selected, so the app you are in is almost never the question — the
+        question is only whether that app will take the rewrite back.
       </p>
     </header>
+
+    <div class="applist">
+      <p class="applist-label">In practice, that means places like</p>
+      <ul class="chips chips-plain">
+        <li>Slack</li>
+        <li>Linear</li>
+        <li>Chrome</li>
+        <li>Gmail</li>
+        <li>Google&nbsp;Docs</li>
+        <li>Microsoft&nbsp;Outlook</li>
+        <li>Notion</li>
+        <li class="chip-more">and many more of your favourite Mac apps</li>
+      </ul>
+      <p class="footnote">
+        Those are examples of the kinds of app the two rules below cover, not a tested list.
+        The apps actually exercised by hand are named further down, and that shorter list is the
+        stronger claim.
+      </p>
+    </div>
 
     <div class="cards two">
       <div class="panel">
@@ -304,6 +279,7 @@
     <div class="verified">
       <p class="verified-label">Verified by hand in</p>
       <ul class="chips">
+        <li>Slack</li>
         <li>Sublime&nbsp;Text</li>
         <li>Linear</li>
         <li>ChatGPT</li>
@@ -324,11 +300,16 @@
 </section>
 
 <!-- ───────────────────────── Privacy ───────────────────────── -->
-<section class="band band-tint" id="privacy">
+<section class="band" id="privacy">
   <div class="wrap">
     <header class="sec-head">
       <p class="kicker">Privacy</p>
-      <h2>Your writing is processed on your Mac.</h2>
+      <h2>Your writing is processed on your Mac, and nowhere else.</h2>
+      <p class="section-lede">
+        Every other rewriting tool asks you to post your draft to somebody's server. Everest
+        does the work on the machine in front of you, which is why it still works with the
+        Wi-Fi off.
+      </p>
     </header>
 
     <div class="cards two">
@@ -374,8 +355,105 @@
   </div>
 </section>
 
+<!-- ───────────────────────── Features ───────────────────────── -->
+<section class="band band-tint" id="features">
+  <div class="wrap">
+    <header class="sec-head">
+      <p class="kicker">Features</p>
+      <h2>Small, fast, and yours to change.</h2>
+    </header>
+
+    <ul class="cards features">
+      <li>
+        <span class="ico-badge" aria-hidden="true"><svg class="ico" viewBox="0 0 24 24" focusable="false"><path d="M12 3l7.5 3v5.6c0 4.5-3.1 8.1-7.5 9.4-4.4-1.3-7.5-4.9-7.5-9.4V6z"/><path d="M8.8 12.2l2.3 2.3 4.1-4.5"/></svg></span>
+        <h3>Local by design</h3>
+        <p>The rewrite model runs with MLX on your Mac. Your selection and the generated text are not uploaded to an AI service, and there is no account and no telemetry.</p>
+      </li>
+      <li>
+        <span class="ico-badge" aria-hidden="true"><svg class="ico" viewBox="0 0 24 24" focusable="false"><rect x="3.5" y="3.5" width="7" height="7" rx="2"/><rect x="13.5" y="3.5" width="7" height="7" rx="2"/><rect x="3.5" y="13.5" width="7" height="7" rx="2"/><rect x="13.5" y="13.5" width="7" height="7" rx="2"/></svg></span>
+        <h3>No per-app setup</h3>
+        <p>One global shortcut, and it acts on the selection rather than on an integration — so it turns up in Slack, Linear, Google&nbsp;Docs, ChatGPT, VS&nbsp;Code, Mail, Notes and ordinary macOS text fields alike. Terminals and PDFs get an honest fallback instead of a silent failure.</p>
+      </li>
+      <li>
+        <span class="ico-badge" aria-hidden="true"><svg class="ico" viewBox="0 0 24 24" focusable="false"><path d="M12 2.8l1.9 5.3 5.3 1.9-5.3 1.9L12 17.2l-1.9-5.3L4.8 10l5.3-1.9z"/><path d="M18.2 16.4l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z"/></svg></span>
+        <h3>You watch it think</h3>
+        <p>The answer forms in a lightweight floating panel while it generates, so you can see where it is going and stop it. <kbd>Esc</kbd> cancels the rewrite before anything is written.</p>
+      </li>
+      <li>
+        <span class="ico-badge" aria-hidden="true"><svg class="ico" viewBox="0 0 24 24" focusable="false"><path d="M4 7h16"/><path d="M4 12h16"/><path d="M4 17h16"/><circle cx="9" cy="7" r="2.2"/><circle cx="15" cy="12" r="2.2"/><circle cx="8" cy="17" r="2.2"/></svg></span>
+        <h3>Batteries included, and swappable</h3>
+        <p>Six styles ship with the app. Each one is a plain-English instruction you can open and edit in Settings, and you can add your own for the thing you keep asking for.</p>
+      </li>
+      <li>
+        <span class="ico-badge" aria-hidden="true"><svg class="ico" viewBox="0 0 24 24" focusable="false"><rect x="2.5" y="5.5" width="19" height="13" rx="2.5"/><path d="M6.5 9.5h.01"/><path d="M10 9.5h.01"/><path d="M13.5 9.5h.01"/><path d="M17 9.5h.01"/><path d="M8 14.5h8"/></svg></span>
+        <h3>Your shortcuts</h3>
+        <p>Start with <span class="kbds"><kbd>⌥</kbd><kbd>R</kbd></span> and <span class="kbds"><kbd>⌥</kbd><kbd>⇧</kbd><kbd>R</kbd></span>, or record bindings that suit you. Everest tells you which character a binding costs.</p>
+      </li>
+      <li>
+        <span class="ico-badge" aria-hidden="true"><svg class="ico" viewBox="0 0 24 24" focusable="false"><path d="M8.5 5.5 3 12l5.5 6.5"/><path d="M15.5 5.5 21 12l-5.5 6.5"/><path d="M13.5 4 10.5 20"/></svg></span>
+        <h3>Open and inspectable</h3>
+        <p>Everest is MIT licensed Swift. Read the prompts, read the clipboard handling, file an issue, or send a pull request.</p>
+      </li>
+    </ul>
+  </div>
+</section>
+
+<!-- ────────────────── Shortcuts and styles ────────────────── -->
+<section class="band" id="shortcuts">
+  <div class="wrap">
+    <header class="sec-head">
+      <p class="kicker">Shortcuts and styles</p>
+      <h2>Six styles out of the box. Edit them, or write your own.</h2>
+      <p class="section-lede">
+        A style is just an instruction in plain English. Everest ships six it thinks you will
+        use most, shows you exactly what each one says, and lets you change every word of it —
+        or add a new one and give it a name.
+      </p>
+    </header>
+
+    <div class="cards two">
+      <div class="panel">
+        <h3>Styles</h3>
+        <ul class="styles">
+          <li><strong>Proofread</strong><span>corrections only</span></li>
+          <li><strong>Professional</strong><span>polished and confident</span></li>
+          <li><strong>Friendly</strong><span>warm and natural</span></li>
+          <li><strong>Concise</strong><span>shorter and more direct</span></li>
+          <li><strong>Expand</strong><span>clarify and develop</span></li>
+          <li><strong>Simplify</strong><span>plain and readable</span></li>
+        </ul>
+        <p class="footnote">
+          Each instruction is editable in Settings ▸ Styles, and you can add your own. The
+          prompt-injection frame around them is not editable, on purpose.
+          <a href="https://github.com/kabrapratik28/Everest/blob/main/EverestKit/Sources/RewriteCore/Presets.swift" target="_blank" rel="noopener noreferrer">Read the shipped prompts</a>.
+        </p>
+      </div>
+      <div class="panel">
+        <h3>Keys</h3>
+        <table class="keys">
+          <thead>
+            <tr><th scope="col">Shortcut</th><th scope="col">Action</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><span class="kbds"><kbd>⌥</kbd><kbd>R</kbd></span></td><td>Quick Improve. One prompt, one rewrite.</td></tr>
+            <tr><td><span class="kbds"><kbd>⌥</kbd><kbd>⇧</kbd><kbd>R</kbd></span></td><td>Choose a style, then rewrite.</td></tr>
+            <tr><td><kbd>Esc</kbd></td><td>Cancel a rewrite that is still generating.</td></tr>
+            <tr><td><span class="kbds"><kbd>⌘</kbd><kbd>Z</kbd></span></td><td>Undo the replacement, in the app's own undo stack.</td></tr>
+          </tbody>
+        </table>
+        <p class="footnote">
+          Both global shortcuts are configurable in Settings ▸ General. Every printable binding
+          costs you a character, and Everest tells you which one. It also cautions against the
+          dead keys <span class="kbds"><kbd>⌥</kbd><kbd>I</kbd></span> <span class="kbds"><kbd>⌥</kbd><kbd>E</kbd></span> <span class="kbds"><kbd>⌥</kbd><kbd>U</kbd></span>
+          <span class="kbds"><kbd>⌥</kbd><kbd>N</kbd></span>, because binding one of those breaks accented typing everywhere.
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
 <!-- ───────────────────────── Install ───────────────────────── -->
-<section class="band" id="install">
+<section class="band band-tint" id="install">
   <div class="wrap">
     <header class="sec-head">
       <p class="kicker">Install</p>
@@ -420,55 +498,6 @@
   </div>
 </section>
 
-<!-- ────────────────── Shortcuts and styles ────────────────── -->
-<section class="band band-tint" id="shortcuts">
-  <div class="wrap">
-    <header class="sec-head">
-      <p class="kicker">Shortcuts and styles</p>
-      <h2>Two keys, six styles, all editable.</h2>
-    </header>
-
-    <div class="cards two">
-      <div class="panel">
-        <h3>Keys</h3>
-        <table class="keys">
-          <thead>
-            <tr><th scope="col">Shortcut</th><th scope="col">Action</th></tr>
-          </thead>
-          <tbody>
-            <tr><td><span class="kbds"><kbd>⌥</kbd><kbd>R</kbd></span></td><td>Quick Improve. One prompt, one rewrite.</td></tr>
-            <tr><td><span class="kbds"><kbd>⌥</kbd><kbd>⇧</kbd><kbd>R</kbd></span></td><td>Choose a style, then rewrite.</td></tr>
-            <tr><td><kbd>Esc</kbd></td><td>Cancel a rewrite that is still generating.</td></tr>
-            <tr><td><span class="kbds"><kbd>⌘</kbd><kbd>Z</kbd></span></td><td>Undo the replacement, in the app's own undo stack.</td></tr>
-          </tbody>
-        </table>
-        <p class="footnote">
-          Both global shortcuts are configurable in Settings ▸ General. Every printable binding
-          costs you a character, and Everest tells you which one. It also cautions against the
-          dead keys <span class="kbds"><kbd>⌥</kbd><kbd>I</kbd></span> <span class="kbds"><kbd>⌥</kbd><kbd>E</kbd></span> <span class="kbds"><kbd>⌥</kbd><kbd>U</kbd></span>
-          <span class="kbds"><kbd>⌥</kbd><kbd>N</kbd></span>, because binding one of those breaks accented typing everywhere.
-        </p>
-      </div>
-      <div class="panel">
-        <h3>Styles</h3>
-        <ul class="styles">
-          <li><strong>Proofread</strong><span>corrections only</span></li>
-          <li><strong>Professional</strong><span>polished and confident</span></li>
-          <li><strong>Friendly</strong><span>warm and natural</span></li>
-          <li><strong>Concise</strong><span>shorter and more direct</span></li>
-          <li><strong>Expand</strong><span>clarify and develop</span></li>
-          <li><strong>Simplify</strong><span>plain and readable</span></li>
-        </ul>
-        <p class="footnote">
-          Each instruction is editable in Settings ▸ Styles, and you can add your own. The
-          prompt-injection frame around them is not editable, on purpose.
-          <a href="https://github.com/kabrapratik28/Everest/blob/main/EverestKit/Sources/RewriteCore/Presets.swift" target="_blank" rel="noopener noreferrer">Read the shipped prompts</a>.
-        </p>
-      </div>
-    </div>
-  </div>
-</section>
-
 <!-- ──────────────── Model and requirements ──────────────── -->
 <section class="band" id="requirements">
   <div class="wrap">
@@ -506,29 +535,8 @@
   </div>
 </section>
 
-<!-- ─────────────────── Open source and FAQ ─────────────────── -->
-<section class="band band-tint" id="open-source">
-  <div class="wrap">
-    <div class="split">
-      <header class="sec-head">
-        <p class="kicker">Open source</p>
-        <h2>Built in the open.</h2>
-        <p class="section-lede">
-          Everest is an MIT-licensed Swift app. The source, the issue tracker, the release history,
-          the privacy policy, the security policy, and the contribution guide are all public on GitHub.
-        </p>
-      </header>
-      <div class="cta-row">
-        <a class="btn btn-ghost" href="https://github.com/kabrapratik28/Everest" target="_blank" rel="noopener noreferrer">View repository</a>
-        <a class="btn btn-ghost" href="https://github.com/kabrapratik28/Everest/issues" target="_blank" rel="noopener noreferrer">Report an issue</a>
-        <a class="btn btn-ghost" href="https://github.com/kabrapratik28/Everest/blob/main/CONTRIBUTING.md" target="_blank" rel="noopener noreferrer">Contribute</a>
-      </div>
-    </div>
-  </div>
-</section>
-
 <!-- ───────────────────────────  FAQ  ─────────────────────────── -->
-<section class="band" id="faq">
+<section class="band band-tint" id="faq">
   <div class="wrap">
     <div class="faq-grid">
     <header class="sec-head">
@@ -547,6 +555,11 @@
       <details>
         <summary>Does my text leave my Mac?</summary>
         <p>Your selections and your rewrites are not uploaded. Model downloads contact Hugging Face, and update checks contact GitHub; neither request carries your text. The clipboard fallback is the one real exception, because anything on the general clipboard is eligible for Handoff and for clipboard-history apps. The <a href="https://github.com/kabrapratik28/Everest/blob/main/PRIVACY.md" target="_blank" rel="noopener noreferrer">privacy policy</a> is the full account.</p>
+      </details>
+
+      <details>
+        <summary>Can I change what the styles actually do?</summary>
+        <p>Yes, all of them. Each style is a short instruction in plain English, and Settings ▸ Styles shows you the exact wording and lets you edit it. You can also add your own styles for whatever you find yourself asking for repeatedly. The only part you cannot edit is the prompt-injection frame wrapped around your instruction, which is what stops selected text from redirecting the app. The <a href="https://github.com/kabrapratik28/Everest/blob/main/EverestKit/Sources/RewriteCore/Presets.swift" target="_blank" rel="noopener noreferrer">shipped prompts</a> are in the repository.</p>
       </details>
 
       <details>
@@ -589,6 +602,27 @@
         <p>No. Everest is an Apple-silicon app, and the local model runs through MLX, which targets Apple silicon.</p>
       </details>
     </div>
+    </div>
+  </div>
+</section>
+
+<!-- ─────────────────────── Open source ─────────────────────── -->
+<section class="band" id="open-source">
+  <div class="wrap">
+    <div class="split">
+      <header class="sec-head">
+        <p class="kicker">Open source</p>
+        <h2>Built in the open.</h2>
+        <p class="section-lede">
+          Everest is an MIT-licensed Swift app. The source, the issue tracker, the release history,
+          the privacy policy, the security policy, and the contribution guide are all public on GitHub.
+        </p>
+      </header>
+      <div class="cta-row">
+        <a class="btn btn-ghost" href="https://github.com/kabrapratik28/Everest" target="_blank" rel="noopener noreferrer">View repository</a>
+        <a class="btn btn-ghost" href="https://github.com/kabrapratik28/Everest/issues" target="_blank" rel="noopener noreferrer">Report an issue</a>
+        <a class="btn btn-ghost" href="https://github.com/kabrapratik28/Everest/blob/main/CONTRIBUTING.md" target="_blank" rel="noopener noreferrer">Contribute</a>
+      </div>
     </div>
   </div>
 </section>
