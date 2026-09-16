@@ -16,9 +16,9 @@ No account, no server, no telemetry. Unplug the network and it still works.
 
 <br><br>
 
-<img src="docs/assets/demo.gif" width="700" alt="A badly written message in the Slack composer. Pressing Option-R replaces it with a corrected version while a small floating panel shows the progress.">
+<img src="docs/assets/demo.gif" width="700" alt="A rushed message in the Slack composer. Pressing Option-R replaces it with a corrected version while a small floating panel shows the progress. A second message is rewritten with Option-Shift-R, which lists the styles, and pressing 2 picks Professional.">
 
-<sub>Real capture in Slack, not a mockup. <code>⌘Z</code> puts the original back.</sub>
+<sub>Real capture in Slack, not a mockup. Both shortcuts: <code>⌥R</code> rewrites straight away, <code>⌥⇧R</code> lists the styles and a number key picks one. <code>⌘Z</code> puts the original back.</sub>
 
 </div>
 
