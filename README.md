@@ -125,4 +125,4 @@ Security issues go through [SECURITY.md](SECURITY.md), not the issue tracker.
 
 MIT. See [LICENSE](LICENSE). The model weights are Apache-2.0 and separately licensed.
 
-Everest is free and there is nothing to buy. If it saved you some time and you feel like it, you can [buy me a coffee](https://buymeacoffee.com/kabrapratik28).
+Everest is free and there is nothing to buy. If it saved you some time and you feel like it: [GitHub Sponsors](https://github.com/sponsors/kabrapratik28), [Ko-fi](https://ko-fi.com/kabrapratik28), or [Buy Me a Coffee](https://buymeacoffee.com/kabrapratik28).

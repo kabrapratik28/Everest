@@ -1,14 +1,9 @@
-# Drives the Sponsor button on the repository page.
+# Drives the Sponsor button on the repository page. GitHub renders these as
+# one dropdown, so listing all three costs nothing in clutter.
 #
-# GitHub Sponsors is not live on this account yet (`hasSponsorsListing:
-# false`, checked 2026-09-16). Enrolment cannot be done through the API:
-# `createSponsorsListing` exists and takes a country, an email and a bio,
-# but the parts that make a listing payable are Stripe Connect bank details,
-# a tax form and a GitHub review, and none of those have an endpoint.
-#
-# When the profile is approved, delete the `#` on the next line. Doing it
-# before then renders a Sponsor button that leads to a profile which is not
-# accepting sponsorships, which is worse than no button.
-# github: kabrapratik28
-
+# github: first deliberately. It is the native path, GitHub charges the
+# sponsor nothing and takes nothing from the maintainer, and it is the one
+# people already trust on a repository page.
+github: kabrapratik28
+ko_fi: kabrapratik28
 buy_me_a_coffee: kabrapratik28
