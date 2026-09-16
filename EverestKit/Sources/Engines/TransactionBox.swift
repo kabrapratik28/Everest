@@ -1,5 +1,5 @@
 import Foundation
-import Synchronization
+import os
 
 /// Holds the one in-flight generation task so it can be stopped.
 ///
@@ -10,7 +10,7 @@ import Synchronization
 /// then `cancel()` on the very next line found nothing registered and left the
 /// generation running to completion.
 final class TransactionBox: Sendable {
-    private let current = Mutex<Task<Void, Never>?>(nil)
+    private let current = OSAllocatedUnfairLock<Task<Void, Never>?>(initialState: nil)
 
     /// Registers `task` as the in-flight generation, cancelling whatever it
     /// replaced. A second hotkey press must not leave two streams racing to

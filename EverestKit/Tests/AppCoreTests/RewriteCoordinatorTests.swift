@@ -2,7 +2,7 @@ import Engines
 import Foundation
 import Overlay
 import RewriteCore
-import Synchronization
+import os
 import Testing
 import TextBridge
 
@@ -455,7 +455,7 @@ func theEngineIsResolvedFromSettingsEveryTime() async {
     let (panel, _) = makePanel(log: log)
     let settings = makeSettings()
     settings.engineID = .apple
-    let asked = Mutex([EngineID]())
+    let asked = OSAllocatedUnfairLock(initialState: [EngineID]())
 
     let coordinator = RewriteCoordinator(
         panel: panel,

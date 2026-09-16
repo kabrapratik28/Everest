@@ -3,7 +3,7 @@ import CoreGraphics
 import Foundation
 import Overlay
 import RewriteCore
-import Synchronization
+import os
 import TextBridge
 
 @testable import AppCore
@@ -155,12 +155,12 @@ final class CaptureSource {
 /// Hands out a different engine per transaction, so a superseded generation
 /// and the one that replaced it can be told apart.
 final class EngineQueue: Sendable {
-    private let remaining: Mutex<[any RewriteEngine]>
+    private let remaining: OSAllocatedUnfairLock<[any RewriteEngine]>
     private let last: any RewriteEngine
 
     init(_ engines: [any RewriteEngine]) {
         precondition(!engines.isEmpty)
-        remaining = Mutex(engines)
+        remaining = OSAllocatedUnfairLock(initialState: engines)
         last = engines[engines.count - 1]
     }
 
@@ -177,7 +177,7 @@ final class EngineQueue: Sendable {
 /// recorded into the shared `CallLog` so the order — state, then wait, then
 /// hide — is assertable rather than inferred.
 final class RecordingSleeper: Sleeping {
-    private let state = Mutex([Duration]())
+    private let state = OSAllocatedUnfairLock(initialState: [Duration]())
     private let log: CallLog?
 
     /// `nil` when a test does not care about ordering. `CallLog` is
@@ -244,7 +244,7 @@ final class StubEngine: RewriteEngine {
     private let prepareFailure: (any Error)?
     private let reported: EngineAvailability
     private let failure: (any Error)?
-    private let state = Mutex(State())
+    private let state = OSAllocatedUnfairLock(initialState: State())
 
     struct State {
         var cancels = 0

@@ -1,4 +1,4 @@
-import Synchronization
+import os
 import Testing
 
 @testable import Engines
@@ -28,7 +28,7 @@ struct LoadOnceTests {
     @Test("callers arriving during a load join it instead of starting another")
     func concurrentCallersShareOneLoad() async throws {
         let loader = LoadOnce<Int>()
-        let loads = Mutex(0)
+        let loads = OSAllocatedUnfairLock(initialState: 0)
 
         let results = await withTaskGroup(of: Int?.self) { group in
             for _ in 0 ..< 8 {
@@ -57,7 +57,7 @@ struct LoadOnceTests {
     @Test("a loaded value is reused by later callers")
     func aLoadedValueIsReused() async throws {
         let loader = LoadOnce<Int>()
-        let loads = Mutex(0)
+        let loads = OSAllocatedUnfairLock(initialState: 0)
         let body: @Sendable () async throws -> Int = {
             loads.withLock { $0 += 1 }
             return 7
@@ -78,7 +78,7 @@ struct LoadOnceTests {
     @Test("a failed load is not cached, and the next caller retries")
     func aFailedLoadIsRetried() async throws {
         let loader = LoadOnce<Int>()
-        let loads = Mutex(0)
+        let loads = OSAllocatedUnfairLock(initialState: 0)
 
         await #expect(throws: LoadFailure.self) {
             try await loader.value {

@@ -17,6 +17,7 @@ private let log = Logger(
     /// is eligible, whether the system has finished downloading its model. The
     /// decisions those states feed are all on the other side of the seam, in
     /// `AppleEngineError` and `AppleFoundationEngine`.
+    @available(macOS 26, *)
     public struct SystemLanguageModelAdapter: AppleSystemModel {
         public init() {}
 
@@ -124,22 +125,31 @@ private let log = Logger(
         }
     }
 
-#else
-
-    /// Stub for a toolchain without `FoundationModels`, so the app still
-    /// builds and Settings needs no separate code path for the engine simply
-    /// not existing.
-    public struct SystemLanguageModelAdapter: AppleSystemModel {
-        public init() {}
-
-        public func currentStatus() -> AppleSystemStatus { .deviceNotEligible }
-
-        public func stream(
-            prompt: String,
-            settings: GenerationSettings
-        ) -> AsyncThrowingStream<String, Error> {
-            AsyncThrowingStream { $0.finish(throwing: AppleSystemFailure.generationFailed("FoundationModels is unavailable in this build")) }
-        }
-    }
-
 #endif
+
+/// What `.apple` resolves to when `FoundationModels` cannot be reached,
+/// which is the ordinary case across most of the supported range: Everest
+/// deploys to macOS 14 and Apple's model arrived in 26.
+///
+/// Two different conditions land here and the user cannot act differently on
+/// either, so they share one answer: the running system is older than 26, or
+/// the SDK this was built against has no `FoundationModels` at all.
+///
+/// It reports `.requiresNewerOS` rather than `.deviceNotEligible`, which is
+/// what the old build-time stub said. That sentence blames the hardware, and
+/// an M3 on macOS 15 is perfectly eligible the moment it updates.
+public struct UnsupportedOSSystemModel: AppleSystemModel {
+    public init() {}
+
+    public func currentStatus() -> AppleSystemStatus { .requiresNewerOS }
+
+    /// Unreachable in practice: `availability()` and `stream` both consult
+    /// `blocking(for:)` first and refuse. Throwing the same cause rather than
+    /// finishing empty keeps it that way if a future caller forgets.
+    public func stream(
+        prompt: String,
+        settings: GenerationSettings
+    ) -> AsyncThrowingStream<String, Error> {
+        AsyncThrowingStream { $0.finish(throwing: AppleSystemFailure.generationFailed("requiresNewerOS")) }
+    }
+}

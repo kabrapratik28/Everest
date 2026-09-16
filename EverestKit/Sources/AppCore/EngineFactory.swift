@@ -1,7 +1,7 @@
 import Engines
 import Foundation
 import RewriteCore
-import Synchronization
+import os
 
 /// Keeps the active engine alive across rewrites, and **only** the active one.
 ///
@@ -36,7 +36,7 @@ final class EngineRegistry: Sendable {
         var sawWeights: Bool
     }
 
-    private let entries = Mutex<[EngineID: Entry]>([:])
+    private let entries = OSAllocatedUnfairLock<[EngineID: Entry]>(initialState: [:])
     private let build: @Sendable (EngineID) -> any RewriteEngine
     private let hasWeights: @Sendable (EngineID) -> Bool
 
@@ -142,7 +142,19 @@ public enum EngineFactory {
         guard let spec = downloadable(id) else {
             // No repository means Apple's system model: nothing to download,
             // nothing to pin, and availability is a System Settings toggle.
-            return AppleFoundationEngine(system: SystemLanguageModelAdapter())
+            //
+            // Two guards, because they answer different questions. `canImport`
+            // asks whether the SDK has the framework; `#available` asks
+            // whether the Mac running this is new enough. Everest deploys to
+            // macOS 14 and `FoundationModels` arrived in 26, so the second is
+            // false for most of the supported range and the compile-time
+            // check alone would crash on launch there.
+            #if canImport(FoundationModels)
+                if #available(macOS 26, *) {
+                    return AppleFoundationEngine(system: SystemLanguageModelAdapter())
+                }
+            #endif
+            return AppleFoundationEngine(system: UnsupportedOSSystemModel())
         }
 
         let store = ModelStore(root: modelStoreRoot)

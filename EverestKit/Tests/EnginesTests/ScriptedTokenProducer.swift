@@ -1,5 +1,5 @@
 import Foundation
-import Synchronization
+import os
 
 @testable import Engines
 
@@ -20,9 +20,11 @@ enum ProducerFailure: Error, Equatable {
 /// accumulation, cancellation and parameter plumbing are all this app's own
 /// logic and are fully driveable here.
 ///
-/// State is held in a `Mutex` rather than an `NSLock`: `NSLock.lock()` is
-/// unavailable from an asynchronous context under Swift 6, and the recording
-/// happens inside the producer's own `Task`.
+/// State is held in an `OSAllocatedUnfairLock` rather than an `NSLock`:
+/// `NSLock.lock()` is unavailable from an asynchronous context under Swift 6,
+/// and the recording happens inside the producer's own `Task`. It was a
+/// `Mutex` until the deployment target moved to macOS 14, which is below
+/// `Mutex`'s own macOS 15 floor.
 final class ScriptedTokenProducer: TokenProducer {
     /// Deltas yielded in order, exactly as `ChatSession.streamDetails` would.
     let deltas: [String]
@@ -51,7 +53,7 @@ final class ScriptedTokenProducer: TokenProducer {
         var deltasYielded = 0
         var loadedFrom: URL?
     }
-    private let recorded = Mutex(Recorded())
+    private let recorded = OSAllocatedUnfairLock(initialState: Recorded())
 
     init(
         deltas: [String],

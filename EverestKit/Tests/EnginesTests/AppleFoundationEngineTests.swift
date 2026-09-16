@@ -1,6 +1,6 @@
 import Foundation
 import RewriteCore
-import Synchronization
+import os
 import Testing
 
 @testable import Engines
@@ -13,10 +13,10 @@ final class CountingAppleSystemModel: AppleSystemModel {
         var status: AppleSystemStatus
         var reads = 0
     }
-    private let state: Mutex<State>
+    private let state: OSAllocatedUnfairLock<State>
 
     init(status: AppleSystemStatus) {
-        state = Mutex(State(status: status))
+        state = OSAllocatedUnfairLock(initialState: State(status: status))
     }
 
     var reads: Int { state.withLock { $0.reads } }

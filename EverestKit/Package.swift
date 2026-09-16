@@ -23,7 +23,7 @@ let docs = ["AGENTS.md", "CLAUDE.md"]
 
 let package = Package(
     name: "EverestKit",
-    platforms: [.macOS(.v26)],
+    platforms: [.macOS(.v14)],
     products: [
         .library(name: "RewriteCore", targets: ["RewriteCore"]),
         .library(name: "TextBridge", targets: ["TextBridge"]),

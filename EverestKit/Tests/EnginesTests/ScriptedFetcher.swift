@@ -1,5 +1,5 @@
 import Foundation
-import Synchronization
+import os
 
 @testable import Engines
 
@@ -20,7 +20,7 @@ final class ScriptedFetcher: ModelFetcher {
     let rawProgress: [Double]
     let failure: FetchFailure?
 
-    private let requested = Mutex<(repo: String, revision: String)?>(nil)
+    private let requested = OSAllocatedUnfairLock<(repo: String, revision: String)?>(initialState: nil)
 
     init(rawProgress: [Double], failure: FetchFailure? = nil) {
         self.rawProgress = rawProgress

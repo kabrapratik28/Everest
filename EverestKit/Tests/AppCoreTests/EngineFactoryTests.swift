@@ -1,5 +1,5 @@
 import RewriteCore
-import Synchronization
+import os
 import Testing
 
 @testable import AppCore
@@ -44,7 +44,7 @@ func liveKeepsOneProducerPerID() throws {
 /// `.ready` marker and reports `needsDownload`.
 @Test("weights leaving the disk drop the engine that was holding them")
 func deletedWeightsDropTheCachedEngine() throws {
-    let onDisk = Mutex(true)
+    let onDisk = OSAllocatedUnfairLock(initialState: true)
     let registry = EngineRegistry(
         build: { StubEngine(id: $0) },
         hasWeights: { _ in onDisk.withLock { $0 } }
@@ -70,7 +70,7 @@ func deletedWeightsDropTheCachedEngine() throws {
 /// downloaded the model.
 @Test("the engine a download warms is the one kept, not one built during it")
 func theEngineWarmedByADownloadIsKept() throws {
-    let onDisk = Mutex(false)
+    let onDisk = OSAllocatedUnfairLock(initialState: false)
     let registry = EngineRegistry(
         build: { StubEngine(id: $0) },
         hasWeights: { _ in onDisk.withLock { $0 } }
@@ -100,7 +100,7 @@ func theEngineWarmedByADownloadIsKept() throws {
 /// by deleting the promotion and watching this test, alone, fail.
 @Test("a model downloaded and then deleted in one session lets its engine go")
 func weightsArrivingThenLeavingDropTheEngine() throws {
-    let onDisk = Mutex(false)
+    let onDisk = OSAllocatedUnfairLock(initialState: false)
     let registry = EngineRegistry(
         build: { StubEngine(id: $0) },
         hasWeights: { _ in onDisk.withLock { $0 } }
@@ -148,7 +148,7 @@ func theModelStoreIsPrivateToThisApp() {
 /// frees nothing and rebuilding it costs nothing.
 @Test("switching model releases the previous engine, so two sets of weights are never resident")
 func switchingModelEvictsThePreviousEngine() throws {
-    let built = Mutex([EngineID]())
+    let built = OSAllocatedUnfairLock(initialState: [EngineID]())
     let registry = EngineRegistry(
         build: { id in
             built.withLock { $0.append(id) }

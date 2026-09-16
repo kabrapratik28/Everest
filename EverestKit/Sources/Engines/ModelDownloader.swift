@@ -1,5 +1,5 @@
 import Foundation
-import Synchronization
+import os
 
 /// The one thing about a model download that cannot run in a unit test:
 /// actually moving 2.3 GB over the network.
@@ -77,7 +77,7 @@ public struct ModelDownloader: Sendable {
 /// count is revised mid-download. A progress bar that does either reads as a
 /// broken download rather than a broken readout.
 private final class HighWaterMark: Sendable {
-    private let value = Mutex<Double>(0)
+    private let value = OSAllocatedUnfairLock<Double>(initialState: 0)
 
     func advance(to raw: Double) -> Double {
         let clamped = min(max(raw, 0), 1)

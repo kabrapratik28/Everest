@@ -21,15 +21,15 @@ name: Everest
 options:
   bundleIdPrefix: com.kabrapratik
   deploymentTarget:
-    macOS: "26.0"
+    macOS: "14.0"
   createIntermediateGroups: true
 
 settings:
   base:
     SWIFT_VERSION: "6.0"
     SWIFT_STRICT_CONCURRENCY: complete
-    MARKETING_VERSION: "0.1.3"
-    CURRENT_PROJECT_VERSION: "4"
+    MARKETING_VERSION: "0.2.0"
+    CURRENT_PROJECT_VERSION: "5"
     # Ad-hoc signing, no development team. This is the ONLY configuration that
     # builds here, arrived at after two that do not:
     #
@@ -135,7 +135,7 @@ targets:
         CFBundleShortVersionString: "$(MARKETING_VERSION)"
         CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
         CFBundleIconFile: AppIcon
-        LSMinimumSystemVersion: "26.0"
+        LSMinimumSystemVersion: "14.0"
         # Menu-bar only. No Dock icon, no main window on launch.
         LSUIElement: true
         NSHumanReadableCopyright: ""

@@ -46,4 +46,29 @@ struct AppleEngineErrorTests {
         // An available system is not a failure condition.
         #expect(AppleEngineError.blocking(for: StubAppleSystemModel(status: .available)) == nil)
     }
+
+    /// **An old OS is not an ineligible Mac, and must not say it is.**
+    ///
+    /// Everest now runs on macOS 14, where `FoundationModels` does not exist.
+    /// The nearest existing case is `deviceNotEligible`, and reusing it would
+    /// tell an M3 owner their Mac cannot do this when the fix is a software
+    /// update they can perform in ten minutes. Root `AGENTS.md` section 6:
+    /// a user-facing cause carries its own signal and is never derived from
+    /// the nearest available enum.
+    ///
+    /// The assertion that matters is the third one. A new case that happened
+    /// to reuse the ineligible sentence would satisfy the first two.
+    @Test("a Mac whose macOS is too old is told to update, not that it is ineligible")
+    func tooOldAnOSIsItsOwnCauseAndItsOwnSentence() {
+        let blocking = AppleEngineError.blocking(for: StubAppleSystemModel(status: .requiresNewerOS))
+
+        #expect(blocking == .requiresNewerOS, "an unsupported OS must block the request")
+        let message = try! #require(blocking?.message)
+
+        #expect(
+            message != AppleEngineError.deviceNotEligible.message,
+            "reusing the ineligible sentence blames the hardware for a software version"
+        )
+        #expect(message.contains("26"), "the sentence has to name the version that fixes it")
+    }
 }

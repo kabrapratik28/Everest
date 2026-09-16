@@ -1,5 +1,5 @@
 import Foundation
-import Synchronization
+import os
 import TextBridge
 import Testing
 
@@ -23,7 +23,7 @@ private func makeOnboardingStore() -> UserDefaults {
 @Test("onboarding stays on the permission step until it is granted, without a relaunch")
 @MainActor
 func onboardingGatesOnAccessibilityAndRereadsIt() {
-    let trusted = Mutex(false)
+    let trusted = OSAllocatedUnfairLock(initialState: false)
     // A throwaway suite, not `.standard`. `advance()` persists the step now,
     // so a default store would write into the real user's defaults and hand
     // the next test a model that starts halfway through.
@@ -168,7 +168,7 @@ func theExclusionCaveatNamesTheRealProtection() {
 @Test("onboarding will not leave the model step while a download is in flight")
 @MainActor
 func onboardingWaitsForAnInFlightDownload() {
-    let downloading = Mutex(true)
+    let downloading = OSAllocatedUnfairLock(initialState: true)
     let onboarding = OnboardingModel(
         store: makeOnboardingStore(),
         isAccessibilityTrusted: { true },

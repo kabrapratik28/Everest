@@ -10,6 +10,13 @@ public enum AppleSystemStatus: Sendable, Equatable {
     case appleIntelligenceNotEnabled
     case deviceNotEligible
     case modelNotReady
+
+    /// The OS is older than `FoundationModels`, so there is no framework to
+    /// ask. Everest deploys to macOS 14 and Apple's model arrived in 26, so
+    /// this is the state on most of the supported range. Deliberately not
+    /// folded into `deviceNotEligible`: that sentence blames the hardware,
+    /// and an M3 on macOS 15 is perfectly eligible once it updates.
+    case requiresNewerOS
 }
 
 /// What a request to Apple's model can fail with once it has started.
@@ -49,6 +56,7 @@ public enum AppleEngineError: Error, Equatable, Sendable {
     case guardrailRefusal
     case contextExceeded
     case generationFailed(String)
+    case requiresNewerOS
 
     /// One sentence per case, and each one points at a different fix.
     ///
@@ -69,6 +77,8 @@ public enum AppleEngineError: Error, Equatable, Sendable {
             "Apple Intelligence is turned off. Turn it on in System Settings, or switch Everest to the local model."
         case .deviceNotEligible:
             "This Mac is not eligible for Apple Intelligence. Switch Everest to the local model to rewrite text here."
+        case .requiresNewerOS:
+            "Apple's model needs macOS 26 or later. Update macOS to use it, or keep using Everest's own local model, which works here."
         case .modelNotReady:
             "Apple is still downloading its language model. Try again shortly, or switch Everest to the local model."
         case .guardrailRefusal:
@@ -91,6 +101,7 @@ public enum AppleEngineError: Error, Equatable, Sendable {
         case .appleIntelligenceNotEnabled: .appleIntelligenceNotEnabled
         case .deviceNotEligible: .deviceNotEligible
         case .modelNotReady: .modelNotReady
+        case .requiresNewerOS: .requiresNewerOS
         }
     }
 
