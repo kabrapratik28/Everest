@@ -1,0 +1,46 @@
+name: Bug report
+description: Something did not work. The diagnostics field is the one that matters.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Please run this first and paste the result into the Diagnostics box.**
+        It copies itself to your clipboard.
+
+        ```bash
+        { sw_vers; echo "arch: $(uname -m)"; echo "app: $(defaults read /Applications/Everest.app/Contents/Info.plist CFBundleShortVersionString 2>/dev/null || echo 'not in /Applications')"; echo "--- log ---"; tail -n 150 ~/Library/Logs/Everest/everest.log 2>/dev/null || echo "no log file"; } | tee /dev/tty | pbcopy
+        ```
+
+        It reports versions, your Mac model, whether Accessibility was
+        granted and which engine is selected. It never contains text you
+        selected or any rewrite. Read it before you paste it.
+
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you expected, and what happened instead.
+    validations:
+      required: true
+
+  - type: input
+    id: app
+    attributes:
+      label: Which app were you rewriting in
+      placeholder: Slack, Chrome, Sublime Text, Notes...
+
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Diagnostics
+      description: Output of the command above.
+      render: text
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce, if you know them
+      description: A rewrite that fails every time is much easier to fix than one that failed once.

@@ -25,6 +25,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// and counts only.
     private let log = Logger(subsystem: Bundle.main.bundleIdentifier ?? "Everest", category: "app")
 
+    /// A file a bug reporter can attach. `OSLog` stays the primary sink,
+    /// but this app's interesting lines go out at `.debug`, which macOS keeps
+    /// in memory and drops — so by the time anyone notices a problem worth
+    /// reporting, `log show` returns nothing. Bounded at 512 KB total.
+    /// Content-free, same rule as `Tracing`: root `AGENTS.md` section 6.
+    private let diagnostics = DiagnosticsLog.standard()
+
     private let settings = AppSettings.shared
     private let probe = SystemProbe()
     private let panel = FloatingPanelController.live()
@@ -130,6 +137,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         // `LSUIElement` pins every launch to `.accessory`, so the stored
         // preference has to be re-applied here or it silently resets.
+        diagnostics.writeHeader(
+            version: Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?",
+            build: Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "?"
+        )
+        diagnostics.append("accessibility trusted=\(probe.isAccessibilityTrusted())")
+
         presence.start()
 
         // `engineID` comes straight out of `UserDefaults` and goes straight
@@ -164,6 +177,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         hotkeys = HotkeyManager(coordinator: coordinator)
         hotkeys?.register()
+        diagnostics.append("status item and hotkeys registered, engine=\(settings.engineID)")
 
         warnAboutItalicOnce()
 
@@ -171,7 +185,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // the permission counted anyone who granted Accessibility before
         // opening the guide as set up, so they never saw the model step — the
         // one step that puts a model on disk.
-        if !onboardingModel.isComplete { showOnboarding() }
+        //
+        // Both branches are recorded. "The welcome window did not appear" is
+        // ambiguous between never shown and shown-then-skipped, and that
+        // ambiguity cost a real debugging session: the guide is once-only, so
+        // a machine that had already completed it looked identical to one
+        // where the window failed to open.
+        let alreadyOnboarded = onboardingModel.isComplete
+        diagnostics.append("onboarding complete=\(alreadyOnboarded), step=\(onboardingModel.step)")
+        if !alreadyOnboarded {
+            showOnboarding()
+            diagnostics.append("onboarding window shown")
+        }
 
         log.info("launched")
     }

@@ -320,6 +320,13 @@
           is no account, no telemetry, no crash reporting, and no analytics. Once the model is on
           disk, rewriting works with networking switched off.
         </p>
+        <p>
+          Everest keeps a small diagnostics file in <code>~/Library/Logs/Everest</code>, capped at
+          512&nbsp;KB, so that reporting a bug does not depend on reproducing it on demand. It
+          records versions, whether Accessibility was granted and which engine is selected, never
+          your text. Nothing sends it anywhere: it is plain text, and attaching it to an issue is
+          your decision.
+        </p>
         <h3>What does</h3>
         <p>
           Two requests, neither carrying your text. The first setup downloads model weights from

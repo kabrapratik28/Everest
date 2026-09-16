@@ -63,16 +63,23 @@ see. The excluded-apps list in Settings ▸ Privacy is there for those.
 | Model weights, ~2.3 GB | `~/Library/Application Support/Everest/Models/` | Settings ▸ Model ▸ Delete, or delete the folder |
 | Preferences, including any custom styles and prompt text you write | `~/Library/Preferences/com.kabrapratik.Everest.plist` | `defaults delete com.kabrapratik.Everest` |
 | Diagnostic log lines | The unified system log, subsystem `com.kabrapratik.Everest` | `sudo log erase`, or wait — the system rotates them |
+| A diagnostics file you can attach to a bug report | `~/Library/Logs/Everest/` | Delete the folder. Capped at 512 KB in total, so it cannot grow without limit |
 | Sparkle's update-check state (last check, whether you allowed automatic checks) | `~/Library/Preferences/com.kabrapratik.Everest.plist`, keys beginning `SU` | `defaults delete com.kabrapratik.Everest` |
 
 Your custom style instructions are your text and they are kept, because the
 app has to send them to the model on the next press. Your **selections** and
 **rewrites** are never written to disk by Everest.
 
-The log lines are deliberately content-free: they carry lengths, booleans,
+Both logs are deliberately content-free: they carry lengths, booleans,
 Accessibility roles and enum case names, never the text itself. The four
 places Everest logs at all are "launched", "model container loaded", the type
 name of a generation error, and the text-bridge trace.
+
+The file in `~/Library/Logs/Everest/` exists so that reporting a bug does not
+depend on reproducing it on demand. It records the app version, your macOS
+version and Mac model, whether Accessibility was granted, which engine is
+selected, and whether the welcome window appeared. It is plain text and it is
+yours: read it before attaching it to an issue.
 
 ## Permissions Everest asks for
 

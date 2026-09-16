@@ -491,7 +491,7 @@ private struct PrivacyTab: View {
                 Text(PrivacyCopy.whereTextGoes)
                 Text("Password and secure fields are refused before they are read.")
                     .foregroundStyle(.secondary)
-                Text("Nothing you select or generate is written to the system log.")
+                Text("Nothing you select or generate is written to the system log or to Everest's own diagnostics file in ~/Library/Logs/Everest.")
                     .foregroundStyle(.secondary)
             }
 

@@ -121,6 +121,8 @@ Every source directory has its own `AGENTS.md` holding the decisions made there 
 
 Security issues go through [SECURITY.md](SECURITY.md), not the issue tracker.
 
+**Reporting a bug?** Everest keeps a capped diagnostics log at `~/Library/Logs/Everest/`. The [bug report form](../../issues/new?template=bug_report.yml) has a one-line command that collects it along with your macOS and app versions. It never contains your text, and you can read it before you paste it.
+
 ## Licence
 
 MIT. See [LICENSE](LICENSE). The model weights are Apache-2.0 and separately licensed.
