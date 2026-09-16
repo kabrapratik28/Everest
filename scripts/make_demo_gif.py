@@ -91,7 +91,11 @@ def main() -> None:
                     help="where the key badges sit; pick whichever corner the recording leaves empty")
     ap.add_argument("--key", action="append", default=[],
                     help='e.g. "⌘ A@0.5-1.9" — keys space-separated, times relative to --start')
+    ap.add_argument("--out", type=pathlib.Path, default=OUT,
+                    help="output path; a non-.gif suffix writes H.264 instead of a palettised GIF")
     a = ap.parse_args()
+    out = a.out
+    gif = out.suffix.lower() == ".gif"
 
     specs = []
     for i, spec in enumerate(a.key):
@@ -108,21 +112,35 @@ def main() -> None:
         y = "40" if a.badge == "top" else "main_h-140"
         chain.append(f"{label}[{i + 1}:v]overlay=40:{y}:enable='between(t,{t0},{t1})'{nxt}")
         label = nxt
-    chain.append(
-        f"{label}fps={a.fps},scale={a.width}:-1:flags=lanczos,split[s0][s1];"
-        f"[s0]palettegen=max_colors=128[p];[s1][p]paletteuse=dither=bayer:bayer_scale=3"
-    )
+    if gif:
+        chain.append(
+            f"{label}fps={a.fps},scale={a.width}:-1:flags=lanczos,split[s0][s1];"
+            f"[s0]palettegen=max_colors=128[p];[s1][p]paletteuse=dither=bayer:bayer_scale=3"
+        )
+    else:
+        # -2, not -1: H.264 needs even dimensions and an odd height makes
+        # libx264 fail outright rather than round for you.
+        chain.append(f"{label}scale={a.width}:-2:flags=lanczos,format=yuv420p")
 
     cmd = [ffmpeg(), "-y", "-loglevel", "error", "-ss", str(a.start), "-t", str(a.dur), "-i", a.recording]
     for p, _, _ in specs:
         cmd += ["-i", str(p)]
-    cmd += ["-filter_complex", ";".join(chain), str(OUT)]
+    cmd += ["-filter_complex", ";".join(chain)]
+    if not gif:
+        # yuv420p + faststart, or QuickTime and every browser refuse it.
+        cmd += ["-c:v", "libx264", "-crf", "18", "-preset", "slow",
+                "-pix_fmt", "yuv420p", "-movflags", "+faststart", "-an"]
+    cmd += [str(out)]
     subprocess.run(cmd, check=True)
 
-    kb = OUT.stat().st_size // 1024
-    print(f"wrote {OUT.relative_to(ROOT)}  {kb} KB")
+    kb = out.stat().st_size // 1024
+    try:
+        shown = out.relative_to(ROOT)
+    except ValueError:
+        shown = out
+    print(f"wrote {shown}  {kb} KB")
     # A README image nobody waits for is a README image nobody sees.
-    if kb > 3000:
+    if gif and kb > 3000:
         print("  over 3 MB — drop --fps to 10 or --width to 640", file=sys.stderr)
 
 

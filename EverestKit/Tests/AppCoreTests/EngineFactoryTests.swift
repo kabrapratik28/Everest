@@ -5,6 +5,21 @@ import Testing
 @testable import AppCore
 @testable import Engines
 
+/// **The two tests that share the process-wide registry, run one at a time.**
+///
+/// `EngineFactory.registry` holds one weight-bearing engine, by design:
+/// asking for a second evicts the first, which is what keeps peak memory at
+/// 1x. That makes any two tests touching it order-dependent, and swift-testing
+/// runs tests in parallel — `everyCatalogEntryBuildsItsOwnEngine` walks the
+/// whole catalog, so a `.qwen30B` build landing between the two `live(for:
+/// .qwen4B)` calls below evicts the engine whose identity is being asserted.
+///
+/// It sat latent until an unrelated test was added to this bundle and the
+/// schedule shifted; the failure was in the eviction rule, which was behaving
+/// exactly as documented. The other tests here each build their own
+/// `EngineRegistry` and need no serialising.
+@Suite(.serialized)
+struct GlobalEngineRegistryTests {
 /// Which concrete engine backs which id is a branch, so it lives here rather
 /// than in the app target. Getting it wrong is silent: an `MLXEngine` built
 /// for `.apple` would carry an empty `repoID` and fail at download time with
@@ -33,6 +48,7 @@ func liveKeepsOneProducerPerID() throws {
 
     #expect(try #require(first.producer as? MLXTokenProducer)
         === #require(second.producer as? MLXTokenProducer))
+}
 }
 
 /// Deleting a model has to return the memory, not just the disk.

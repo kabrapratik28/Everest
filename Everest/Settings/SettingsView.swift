@@ -227,6 +227,24 @@ private struct ModelTab: View {
 /// label keeps the two together, and carries the traits that make it a radio
 /// button to VoiceOver and a stop on the keyboard tour rather than a picture
 /// that happens to be clickable.
+/// Marks the catalogue default. `ModelSpec.isDefault` already decides which
+/// one that is and `EngineEligibility.resolved` already falls back to it, so
+/// this adds no concept: it says out loud what the code was doing silently.
+///
+/// Worth saying on the model step in particular. Three engines with sizes
+/// from 2.3 GB to 17.2 GB is a choice a first-time user has no basis to
+/// make, and the smallest one is the right answer for almost everybody.
+struct RecommendedBadge: View {
+    var body: some View {
+        Text("Recommended")
+            .font(.caption2).bold()
+            .padding(.horizontal, 6).padding(.vertical, 2)
+            .background(Color.accentColor.opacity(0.15), in: Capsule())
+            .foregroundStyle(Color.accentColor)
+            .accessibilityLabel("Recommended")
+    }
+}
+
 private struct ModelRow: View {
     let row: ModelSettingsModel.Row
     @ObservedObject var models: ModelSettingsModel
@@ -239,7 +257,10 @@ private struct ModelRow: View {
                         .foregroundStyle(row.isSelected ? Color.accentColor : .secondary)
 
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(row.spec.displayName).font(.headline)
+                        HStack(spacing: 6) {
+                            Text(row.spec.displayName).font(.headline)
+                            if row.spec.isDefault { RecommendedBadge() }
+                        }
                         // The blurb inline, which is the only place a user
                         // learns that Apple's engine has a content filter they
                         // cannot switch off before it cuts a rewrite in half.
@@ -267,7 +288,9 @@ private struct ModelRow: View {
             // `isEligible`, not `fitsInMemory`: an engine that is available
             // nowhere is no more choosable than one that does not fit.
             .disabled(!row.isEligible)
-            .accessibilityLabel("\(row.spec.displayName). \(row.spec.blurb). \(row.installSummary)")
+            .accessibilityLabel(
+                "\(row.spec.displayName). \(row.spec.isDefault ? "Recommended. " : "")\(row.spec.blurb). \(row.installSummary)"
+            )
             .accessibilityAddTraits(row.isSelected ? [.isSelected] : [])
             .accessibilityHint("Rewrites with this model")
 
@@ -515,6 +538,18 @@ private struct PrivacyTab: View {
             }
 
             Section("Never read from these apps") {
+                // Not optional, and the wording is pinned by a test in
+                // `AppCore`. It used to sit on the onboarding capability
+                // screen, one step and several days away from the list it
+                // describes; here it is read by the person actually typing
+                // a bundle id in. A user who takes this list for the
+                // protection adds their bank to it, gets nothing back —
+                // matching is exact, and banking on a Mac is a browser tab
+                // no entry will ever cover — and never finds out.
+                Text(OnboardingModel.exclusionCaveat)
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+
                 // An explicit button, not `.onDelete`. That is a `List`
                 // gesture and does nothing inside a macOS `Form` — the same
                 // trap already recorded for the Styles list, which this row

@@ -5,11 +5,19 @@ import Foundation
 /// then the model, then one real rewrite.
 @MainActor
 public final class OnboardingModel: ObservableObject {
+    /// **Raw values are explicit and 1 is deliberately missing.** The step is
+    /// persisted, so renumbering moves anyone mid-setup to the wrong screen:
+    /// someone stored on 2 would resume on `tryIt` and never see the model
+    /// step, which is the one that puts weights on disk. 1 was a capability
+    /// table, removed because it asked a first-time user to read a
+    /// seven-row grid before they had seen the app do anything. What it
+    /// taught is still said where it is actually needed: the panel names the
+    /// apps that hand back the clipboard at the moment it happens, and the
+    /// website and README carry the full table.
     public enum Step: Int, CaseIterable, Sendable {
-        case accessibility
-        case capabilities
-        case model
-        case tryIt
+        case accessibility = 0
+        case model = 2
+        case tryIt = 3
     }
 
     @Published public private(set) var step: Step
@@ -17,6 +25,9 @@ public final class OnboardingModel: ObservableObject {
     /// Read live rather than stored, because the user grants the permission in
     /// another process while this window is open.
     private let isAccessibilityTrusted: @Sendable () -> Bool
+    /// Whether the engine the user has chosen can actually run right now:
+    /// weights on disk, or an engine that needs none.
+    private let isSelectedEngineReady: @MainActor @Sendable () -> Bool
     /// Whether a model download is in flight right now.
     ///
     /// Read live, like the permission. "Use and download" starts a transfer
@@ -34,11 +45,13 @@ public final class OnboardingModel: ObservableObject {
     public init(
         store: UserDefaults = .standard,
         isAccessibilityTrusted: @escaping @Sendable () -> Bool,
-        isPreparing: @escaping @MainActor @Sendable () -> Bool = { false }
+        isPreparing: @escaping @MainActor @Sendable () -> Bool = { false },
+        isSelectedEngineReady: @escaping @MainActor @Sendable () -> Bool = { true }
     ) {
         self.store = store
         self.isAccessibilityTrusted = isAccessibilityTrusted
         self.isPreparing = isPreparing
+        self.isSelectedEngineReady = isSelectedEngineReady
         // Resumed, not restarted. The window has a close button, so
         // abandoning setup partway is one click and entirely expected;
         // restarting at the permission step each time would put the model
@@ -105,69 +118,79 @@ public final class OnboardingModel: ObservableObject {
         store.set(Step.accessibility.rawValue, forKey: Keys.step)
     }
 
+    /// Whether Continue does anything from where the user is standing.
+    ///
+    /// One property, read by both the button's `disabled` and by `advance`,
+    /// because the two answering separately is how the button came to be
+    /// enabled on a step it could not leave: it pressed, nothing moved, and
+    /// nothing said why.
+    ///
+    /// Every condition is asked live. Both of them are changed by something
+    /// outside this window — the permission in System Settings, the download
+    /// by finishing — and a value captured when the step opened leaves the
+    /// button dead after the user has done exactly what it asked.
+    public var canAdvance: Bool {
+        switch step {
+        case .accessibility:
+            // Everything past here reads a selection, so without the
+            // permission the practice rewrite has nothing to read.
+            isAccessibilityTrusted()
+        case .model:
+            // **Both conditions, and they are not the same one.** In flight
+            // is a race: "Use and download" leaves this screen usable, so
+            // without the gate the user reaches the practice step and the
+            // hotkey starts a *second* download of the same gigabytes —
+            // `LoadOnce` deduplicates the load, not the download. Ready is
+            // the other half: with nothing on disk at all, Continue led to
+            // "select some text and press the shortcut" and the rewrite
+            // failed on a missing model the user was never told to fetch.
+            //
+            // Requiring ready was refused once, on the grounds that it would
+            // strand a failed download. It does not: the row shows its error
+            // and offers a retry, and Apple's engine needs no download, so
+            // selecting it is ready immediately. Stranding was the right
+            // worry and the wrong conclusion — what actually stranded people
+            // was arriving at a practice step with no model behind it.
+            !isPreparing() && isSelectedEngineReady()
+        case .tryIt:
+            true
+        }
+    }
+
+    /// Why Continue is held, or `nil` when it is not.
+    ///
+    /// A grey button with no explanation is the version of this screen that
+    /// had to be replaced: pressing it did nothing and said nothing, so a
+    /// running download, a failed one and a broken control all looked
+    /// identical — and they want three different things from the user.
+    ///
+    /// The permission step needs no line. Its whole body is the instruction,
+    /// and it already shows Granted or Waiting live.
+    public var continueHint: String? {
+        guard !canAdvance else { return nil }
+        return switch step {
+        case .model where isPreparing():
+            "Continue once the download finishes."
+        case .model:
+            "Download a model to continue — Everest has nothing to rewrite with yet."
+        default:
+            nil
+        }
+    }
+
     public func advance() {
-        // The gate, and the only one. Everything past here reads a selection,
-        // so without the permission the capability table describes reads that
-        // cannot happen and the test rewrite has nothing to read.
-        //
-        // Asked again here, not read from a stored flag: granting happens in
-        // System Settings while this window is open, and a value captured at
-        // launch leaves the gate shut after the user has done exactly what it
-        // asked. The only way out of that is quitting an app they have not
-        // finished setting up.
-        if step == .accessibility, !isAccessibilityTrusted() { return }
-        // Gated on a transfer being *in flight*, not on a model being ready:
-        // ready would strand anyone whose download failed, or who meant to
-        // skip and choose later. In-flight is the condition that races.
-        if step == .model, isPreparing() { return }
-        guard let next = Step(rawValue: step.rawValue + 1) else { return }
-        step = next
-        store.set(next.rawValue, forKey: Keys.step)
+        guard canAdvance else { return }
+        // `rawValue + 1` would stop dead at the gap left by the removed step.
+        guard let here = Step.allCases.firstIndex(of: step),
+              case let next = Step.allCases.index(after: here),
+              next < Step.allCases.endIndex else { return }
+        step = Step.allCases[next]
+        store.set(step.rawValue, forKey: Keys.step)
     }
 }
 
 public extension OnboardingModel {
-    enum CaptureAbility: Sendable, Equatable {
-        case yes
-        case usually
-        case never
-    }
-
-    enum ReplaceAbility: Sendable, Equatable {
-        case inPlace
-        case copyOnly
-        case refused
-    }
-
-    struct Capability: Sendable, Equatable, Identifiable {
-        public let context: String
-        public let capture: CaptureAbility
-        public let replace: ReplaceAbility
-        public var id: String { context }
-    }
-
-    /// Root `AGENTS.md` §3, shown during setup rather than discovered later.
-    ///
-    /// "Works anywhere" is true of reading a selection and false of writing
-    /// one. Meeting that limit for the first time in Ghostty, mid-sentence,
-    /// with no warning, reads as a broken app; the same behaviour announced up
-    /// front is a tool handing you the clipboard. The password row is the
-    /// other half — that refusal is the app working, and a user who is not
-    /// told will assume it failed and try somewhere less careful.
-    /// Shown beside the capability table, and not optional.
-    ///
-    /// The excluded-app list is easy to mistake for the protection. It is not:
-    /// matching is case-insensitive and **exact**, deliberately not prefix, so
-    /// every entry is one native app — and banking on a Mac is overwhelmingly
-    /// a browser tab, which no entry on any list will ever cover. What
-    /// actually protects a web or Electron password field is the secure
-    /// subrole check, which is also the *only* thing protecting it: those
-    /// fields do not set the process-wide secure-input flag.
-    ///
-    /// A user who believes the list is the defence adds their bank's name to
-    /// it, gets nothing, and never finds out.
-    /// What Everest does about passwords, and the one case it has no way to
-    /// recognise.
+    /// What Everest does about passwords, and the one case it cannot see.
     ///
     /// It used to say "Password and secure fields are never read. Everest
     /// refuses before it looks." Both guards behind that are real — the
@@ -177,20 +200,17 @@ public extension OnboardingModel {
     /// accessibility tree *and* leaves the process-wide flag clear. There is
     /// no element to classify and no flag to see.
     ///
-    /// Chrome 153 sets the flag; nothing obliges an Electron host, a custom
-    /// control or a later Chrome to. A measurement of one host at one version
-    /// was standing in for an invariant covering every app forever, which is
-    /// the same shape as the capability-table row that cost a P0
-    /// investigation. **The behaviour is not the defect — the sentence is.**
-    /// Making no-tree clipboard capture opt-in was considered and refused: it
-    /// would disable Sublime, Google Docs and every terminal, which is the
-    /// whole copy-only column of root §3.
+    /// Chrome 153 set the flag when it was measured, on 2026-09-06; nothing
+    /// obliges an Electron host, a custom control or a later Chrome to. One
+    /// host at one version was standing in for an invariant covering every
+    /// app forever, and an external auditor quoted it back as evidence for a
+    /// P0 that did not exist. **The behaviour is not the defect — the
+    /// sentence was.** Making no-tree clipboard capture opt-in was considered
+    /// and refused: it would disable Sublime, Google Docs and every terminal,
+    /// which is the whole copy-only column of root §3.
     ///
     /// Leads with what is enforced, because the guards have earned it and a
-    /// caveat that opens on doubt gets skipped. Ends on the excluded-apps
-    /// list, which is the one control that covers a whole app — and is not
-    /// in tension with `exclusionCaveat` below, which says the list cannot
-    /// protect a *field inside* an app it is not excluding.
+    /// caveat that opens on doubt gets skipped.
     nonisolated static let passwordPromise = """
         Everest refuses any field macOS marks as a password, and stops entirely while macOS \
         reports that one is being typed — checked again in the moment before any read that \
@@ -200,20 +220,17 @@ public extension OnboardingModel {
         out of altogether, the excluded list in Settings ▸ Privacy does that.
         """
 
+    /// Shown beside the excluded-app list, which is the easiest control here
+    /// to mistake for the protection. It is not: matching is
+    /// case-insensitive and **exact**, deliberately not prefix, so every
+    /// entry is one native app — and banking on a Mac is overwhelmingly a
+    /// browser tab, which no entry on any list will ever cover. A user who
+    /// believes the list is the defence adds their bank's name to it, gets
+    /// nothing, and never finds out.
     nonisolated static let exclusionCaveat = """
         Everest refuses secure fields before it reads them, and that is what protects a \
         password — including in a browser or an Electron app, where the excluded-app list \
         cannot reach. The list in Settings ▸ Privacy is a convenience for keeping Everest \
         out of whole native apps, not the thing standing between it and your passwords.
         """
-
-    nonisolated static let capabilities: [Capability] = [
-        Capability(context: "Native text fields and editors", capture: .yes, replace: .inPlace),
-        Capability(context: "Browser text areas and rich editors", capture: .usually, replace: .inPlace),
-        Capability(context: "VS Code, Cursor, Sublime, Xcode", capture: .usually, replace: .inPlace),
-        Capability(context: "Slack, Discord, Mail, Messages", capture: .usually, replace: .inPlace),
-        Capability(context: "Terminal, Ghostty, iTerm", capture: .usually, replace: .copyOnly),
-        Capability(context: "PDFs and ordinary web prose", capture: .usually, replace: .copyOnly),
-        Capability(context: "Password and secure fields", capture: .never, replace: .refused),
-    ]
 }

@@ -233,3 +233,32 @@ struct PanelStateTests {
         #expect(failed.accessibilityValue.contains("ran out of memory"))
     }
 }
+
+/// **The picker's own keys were the only ones it never mentioned.**
+///
+/// It draws a number down the left of every row, and those numbers are live —
+/// `PanelKeyMap` resolves a bare digit straight to that style — but nothing
+/// said so, so they read as decoration and everyone arrowed down instead.
+/// The arrows were undocumented too. This panel is up for a couple of seconds
+/// with no menu bar, tooltip or onboarding behind it, which is the whole
+/// reason this directory's rule is that a shortcut is shown or it does not
+/// exist.
+///
+/// Informational, not clickable: "1-9" is nine actions and a badge cannot
+/// perform it, so `performs` is nil and the view renders no button. The row
+/// labels already announce "1. Concise", so a screen reader gets the numbers
+/// from the list itself.
+@Test("the picker says its digits and arrows are live")
+func thePickerAdvertisesItsOwnKeys() {
+    let hints = PanelState.stylePicker(presets: []).keyHints
+
+    let digits = try! #require(hints.first { $0.keys.contains("9") })
+    #expect(digits.performs == nil, "a badge cannot perform nine different picks")
+    #expect(hints.contains { $0.keys.contains("↑") }, "arrows move the highlight and nothing said so")
+
+    // Positive control on both halves: escape is still offered and is still
+    // actionable, so a nil `performs` above is this hint's own answer and not
+    // an empty list or a field that stopped being populated.
+    let escape = try! #require(hints.first { $0.keys == "esc" })
+    #expect(escape.performs == .cancel)
+}

@@ -138,6 +138,27 @@ public final class ModelSettingsModel: ObservableObject {
     /// transfer of the same weights.
     public var isPreparing: Bool { !downloadProgress.isEmpty }
 
+    /// Whether the engine a hotkey press would use can run right now.
+    ///
+    /// The other half of onboarding's Continue gate: without it the user
+    /// reached the practice step with nothing on disk, pressed the shortcut,
+    /// and got an error about a model nobody had told them to fetch.
+    ///
+    /// **Both conditions, and `needsDownload` alone is the wrong one.** It is
+    /// false for Apple's engine whatever its availability says, because there
+    /// is no repository to fetch from — so an Apple Intelligence row switched
+    /// off in System Settings would answer "ready" and hand the user exactly
+    /// the dead end this exists to close. `isEligible` is what covers both
+    /// that and a Mac with too little memory for the weights.
+    ///
+    /// False before the first `refresh()`, when `rows` is empty. That is the
+    /// safe direction: Continue stays shut for the moment it takes the model
+    /// step's `.task` to answer.
+    public var isSelectedEngineReady: Bool {
+        guard let row = rows.first(where: \.isSelected) else { return false }
+        return row.isEligible && !row.needsDownload
+    }
+
     /// Chooses the engine every rewrite will use.
     ///
     /// The row is the control, so this is what the row calls. There was a

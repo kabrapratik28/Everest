@@ -69,3 +69,50 @@ func aPersistedOversizedEngineIsResolvedAway() {
     // it — its availability is a System Settings toggle, decided elsewhere.
     #expect(EngineEligibility.resolved(.apple, physicalMemory: sixteenGB) == .apple)
 }
+
+/// **Onboarding's Continue reads this, so "ready" cannot mean "downloaded".**
+///
+/// Three different states all look like a model being present: weights on
+/// disk, an engine that needs no weights, and an engine that reports
+/// `.unavailable` because it is switched off in System Settings. Only the
+/// first two can rewrite anything. Answering with `!needsDownload` alone
+/// would call the third ready — `needsDownload` is false for Apple's engine
+/// whatever its availability says, because it has no repository to fetch
+/// from — and let a user off the model step onto a practice rewrite that
+/// cannot run.
+@Test("a selected engine counts as ready only if it can actually run")
+@MainActor
+func readinessMeansRunnableNotMerelyNotDownloading() async {
+    let settings = makeSettings()
+    let availability: [EngineID: EngineAvailability] = [
+        .qwen4B: .needsDownload(bytes: 2_300_000_000),
+        .qwen30B: .ready,
+        .apple: .unavailable(reason: "Apple Intelligence is turned off."),
+    ]
+    let model = ModelSettingsModel(
+        settings: settings,
+        engineFor: { StubEngine(id: $0, availability: availability[$0] ?? .ready) },
+        physicalMemory: sixteenGB
+    )
+
+    settings.engineID = .qwen4B
+    await model.refresh()
+    #expect(model.isSelectedEngineReady == false, "nothing on disk yet")
+
+    // The trap: `needsDownload` is false here, and it is still unrunnable.
+    settings.engineID = .apple
+    await model.refresh()
+    #expect(model.isSelectedEngineReady == false, "switched off is not ready")
+
+    // A second model, because the positive control has to be an engine this
+    // Mac can hold: 30B wants 17.2 GB and is ineligible on 16 GB however
+    // installed it is, so selecting it here would have proved nothing.
+    let installed = ModelSettingsModel(
+        settings: settings,
+        engineFor: { StubEngine(id: $0, availability: .ready) },
+        physicalMemory: sixteenGB
+    )
+    settings.engineID = .qwen4B
+    await installed.refresh()
+    #expect(installed.isSelectedEngineReady, "positive control: installed and eligible really is ready")
+}

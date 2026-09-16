@@ -57,11 +57,24 @@ struct RewriteView: View {
     ///
     /// Shape and weight carry the meaning, not colour — under Increase
     /// Contrast the capsule keeps its border and the text goes full strength.
+    @ViewBuilder
     private func keycap(_ hint: KeyHint) -> some View {
-        Button {
-            perform(hint.performs)
-        } label: {
-            HStack(spacing: 4) {
+        if let performs = hint.performs {
+            Button { perform(performs) } label: { badge(hint) }
+                .buttonStyle(.plain)
+                .accessibilityLabel(accessibilityLabel(for: performs))
+        } else {
+            // No action, so no button: a control that looks clickable and
+            // answers nothing is the thing the clickable-row rule is for.
+            // Hidden from VoiceOver like every other badge — the picker's
+            // rows already announce "1. Concise", so the numbers reach a
+            // screen reader from the list rather than from here.
+            badge(hint).accessibilityHidden(true)
+        }
+    }
+
+    private func badge(_ hint: KeyHint) -> some View {
+        HStack(spacing: 4) {
                 Text(hint.keys)
                     .font(.caption.weight(.medium))
                     .monospaced()
@@ -82,9 +95,6 @@ struct RewriteView: View {
             // key equivalent through the standard mechanism, and "Copy command
             // C" read as a label is noise.
             .accessibilityHidden(true)
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(accessibilityLabel(for: hint.performs))
     }
 
     private func perform(_ action: PanelKeyAction) {

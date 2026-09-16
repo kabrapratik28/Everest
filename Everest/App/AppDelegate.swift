@@ -72,7 +72,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         isAccessibilityTrusted: { [probe] in probe.isAccessibilityTrusted() },
         // Continue stays shut while a transfer is running, or the practice
         // step's hotkey starts a second download of the same weights.
-        isPreparing: { [weak self] in self?.modelSettings.isPreparing ?? false }
+        isPreparing: { [weak self] in self?.modelSettings.isPreparing ?? false },
+        // The other half of the same gate: Continue used to be live with no
+        // weights on disk, so the practice step asked for a rewrite the app
+        // could not do.
+        isSelectedEngineReady: { [weak self] in self?.modelSettings.isSelectedEngineReady ?? false }
     )
 
     private lazy var accessibility = AXSelectionAdapter()

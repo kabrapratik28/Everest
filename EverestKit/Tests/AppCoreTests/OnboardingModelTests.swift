@@ -40,11 +40,11 @@ func onboardingGatesOnAccessibilityAndRereadsIt() {
     trusted.withLock { $0 = true }
 
     onboarding.advance()
-    #expect(onboarding.step == .capabilities)
+    #expect(onboarding.step == .model)
 }
 
 /// Past the gate, the steps are just an order.
-@Test("the remaining steps run capabilities, then the model, then a real rewrite")
+@Test("past the gate it is the model, then a real rewrite")
 @MainActor
 func stepsRunInOrderOnceThePermissionIsGranted() {
     let onboarding = OnboardingModel(store: makeOnboardingStore(), isAccessibilityTrusted: { true })
@@ -55,7 +55,7 @@ func stepsRunInOrderOnceThePermissionIsGranted() {
         visited.append(onboarding.step)
     }
 
-    #expect(visited == [.accessibility, .capabilities, .model, .tryIt])
+    #expect(visited == [.accessibility, .model, .tryIt])
     // The last step does not fall off the end.
     onboarding.advance()
     #expect(onboarding.step == .tryIt)
@@ -100,36 +100,11 @@ func theStepSurvivesClosingTheWindow() {
 
     let first = OnboardingModel(store: store, isAccessibilityTrusted: { true })
     first.advance()
-    first.advance()
     #expect(first.step == .model)
 
     let resumed = OnboardingModel(store: store, isAccessibilityTrusted: { true })
     #expect(resumed.step == .model)
     #expect(resumed.isComplete == false)
-}
-
-/// The capability table, and why it is a requirement rather than marketing.
-///
-/// "Works anywhere" is true of *reading* a selection and false of writing one.
-/// A user who first meets that limit in Ghostty, mid-sentence, with no warning,
-/// concludes the app is broken — where the same behaviour announced up front is
-/// a tool handing them the clipboard. The password row is the other half: the
-/// refusal is the app working, and a user who is not told will assume it failed
-/// and try somewhere less safe.
-@Test("the capability table admits what cannot be replaced, and that passwords are never read")
-func theCapabilityTableStatesTheLimits() {
-    let rows: [OnboardingModel.Capability] = OnboardingModel.capabilities
-
-    let terminal = rows.first { $0.context.contains("Terminal") }
-    #expect(terminal?.replace == .copyOnly)
-
-    let password = rows.first { $0.context.contains("Password") }
-    #expect(password?.capture == .never)
-    #expect(password?.replace == .refused)
-
-    // Something has to be replaceable in place, or the table is describing a
-    // different app.
-    #expect(rows.contains { $0.replace == .inPlace })
 }
 
 /// Onboarding must not let the excluded-app list look like the whole defence.
@@ -288,4 +263,97 @@ func reopeningForALostPermissionRewindsToAccessibility() {
     model.rewindForLostPermission()
 
     #expect(model.step == .accessibility)
+}
+
+/// **Continue must not hand someone a practice step their model cannot run.**
+///
+/// The model step used to gate only on a transfer being *in flight*, so with
+/// nothing downloaded at all the button was enabled and led straight to
+/// "select some text and press the shortcut" with no weights on disk. The
+/// rewrite then failed on an error about a model the user was never told to
+/// fetch.
+///
+/// The old reasoning was that requiring readiness would strand someone whose
+/// download failed. It does not: a failed row shows its error and offers a
+/// retry, and Apple's engine needs no download at all, so a Mac with Apple
+/// Intelligence has a ready engine the moment it is selected.
+@Test("the model step cannot be left until the chosen engine is actually usable")
+@MainActor
+func continueWaitsForAUsableModel() {
+    let ready = OSAllocatedUnfairLock(initialState: false)
+    let onboarding = OnboardingModel(
+        store: makeOnboardingStore(),
+        isAccessibilityTrusted: { true },
+        isSelectedEngineReady: { ready.withLock { $0 } }
+    )
+    onboarding.advance()
+    #expect(onboarding.step == .model, "positive control: the permission gate opened")
+
+    #expect(onboarding.canAdvance == false, "nothing downloaded, so there is nowhere to go")
+    onboarding.advance()
+    #expect(onboarding.step == .model, "and advancing anyway must not move")
+
+    ready.withLock { $0 = true }
+    #expect(onboarding.canAdvance, "a ready engine is the whole condition")
+    onboarding.advance()
+    #expect(onboarding.step == .tryIt)
+}
+
+/// A transfer in flight still holds the button, separately from readiness.
+/// Letting it through starts the practice hotkey against a half-written
+/// model directory, and the hotkey begins a second download of the same
+/// weights.
+@Test("a download in flight holds Continue even once something is ready")
+@MainActor
+func continueWaitsForAnInFlightTransfer() {
+    let onboarding = OnboardingModel(
+        store: makeOnboardingStore(),
+        isAccessibilityTrusted: { true },
+        isPreparing: { true },
+        isSelectedEngineReady: { true }
+    )
+    onboarding.advance()
+    #expect(onboarding.step == .model)
+    #expect(onboarding.canAdvance == false)
+}
+
+/// **A disabled button must say what would enable it.** Continue going grey
+/// on the model step is correct and completely mute: the user cannot tell a
+/// download still running from one that failed from a control that is
+/// broken, and the three want different actions from them.
+///
+/// Here rather than in the view because it is a branch, and root `AGENTS.md`
+/// §4 — an app-target branch is compiled by nothing `swift test` runs.
+@Test("a held Continue names the thing that would release it")
+@MainActor
+func aHeldContinueSaysWhy() {
+    let downloading = OnboardingModel(
+        store: makeOnboardingStore(),
+        isAccessibilityTrusted: { true },
+        isPreparing: { true },
+        isSelectedEngineReady: { false }
+    )
+    downloading.advance()
+    #expect(downloading.step == .model, "positive control: the permission gate opened")
+    let whileDownloading = downloading.continueHint
+    #expect(whileDownloading?.contains("download") == true, "got \(whileDownloading ?? "nil")")
+
+    let empty = OnboardingModel(
+        store: makeOnboardingStore(),
+        isAccessibilityTrusted: { true },
+        isSelectedEngineReady: { false }
+    )
+    empty.advance()
+    // Distinct from the in-flight wording, or "wait" and "act" read the same.
+    #expect(empty.continueHint != whileDownloading, "waiting and choosing are different instructions")
+    #expect(empty.continueHint?.isEmpty == false)
+
+    let ready = OnboardingModel(
+        store: makeOnboardingStore(),
+        isAccessibilityTrusted: { true },
+        isSelectedEngineReady: { true }
+    )
+    ready.advance()
+    #expect(ready.canAdvance, "positive control: this one really can move")
+    #expect(ready.continueHint == nil, "a live button explains itself by working")
 }

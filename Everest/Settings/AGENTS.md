@@ -16,43 +16,43 @@ the model to invent a task that lands in their document. A blank name leaves a
 style the Choose Style picker cannot label or announce. A blank subtitle is
 fine — the Add button already makes one. Rules are `PresetEdit`, in `AppCore`.
 
-**Preset fields are bordered, with a caption above.** Borderless in a `Form`,
-a populated field reads as static text; and in the Styles rows `Form`'s label
-column never applies, so the name was a placeholder that vanished on contact.
+**Preset fields are bordered, with a caption above.** Borderless in a `Form` a
+populated field reads as static text, and `Form`'s label column never applies
+in the Styles rows, so the name was a placeholder that vanished on contact.
 
 **The draft is kept apart from the stored value** so trimming does not fight
-typing: a trailing space stays visible mid-word, and emptying a field whose
-rule refuses blanks keeps the last good value. It re-syncs when the value moves
-from elsewhere, which is what makes "Reset to default" visible in a touched one.
+typing: a trailing space stays visible mid-word, and emptying a field whose rule
+refuses blanks keeps the last good value. It re-syncs on an outside change,
+which is what makes "Reset to default" visible in a touched field.
 
 **The Model tab's row is the radio button.** It used to draw one beside a
 separate "Use" button, so the control that looked like a radio was a picture.
 The row is a plain `Button` carrying `.isSelected`, and
 `ModelSettingsModel.select` is the only thing that moves the engine.
 
-**The ⌘Tab toggle says "Dock and app switcher".** macOS has one setting for
-both — the activation policy — so a switch promising only ⌘Tab would deliver a
-Dock icon the user never asked for and could not find the switch to remove.
+**The ⌘Tab toggle says "Dock and app switcher".** One activation policy drives
+both, so promising only ⌘Tab delivers an unasked-for Dock icon and no way back.
 
-**Permission state is polled every second**, in General and onboarding: the
-user grants it in another process with this window open, so a value read once
-keeps saying "Not granted" and the only way out is quitting mid-setup.
+**Permission state is polled every second**, in General and onboarding: it is
+granted in another process with this window open, so a value read once says
+"Not granted" forever and the only way out is quitting mid-setup.
 
 **Styles reorder with explicit buttons, not `onMove`/`onDelete`** — those are
 `List` affordances that in a macOS `Form` do nothing, or want an `EditButton`
 macOS does not have. Delete goes by `id`, never a captured index.
 
 **`SMAppService` failures put the toggle back and say why** — it throws after
-the switch has moved, and one that springs back silently reads as broken.
+the switch moves, and one springing back silently reads as broken.
 
-**The capability table is shown before the model step.** "Works anywhere" is
-true of reading a selection and false of writing one. Meeting that limit first
-in Ghostty, mid-sentence, reads as a broken app; announced up front it is a
-tool handing you the clipboard. The password row is the other half — the
-refusal is the app working, and a user not told tries somewhere less careful.
+**Onboarding is three steps; the capability grid was cut.** Seven rows
+between the permission and the model, read before the user had seen the app
+work — friction everyone paid to warn a few. Its two `AppCore`-pinned strings
+had to keep a home and neither may be dropped: `passwordPromise` onto the
+permission step, which is where that access is being asked for, and
+`exclusionCaveat` onto Settings ▸ Privacy beside the list it describes.
 
-**The table says the words as well as colouring them.** A green tick and a red
-cross at this size are the same grey glyph to one man in twelve.
+**Continue is `model.canAdvance`, with `model.continueHint` beside it.** Two
+different things hold the model step; a grey button naming neither read as broken.
 
 **The Model tab's test box has no `ReplacementService` and no snapshot**, so no
 path leads from it into a document or onto the pasteboard. It goes through the

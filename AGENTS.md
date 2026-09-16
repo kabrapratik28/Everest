@@ -52,7 +52,7 @@ Rationalizations already used on this project, all rejected: "already manually t
 
 ## 3. What can actually be replaced
 
-"Anywhere" is true for *reading* a selection, not for *writing* one. Show this in onboarding: a tool that silently does nothing in Ghostty is worse than one that says up front it will hand you the clipboard.
+"Anywhere" is true for *reading* a selection, not for *writing* one. **Said where it is met, not up front**: the table was a seven-row grid on its own onboarding screen, and asking someone to read it before they had seen the app do anything is friction paid by everyone to warn a few. The panel names the limit at the moment it hands back the clipboard; the website and README carry the table. A tool that silently does nothing in Ghostty is still worse than one that says so.
 
 | Context | Capture | Replace |
 |---|---|---|

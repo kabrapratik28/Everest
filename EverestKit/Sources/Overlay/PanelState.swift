@@ -38,8 +38,8 @@ public enum PanelStateKind: String, CaseIterable, Sendable {
 }
 
 /// A keystroke the panel offers. Drawn as a keycap badge and the words beside
-/// it, and the whole row is the clickable control — so the hint has to know
-/// what it does, not just what it says.
+/// it, and where there is one action behind it the whole row is the clickable
+/// control — so the hint has to know what it does, not just what it says.
 public struct KeyHint: Equatable, Sendable {
     /// As the user reads it on the badge.
     public let keys: String
@@ -47,7 +47,15 @@ public struct KeyHint: Equatable, Sendable {
     public let action: String
     /// What it does, as the same vocabulary the key map produces. Matching on
     /// `action` instead would break the first time someone rewords a label.
-    public let performs: PanelKeyAction
+    ///
+    /// **`nil` means the badge only tells you the key exists.** The picker's
+    /// digits are nine different picks and its arrows move a highlight
+    /// relative to wherever it is, so neither is one action a click could
+    /// stand in for. A badge wired to a `break` would look identical to a
+    /// working one and do nothing, which is the failure the clickable-row
+    /// rule exists to prevent; absent is honest, and the view draws no
+    /// button for it.
+    public let performs: PanelKeyAction?
 }
 
 public extension PanelState {
@@ -57,8 +65,19 @@ public extension PanelState {
     /// ⌘C is offered exactly where there is a rewrite to copy, and Escape is
     /// worth showing exactly where the panel will not close itself. A state
     /// that vanishes in a second does not need to explain how to close it.
+    ///
+    /// The picker is the exception, and listed rather than derived: its keys
+    /// are the only ones in the app that are *already drawn* and still went
+    /// unused. Every row carries a live number down its left margin — a bare
+    /// digit resolves straight to that style — but nothing said the numbers
+    /// were pressable, so they read as decoration and people arrowed down
+    /// instead. The arrows were unmentioned too.
     var keyHints: [KeyHint] {
         var hints: [KeyHint] = []
+        if case .stylePicker = self {
+            hints.append(KeyHint(keys: "1-9", action: "Pick a style", performs: nil))
+            hints.append(KeyHint(keys: "↑↓", action: "Move, ⏎ to choose", performs: nil))
+        }
         if copyableText != nil {
             hints.append(KeyHint(keys: "⌘C", action: "Copy", performs: .copy))
         }

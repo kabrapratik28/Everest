@@ -33,21 +33,27 @@ struct OnboardingView: View {
         VStack(alignment: .leading, spacing: 20) {
             switch model.step {
             case .accessibility: permission
-            case .capabilities: capabilities
             case .model: modelStep
             case .tryIt: tryIt
             }
 
             Spacer()
 
-            HStack {
+            HStack(alignment: .firstTextBaseline) {
+                // A grey button with nothing beside it was the dead end:
+                // pressing Continue with no model did nothing and said
+                // nothing. The wording is `AppCore`'s, next to the rule that
+                // decides the button, so the two cannot drift apart.
+                if let hint = model.continueHint {
+                    Text(hint).font(.callout).foregroundStyle(.secondary)
+                }
                 Spacer()
                 if model.step == .tryIt {
                     Button("Done", action: finish).keyboardShortcut(.defaultAction)
                 } else {
                     Button("Continue") { model.advance() }
                         .keyboardShortcut(.defaultAction)
-                        .disabled(model.step == .accessibility && !isGranted)
+                        .disabled(!model.canAdvance)
                 }
             }
         }
@@ -77,47 +83,18 @@ struct OnboardingView: View {
                 systemImage: isGranted ? "checkmark.circle" : "clock"
             )
             .foregroundStyle(isGranted ? Color.green : .secondary)
-        }
-    }
 
-    private var capabilities: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("What Everest can do where").font(.title2).bold()
-            Text(
-                """
-                Reading your selection works almost everywhere. Writing it back does not, \
-                because some places have no editable text behind the selection. Everest hands \
-                you the clipboard there instead of pretending.
-                """
-            )
-            Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 6) {
-                GridRow {
-                    Text("Where").bold()
-                    Text("Read").bold()
-                    Text("Replace").bold()
-                }
-                ForEach(OnboardingModel.capabilities) { row in
-                    GridRow {
-                        Text(row.context)
-                        Text(describe(row.capture))
-                        Text(describe(row.replace)).foregroundStyle(colour(row.replace))
-                    }
-                }
-            }
-            .font(.callout)
-
+            // Was on the removed capability screen, and this is the honest
+            // place for it: the user is being asked for permission to read
+            // any text they select, so what Everest refuses to read belongs
+            // in the same breath as the ask, not a screen later.
+            //
             // Pinned by a test in `AppCore`, and deliberately not absolute:
             // the subrole refusal needs an element and the secure-input flag
             // needs the host to set it, so an app exposing neither is a case
             // the chain has no way to recognise. "Never read" was a
             // measurement of one browser standing in for every app forever.
             Text(OnboardingModel.passwordPromise)
-                .font(.callout)
-                .bold()
-            // Not optional, and the wording is pinned by a test in `AppCore`.
-            // A user who reads the excluded-app list as the protection will
-            // add their bank to it, get nothing, and never find out.
-            Text(OnboardingModel.exclusionCaveat)
                 .font(.callout)
                 .foregroundStyle(.secondary)
         }
@@ -131,7 +108,10 @@ struct OnboardingView: View {
             ForEach(models.rows) { row in
                 HStack(alignment: .top) {
                     VStack(alignment: .leading) {
-                        Text(row.spec.displayName).font(.headline)
+                        HStack(spacing: 6) {
+                            Text(row.spec.displayName).font(.headline)
+                            if row.spec.isDefault { RecommendedBadge() }
+                        }
                         Text(row.spec.blurb).font(.callout).foregroundStyle(.secondary)
                         // Both of these were missing, and together they were
                         // the dead end: the default model is selected and
@@ -200,32 +180,6 @@ struct OnboardingView: View {
             }
             .font(.callout)
             .foregroundStyle(.secondary)
-        }
-    }
-
-    private func describe(_ capture: OnboardingModel.CaptureAbility) -> String {
-        switch capture {
-        case .yes: "Yes"
-        case .usually: "Usually"
-        case .never: "Never"
-        }
-    }
-
-    /// Words as well as colour. A green tick and a red cross at this size are
-    /// the same grey glyph to one man in twelve, so the column says which.
-    private func describe(_ replace: OnboardingModel.ReplaceAbility) -> String {
-        switch replace {
-        case .inPlace: "In place"
-        case .copyOnly: "Copy only"
-        case .refused: "Refused"
-        }
-    }
-
-    private func colour(_ replace: OnboardingModel.ReplaceAbility) -> Color {
-        switch replace {
-        case .inPlace: .primary
-        case .copyOnly: .secondary
-        case .refused: .secondary
         }
     }
 }
