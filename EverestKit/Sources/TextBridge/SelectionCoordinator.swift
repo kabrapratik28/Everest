@@ -279,7 +279,7 @@ public final class SelectionCoordinator {
         // Rung 5. The app's own answer, preferred over anything reconstructed
         // from the range.
         let selected = accessibility.selectedText(of: element) ?? ""
-        if !selected.isEmpty {
+        if selected.isSelection {
             return snapshot(
                 app: app, element: element, text: selected,
                 range: range, isRangeDerived: false
@@ -291,7 +291,7 @@ public final class SelectionCoordinator {
         // population where preferring `AXSelectedText` offers no protection, so
         // this route fails closed downstream rather than being trusted.
         if let range, let reconstructed = accessibility.string(of: element, in: range),
-            !reconstructed.isEmpty
+            reconstructed.isSelection
         {
             return snapshot(
                 app: app, element: element, text: reconstructed,
@@ -322,4 +322,30 @@ public final class SelectionCoordinator {
             viaClipboard: false
         )
     }
+}
+
+
+/// Whether a string an app handed back is a selection at all.
+///
+/// **Not merely non-empty.** Measured in Google Docs on 2026-09-16, Chrome
+/// 153 on macOS 26.6.2: with a 186-character paragraph selected, the focused
+/// element is an editable `AXTextArea` holding exactly one character,
+/// `U+00A0`, with `AXSelectedTextRange` `loc=0 len=1` covering it and
+/// `AXSelectedText` settable. Every signal the chain had said "a real, short
+/// selection", so rung 5 took it and returned, and the chain never reached
+/// the clipboard — the only rung that can read a Google Doc. The user's
+/// paragraph was then overwritten by the paste fallback, because the write
+/// went somewhere the read had not come from.
+///
+/// Whitespace, deliberately, rather than a minimum length or that scalar.
+/// One character is a selection somebody can legitimately make, and `U+00A0`
+/// is one buffer in one build of one app; neither is the reason this is not a
+/// selection. Blank text has no rewrite — the same judgement
+/// `OutputValidator.validate` already makes refusing blank *output*.
+///
+/// Asked of both rungs that produce text. Rung 7 rebuilds from the range on
+/// the same element, so guarding only rung 5 hands the identical placeholder
+/// straight back through the next one.
+private extension String {
+    var isSelection: Bool { contains(where: { !$0.isWhitespace }) }
 }

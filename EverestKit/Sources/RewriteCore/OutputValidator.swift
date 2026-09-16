@@ -2,10 +2,18 @@ import Foundation
 
 /// Why a rewrite got rejected before it could replace a user's selection.
 ///
-/// One case, and it used to be two. `lengthRatio` refused output more than 3×
-/// the source — see `validate` for why a structural bound replaced it.
+/// Two cases, and there used to be a third. `lengthRatio` refused output more
+/// than 3× the source — see `validate` for why a structural bound replaced it.
 public enum ValidationFailure: Error, Equatable, Sendable {
     case empty
+    /// The model echoed our own delimiter and produced no rewrite around it.
+    ///
+    /// Its own case rather than `.empty`, which root `AGENTS.md` §6 is
+    /// explicit about: the model did return something, and telling the user
+    /// "the model returned nothing" sends them to swap models over a fault
+    /// that is upstream of the model entirely — a one-character capture, the
+    /// way it was found.
+    case packagingOnly
 }
 
 /// Cleans and sanity-checks raw model output before it can replace a user's
@@ -155,6 +163,28 @@ public enum OutputValidator {
         // the user nothing while trimming everything that passes would
         // quietly edit rewrites that legitimately end in a newline.
         guard cleaned.contains(where: { !$0.isWhitespace }) else { return .failure(.empty) }
+        // **Our packaging is not a rewrite, and it must never reach a
+        // document.** `clean` unwraps a *matched* pair only, so an unpaired
+        // closing tag — which is what a model handed one character actually
+        // emits — walked straight through it, read as non-blank here, and
+        // replaced a user's paragraph with `</selected_text_…>`.
+        //
+        // Keyed on nothing being left once the tags are removed, never on a
+        // tag being present: a rewrite may legitimately mention one, and
+        // `safetyFrame` tells the model that a tag inside the block is text
+        // to rewrite, so a compliant model echoes the user's faithfully.
+        // Refusing on presence would delete the writing of anyone whose
+        // subject is this app.
+        //
+        // And the source decides whose tag it is, the same question
+        // `unwrappedEnvelope` asks: a selection made before the id was drawn
+        // cannot contain it unless the user typed it, and refusing there
+        // would make their own text permanently un-rewritable.
+        if !source.contains(cleaned) {
+            let stripped = cleaned
+                .replacing(/<\/?selected_text_[0-9a-fA-F]{16}>/, with: "")
+            if !stripped.contains(where: { !$0.isWhitespace }) { return .failure(.packagingOnly) }
+        }
         return .success(cleaned)
     }
 }

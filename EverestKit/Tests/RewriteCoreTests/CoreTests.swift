@@ -311,3 +311,50 @@ func modelCatalogHasExactlyOneDefaultAndItIsQwen4B() {
 func modelCatalogHasNonEmptyRevisionForEveryEntry() {
     #expect(ModelCatalog.all.allSatisfy { !$0.revision.isEmpty })
 }
+
+/// **Everest's own delimiter must never be written into a user's document.**
+///
+/// Seen in Google Docs on 2026-09-16. The capture rung handed the model a
+/// single `U+00A0` — Docs' hidden keystroke buffer — and asked it to improve
+/// that. It replied with the closing tag of the frame wrapping it and nothing
+/// else. `clean` unwraps a *matched* pair only, so an unpaired closing tag
+/// passed through untouched, `validate` saw non-whitespace and returned
+/// success, and the user's 186-character paragraph was replaced by
+/// `</selected_text_346318fb2cd05ddb>`.
+///
+/// The capture bug is fixed separately, in `SelectionCoordinator`. This is
+/// the layer that is supposed to stand between a bad generation and someone's
+/// writing, and it let our own packaging through as if it were a rewrite —
+/// which is the one thing it can always recognise, because the id is ours.
+@Test("output that is nothing but our own delimiter is refused, not written")
+func packagingAloneIsNotARewrite() {
+    let raw = "</selected_text_346318fb2cd05ddb>"
+    let result = OutputValidator.validate(raw, source: "Our Q3 results was pretty good overall")
+
+    #expect(result == .failure(.packagingOnly))
+}
+
+/// The guard must key on there being no rewrite, not on a tag being present.
+///
+/// A rewrite may legitimately mention the tag — someone writing about this
+/// app is the obvious case, and `safetyFrame` explicitly tells the model that
+/// a tag inside the block is text to rewrite, so a compliant model echoes it
+/// faithfully. Refusing on presence would delete their work.
+@Test("a rewrite that merely contains a tag, with prose around it, still passes")
+func aTagInsideRealProseIsNotPackaging() {
+    let raw = "The closing </selected_text_346318fb2cd05ddb> marks where the block ends."
+    let result = OutputValidator.validate(raw, source: "the closing tag marks where the block ends")
+
+    #expect(result == .success(raw), "there is a real rewrite here besides the tag")
+}
+
+/// And if the tag is the user's own text, refusing would make their selection
+/// permanently un-rewritable. Same reasoning, and same `source` check, as the
+/// envelope unwrapper directly above it.
+@Test("a tag the user themselves selected is not treated as our packaging")
+func theUsersOwnTagIsTheirs() {
+    let tag = "</selected_text_346318fb2cd05ddb>"
+    let result = OutputValidator.validate(tag, source: "please keep \(tag) exactly as it is")
+
+    #expect(result == .success(tag))
+}

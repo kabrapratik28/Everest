@@ -256,4 +256,86 @@ struct CaptureChainTests {
         #expect(snapshot.isRangeDerived == false)
         #expect(clipboard.attempts == 1)
     }
+
+    /// **A placeholder made of whitespace is not a selection.**
+    ///
+    /// Measured in Google Docs on 2026-09-16, Chrome 153 on macOS 26.6.2: the
+    /// focused element is an editable `AXTextArea` holding exactly one
+    /// character, `U+00A0`, with a range of `loc=0 len=1` covering it and
+    /// `AXSelectedText` settable. Nothing about it looks broken — non-empty
+    /// text, a real range, an element that accepts writes — so rung 5 took
+    /// it, returned, and the chain never reached the one rung that can read a
+    /// Google Doc. The user had a 186-character paragraph selected.
+    ///
+    /// The damage was not the failed rewrite. The model was handed one
+    /// character, emitted its own closing delimiter, the accessibility write
+    /// was dropped, and the paste fallback put that delimiter over the real
+    /// selection in the document.
+    ///
+    /// Whitespace rather than a length or a specific scalar: one character is
+    /// a selection someone can legitimately make, `U+00A0` is one buffer in
+    /// one build of one app, and neither is the reason this is not a
+    /// selection. There is no rewrite of blank text, which is the same
+    /// judgement `OutputValidator.validate` already makes in the other
+    /// direction when it refuses blank *output*.
+    ///
+    /// Falls through rather than refusing. Refusing would leave Google Docs
+    /// permanently broken; ⌘C reads what the user actually selected.
+    @Test("an all-whitespace accessibility selection falls through to the clipboard")
+    func whitespacePlaceholderIsNotASelection() throws {
+        let ax = FakeAccessibility()
+        ax.focused = testElement()
+        ax.selected = "\u{00A0}"
+        ax.range = CFRange(location: 0, length: 1)
+        ax.characters = 1
+        let clipboard = FakeClipboardCapture()
+        clipboard.result = "Our Q3 results was pretty good overall"
+
+        let snapshot = try coordinator(ax, clipboard: clipboard).capture()
+
+        #expect(snapshot.text == "Our Q3 results was pretty good overall")
+        #expect(snapshot.viaClipboard, "the accessibility route had nothing real to give")
+        #expect(clipboard.attempts == 1)
+    }
+
+    /// Positive control for the rule above, in the same shape: one character,
+    /// same range, same element. A real one-character selection must still be
+    /// captured through accessibility, or the guard has been written as a
+    /// length check and will cost everyone their short selections.
+    @Test("a genuine one-character selection is still captured in place")
+    func aRealSingleCharacterSelectionStillWorks() throws {
+        let ax = FakeAccessibility()
+        ax.focused = testElement()
+        ax.selected = "x"
+        ax.range = CFRange(location: 0, length: 1)
+        ax.characters = 1
+        let clipboard = FakeClipboardCapture()
+        clipboard.result = "should never be reached"
+
+        let snapshot = try coordinator(ax, clipboard: clipboard).capture()
+
+        #expect(snapshot.text == "x")
+        #expect(snapshot.viaClipboard == false)
+        #expect(clipboard.attempts == 0, "⌘C must not be posted when the app answered")
+    }
+
+    /// Rung 7 reconstructs from the range when rung 5 is empty, reading the
+    /// same element — so a guard on rung 5 alone hands the identical
+    /// placeholder straight back through the next rung.
+    @Test("a whitespace placeholder rebuilt from the range is refused too")
+    func whitespaceFromTheRangeRungIsAlsoRefused() throws {
+        let ax = FakeAccessibility()
+        ax.focused = testElement()
+        ax.selected = ""
+        ax.stringForRange = "\u{00A0}"
+        ax.range = CFRange(location: 0, length: 1)
+        ax.characters = 1
+        let clipboard = FakeClipboardCapture()
+        clipboard.result = "the real selection"
+
+        let snapshot = try coordinator(ax, clipboard: clipboard).capture()
+
+        #expect(snapshot.text == "the real selection")
+        #expect(snapshot.viaClipboard)
+    }
 }
