@@ -87,6 +87,8 @@ def main() -> None:
     ap.add_argument("--dur", type=float, default=8.0)
     ap.add_argument("--width", type=int, default=760)
     ap.add_argument("--fps", type=int, default=12)
+    ap.add_argument("--badge", choices=("top", "bottom"), default="bottom",
+                    help="where the key badges sit; pick whichever corner the recording leaves empty")
     ap.add_argument("--key", action="append", default=[],
                     help='e.g. "⌘ A@0.5-1.9" — keys space-separated, times relative to --start')
     a = ap.parse_args()
@@ -103,7 +105,8 @@ def main() -> None:
     chain, label = [], "[0:v]"
     for i, (_, t0, t1) in enumerate(specs):
         nxt = f"[b{i}]"
-        chain.append(f"{label}[{i + 1}:v]overlay=40:main_h-140:enable='between(t,{t0},{t1})'{nxt}")
+        y = "40" if a.badge == "top" else "main_h-140"
+        chain.append(f"{label}[{i + 1}:v]overlay=40:{y}:enable='between(t,{t0},{t1})'{nxt}")
         label = nxt
     chain.append(
         f"{label}fps={a.fps},scale={a.width}:-1:flags=lanczos,split[s0][s1];"
