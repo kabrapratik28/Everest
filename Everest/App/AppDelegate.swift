@@ -192,10 +192,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // a machine that had already completed it looked identical to one
         // where the window failed to open.
         let alreadyOnboarded = onboardingModel.isComplete
-        diagnostics.append("onboarding complete=\(alreadyOnboarded), step=\(onboardingModel.step)")
-        if !alreadyOnboarded {
+        let granted = onboardingModel.isGranted
+        diagnostics.append(
+            "onboarding complete=\(alreadyOnboarded), granted=\(granted), step=\(onboardingModel.step)"
+        )
+        if onboardingModel.opensAtLaunch {
+            // Finished setup with the grant gone is the update case: the
+            // signature changed, macOS dropped the permission, and the
+            // switch in System Settings still looks on. Rewind, or the guide
+            // reopens on the practice step and tells someone to press a
+            // shortcut that cannot read anything.
+            let reason = alreadyOnboarded ? "permission revoked" : "first run"
+            if alreadyOnboarded { onboardingModel.rewindForLostPermission() }
             showOnboarding()
-            diagnostics.append("onboarding window shown")
+            diagnostics.append("onboarding window shown (\(reason))")
         }
 
         log.info("launched")

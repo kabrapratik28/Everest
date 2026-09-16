@@ -238,3 +238,54 @@ func thePasswordPromiseIsNotAbsolute() {
     // reads a failure and tries somewhere less careful.
     #expect(refusal.localizedCaseInsensitiveContains("nothing was read"))
 }
+
+/// **A permission that goes away has to bring the guide back.**
+///
+/// macOS binds Accessibility to the code signature, so anything that changes
+/// it revokes the grant: a rebuild with a different certificate, and, the
+/// one that will hit every existing user at once, moving from an Apple
+/// Development certificate to a notarised Developer ID one. The switch in
+/// System Settings stays on while `AXIsProcessTrusted()` returns false.
+///
+/// Before this, the launch gate read `isComplete` alone. Someone who had
+/// finished setup and then lost the grant got no guide, no explanation, and
+/// a capture refusal on the next hotkey press, with nothing pointing at the
+/// pane that fixes it.
+///
+/// **This is not the rule it looks like.** `AGENTS.md` says completion is
+/// stored and never *inferred from* the grant, because a grant cannot tell
+/// you whether anyone chose an engine, and reading it that way once let
+/// people skip the model step entirely. That still holds: a grant never
+/// marks anything complete. This is the opposite direction, where a grant
+/// that has gone missing reopens a guide already marked finished.
+@Test("a guide already finished reopens when the permission is taken away")
+@MainActor
+func aRevokedPermissionReopensTheGuide() {
+    // Every combination, because the interesting one is only interesting
+    // next to the three that must not change.
+    #expect(OnboardingModel.opensAtLaunch(isComplete: false, isGranted: false))
+    #expect(OnboardingModel.opensAtLaunch(isComplete: false, isGranted: true),
+            "granting early must not skip the guide: that is the model-step bug")
+    #expect(OnboardingModel.opensAtLaunch(isComplete: true, isGranted: false),
+            "finished setup plus a revoked grant is exactly the update case")
+    #expect(OnboardingModel.opensAtLaunch(isComplete: true, isGranted: true) == false,
+            "positive control: a working install must not be nagged on every launch")
+}
+
+/// Reopening has to land on the step that can fix the problem.
+///
+/// The step is persisted so a closed guide resumes where it stopped, which
+/// is right for someone who walked away mid-setup and wrong here: resuming
+/// at the practice step shows "select some text and press the shortcut" to a
+/// user whose shortcut cannot read anything.
+@Test("reopening for a lost permission starts at the permission step")
+@MainActor
+func reopeningForALostPermissionRewindsToAccessibility() {
+    let model = OnboardingModel(store: makeOnboardingStore(), isAccessibilityTrusted: { true })
+    while model.step != .tryIt { model.advance() }
+    #expect(model.step == .tryIt, "positive control: the walk reached the last step")
+
+    model.rewindForLostPermission()
+
+    #expect(model.step == .accessibility)
+}

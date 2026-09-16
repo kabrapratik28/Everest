@@ -67,6 +67,44 @@ public final class OnboardingModel: ObservableObject {
     /// light up the button; `advance` does not trust it and asks again.
     public var isGranted: Bool { isAccessibilityTrusted() }
 
+    /// Whether the guide opens on launch.
+    ///
+    /// **A revoked permission reopens a finished guide.** macOS binds
+    /// Accessibility to the code signature, so anything that changes the
+    /// signature takes the grant away: a rebuild with a different
+    /// certificate, and the one that will hit every existing user at once,
+    /// moving to a notarised Developer ID build. The switch in System
+    /// Settings stays on while `AXIsProcessTrusted()` returns false, so the
+    /// user has no reason to suspect the permission at all.
+    ///
+    /// **This is not the rule above, inverted.** Completion is still stored
+    /// and still never *inferred from* the grant: a grant marks nothing
+    /// complete, because it cannot say whether anyone chose an engine, and
+    /// reading it that way once let people skip the model step. This is the
+    /// other direction, a grant that has gone missing reopening a guide
+    /// already marked finished, and the two can both hold.
+    ///
+    /// Static and parameterised so the four combinations can be driven
+    /// without a machine whose TCC state a test can set.
+    public static func opensAtLaunch(isComplete: Bool, isGranted: Bool) -> Bool {
+        !isComplete || !isGranted
+    }
+
+    public var opensAtLaunch: Bool {
+        Self.opensAtLaunch(isComplete: isComplete, isGranted: isGranted)
+    }
+
+    /// Sends a reopened guide back to the step that can fix the problem.
+    ///
+    /// The step is persisted so someone who walked away mid-setup resumes
+    /// where they stopped. That is wrong here: resuming at the practice step
+    /// tells a user to select text and press the shortcut when the shortcut
+    /// cannot read anything.
+    public func rewindForLostPermission() {
+        step = .accessibility
+        store.set(Step.accessibility.rawValue, forKey: Keys.step)
+    }
+
     public func advance() {
         // The gate, and the only one. Everything past here reads a selection,
         // so without the permission the capability table describes reads that
