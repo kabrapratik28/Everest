@@ -12,7 +12,7 @@ No account, no server, no telemetry. Unplug the network and it still works.
 <img src="docs/assets/download.png" width="300" alt="Download Everest for macOS">
 </a>
 
-<sub>macOS 14+ · Apple silicon · free and MIT · ~2.3 GB model on first run · <a href="#install">first launch takes one extra step</a></sub>
+<sub>macOS 15+ · Apple silicon · free and MIT · ~2.3 GB model on first run · <a href="#install">first launch takes one extra step</a></sub>
 
 <br><br>
 

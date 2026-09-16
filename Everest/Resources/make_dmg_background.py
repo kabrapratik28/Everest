@@ -105,7 +105,11 @@ def render(s):
     d = ImageDraw.Draw(img)
 
     centred(d, 44 * s, "Everest", font(40 * s, "Bold"), (255, 255, 255))
-    centred(d, 100 * s, "Drag Everest onto Applications to install", font(15 * s), (146, 178, 228))
+    centred(d, 98 * s, "Drag Everest onto Applications to install", font(15 * s), (146, 178, 228))
+    # The requirement belongs here because it is the last surface before the
+    # app is on disk. Below the floor macOS refuses to launch it and shows
+    # its own dialog, which is correct but arrives after the download.
+    centred(d, 122 * s, "Requires macOS 15 or later, Apple silicon", font(12 * s), (118, 150, 200))
 
     # Arrow. Sits on the icon centre line, stopping short of both cells so it
     # can never run under an icon or its label.

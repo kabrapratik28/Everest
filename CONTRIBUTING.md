@@ -30,7 +30,7 @@ xcodegen generate
 open Everest.xcodeproj
 ```
 
-The app runs on macOS 14 or later. **Building it needs Xcode 26**, which is a separate requirement from what it ships against: the `FoundationModels` path compiles only against the 26 SDK and is runtime-guarded for everyone below it. Xcode 26 does not
+The app runs on macOS 15 or later. **Building it needs Xcode 26**, which is a separate requirement from what it ships against: the `FoundationModels` path compiles only against the 26 SDK and is runtime-guarded for everyone below it. Xcode 26 does not
 install the Metal toolchain by default and MLX compiles ~40 `.metal` kernels
 during a normal build, so also run:
 

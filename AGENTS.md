@@ -2,7 +2,7 @@
 
 Menu-bar app. Select text anywhere, press a hotkey, a local model streams a rewrite into a floating panel and replaces the selection. Nothing leaves the machine.
 
-macOS 14+, Apple Silicon — the floor is MLX's, not ours, and covers every Apple silicon Mac. Apple's own model needs 26 and reports `.requiresNewerOS` below it. `⌥R` = Quick Improve (one prompt, one output). `⌥⇧R` = pick a style, then rewrite. Both configurable. Two keys, and `⌥` because `⌘`+letter steals a formatting command and `⌃`+letter steals emacs bindings and terminal control codes; `⌥R` only costs `®`. Never `⌥I`/`⌥E`/`⌥U`/`⌥N` — dead keys, they break accented typing.
+macOS 15+, Apple Silicon. MLX floors at 14, but a transitive dependency uses **typed throws**, whose runtime entry point `_swift_willThrowTypedImpl` ships in macOS 15; a 14 build links it strongly, embeds no shim, and dyld kills it before `main`. Measured on an M1 running 14.6.1: no log, no window, no menu bar item. Apple's own model needs 26 and reports `.requiresNewerOS` below it. `⌥R` = Quick Improve (one prompt, one output). `⌥⇧R` = pick a style, then rewrite. Both configurable. Two keys, and `⌥` because `⌘`+letter steals a formatting command and `⌃`+letter steals emacs bindings and terminal control codes; `⌥R` only costs `®`. Never `⌥I`/`⌥E`/`⌥U`/`⌥N` — dead keys, they break accented typing.
 
 ---
 
