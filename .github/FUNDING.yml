@@ -1,7 +1,14 @@
 # Drives the Sponsor button on the repository page.
 #
-# `github:` is deliberately absent. GitHub Sponsors is not enabled on this
-# account (`hasSponsorsListing: false`, checked 2026-09-16), and an entry
-# here for a listing that does not exist renders a button that goes nowhere.
-# Add it in the same change that the Sponsors profile goes live, not before.
+# GitHub Sponsors is not live on this account yet (`hasSponsorsListing:
+# false`, checked 2026-09-16). Enrolment cannot be done through the API:
+# `createSponsorsListing` exists and takes a country, an email and a bio,
+# but the parts that make a listing payable are Stripe Connect bank details,
+# a tax form and a GitHub review, and none of those have an endpoint.
+#
+# When the profile is approved, delete the `#` on the next line. Doing it
+# before then renders a Sponsor button that leads to a profile which is not
+# accepting sponsorships, which is worse than no button.
+# github: kabrapratik28
+
 buy_me_a_coffee: kabrapratik28
