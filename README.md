@@ -66,7 +66,7 @@ The weights are [Qwen3-4B-Instruct-2507-4bit](https://huggingface.co/mlx-communi
 
 | Key | Does |
 |---|---|
-| `⌥R` | Quick Improve. One prompt, one rewrite. |
+| `⌥R` | Quick Improve. One prompt, one rewrite. **R for rewrite.** |
 | `⌥⇧R` | Choose Style, then rewrite. |
 | `Esc` | Cancel an in-flight rewrite. |
 
@@ -84,7 +84,7 @@ A global hotkey beats the frontmost app, so the default decides what Everest tak
 
 - `⌘`+letter is a formatting command somewhere: `⌘I` Italic, `⌘U` Underline, `⌘B` Bold, `⌘K` link.
 - `⌃`+letter is worse. Cocoa text views carry emacs bindings, and terminals own `⌃C`/`⌃D`/`⌃Z`/`⌃R`.
-- `⌥R` costs one character, `®`.
+- `⌥R` costs one character, `®`, and **R is for rewrite**, which is the part you will actually remember.
 
 If you rebind, avoid `⌥I`, `⌥E`, `⌥U` and `⌥N`. Those are dead keys, and binding one globally breaks accented typing. Settings tells you which character a binding will cost you.
 
