@@ -38,8 +38,9 @@ cp -R "$APP" "$STAGE/Everest.app"
 # Signed inside-out, because signing an inner item invalidates every
 # signature outside it. The app itself is last.
 SPARKLE="$STAGE/Everest.app/Contents/Frameworks/Sparkle.framework/Versions/B"
+REPO=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 IDENTITY=$(sed -n 's/^CODE_SIGN_IDENTITY *= *//p' \
-  "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/Everest/Signing.local.xcconfig" 2>/dev/null | tr -d ' ')
+  "$REPO/Everest/Signing.local.xcconfig" 2>/dev/null | tr -d ' ')
 
 if [ -n "$IDENTITY" ] && [ -d "$SPARKLE" ]; then
   for item in \
@@ -51,7 +52,16 @@ if [ -n "$IDENTITY" ] && [ -d "$SPARKLE" ]; then
     "$STAGE/Everest.app"
   do
     [ -e "$item" ] || continue
+    # **`--force` without `--entitlements` drops every entitlement**, and the
+    # app is the last item here, so this loop was silently shipping it with
+    # Hardened Runtime on and nothing granted. Sparkle's helpers carry none
+    # of their own — checked, before and after — so only the app passes one,
+    # and it passes the tracked file `project.yml` already builds from rather
+    # than re-reading the signature it is about to replace.
+    ENT=""
+    [ "$item" = "$STAGE/Everest.app" ] && ENT="$REPO/Everest/Resources/Everest.entitlements"
     codesign --force --options runtime --timestamp=none \
+      ${ENT:+--entitlements "$ENT"} \
       --sign "$IDENTITY" "$item" >/dev/null 2>&1 \
       || { echo "failed to sign $item" >&2; exit 1; }
   done
@@ -69,6 +79,21 @@ $(find "$STAGE/Everest.app/Contents/Frameworks" -type f -perm +111 2>/dev/null |
 EOT
   [ "$BAD" = "0" ] || { echo "Sparkle helpers are not signed with the app identity; the updater would fail" >&2; exit 1; }
   echo "  Sparkle helpers signed with $WANT"
+
+  # Assert the entitlement survived the re-sign above.
+  #
+  # `codesign --force` without `--entitlements` silently drops every one of
+  # them, and the app is the last item in that loop. 0.2.2 through 0.2.4
+  # shipped with Hardened Runtime on (flags=0x10000) and an empty
+  # entitlement set, while every local build had `allow-jit` — so no amount
+  # of testing the Xcode build could have shown it. Checked on the staged
+  # app, which is the thing about to become the DMG.
+  if ! codesign -d --entitlements - "$STAGE/Everest.app" 2>/dev/null \
+      | grep -q "com.apple.security.cs.allow-jit"; then
+    echo "allow-jit is missing from the signed app: Hardened Runtime is on, so MLX cannot JIT Metal shaders" >&2
+    exit 1
+  fi
+  echo "  allow-jit present after signing"
 else
   echo "  note: no Signing.local.xcconfig, leaving signatures alone (auto-update will not work)" >&2
 fi
@@ -109,6 +134,13 @@ sleep 1
 # scans a command substitution body for the closing paren, so one apostrophe
 # anywhere in the script — "the background's size" — made the whole file a
 # syntax error. Twice. A file has no such rule.
+#
+# **No backticks below, in comments either.** The delimiter is unquoted
+# because the body interpolates $VOL and $STAGE, so bash expands backticks
+# wherever they appear. Two markdown-style quotings in AppleScript comments
+# ran as commands on every build: `bounds` printed "command not found", and
+# `as string` reached /usr/bin/as, which is why a DMG build emitted clang
+# errors about a missing file called "string".
 SCPT="$STAGE/../dress.applescript"
 cat > "$SCPT" <<APPLESCRIPT
 tell application "Finder"
@@ -117,7 +149,7 @@ tell application "Finder"
     set current view of container window to icon view
     set toolbar visible of container window to false
     set statusbar visible of container window to false
-    -- 716x524, NOT the background image's 700x500. Finder reports `bounds`
+    -- 716x524, NOT the background image's 700x500. Finder reports bounds
     -- back as whatever you set, but the icon view inside the frame is smaller
     -- by the window chrome, so a frame matching the image exactly leaves the
     -- image slightly too big for the view and Finder adds both scrollbars.
@@ -141,7 +173,7 @@ tell application "Finder"
     delay 3
     set b to the bounds of container window
     close
-    -- `as string` on each number is required: in AppleScript, & applied to two
+    -- as string on each number is required: in AppleScript, & applied to two
     -- numbers builds a list, so this returned "716, x, 524" and the check
     -- below rejected a window that was in fact exactly right.
     return (((item 3 of b) - (item 1 of b)) as string) & "x" & (((item 4 of b) - (item 2 of b)) as string)
