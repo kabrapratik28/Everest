@@ -1,0 +1,7 @@
+# Drives the Sponsor button on the repository page.
+#
+# `github:` is deliberately absent. GitHub Sponsors is not enabled on this
+# account (`hasSponsorsListing: false`, checked 2026-09-16), and an entry
+# here for a listing that does not exist renders a button that goes nowhere.
+# Add it in the same change that the Sponsors profile goes live, not before.
+buy_me_a_coffee: kabrapratik28
