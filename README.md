@@ -18,6 +18,8 @@ No account, no server, no telemetry. Unplug the network and it still works.
 
 <img src="docs/assets/demo.gif" width="700" alt="A badly written message in the Slack composer. Pressing Option-R replaces it with a corrected version while a small floating panel shows the progress.">
 
+<sub>Real capture in Slack, not a mockup. <code>⌘Z</code> puts the original back.</sub>
+
 </div>
 
 ## Why you might want it
