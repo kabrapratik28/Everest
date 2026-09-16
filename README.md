@@ -17,9 +17,9 @@ Select text in any app, press `⌥R`, and a rewrite streams in and replaces it.
 
 <br><br>
 
-<img src="docs/assets/demo.gif" width="700" alt="Selecting a badly written sentence in Sublime Text, pressing Option-R, and watching Everest replace it with a corrected version">
+<img src="docs/assets/demo.gif" width="700" alt="A badly written message in the Slack composer. Pressing Option-R replaces it with a corrected version while a small floating panel shows the progress.">
 
-<sub>Real capture. Sublime Text, which exposes no editable text to Accessibility — Everest verifies the target and pastes.</sub>
+<sub>Real capture in Slack. Select, press <code>⌥R</code>, and the rewrite replaces what you wrote.</sub>
 
 </div>
 
