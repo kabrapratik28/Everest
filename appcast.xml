@@ -3,6 +3,15 @@
     <channel>
         <title>Everest</title>
         <item>
+            <title>0.2.1</title>
+            <pubDate>Wed, 16 Sep 2026 13:23:39 -0700</pubDate>
+            <link>https://github.com/kabrapratik28/Everest</link>
+            <sparkle:version>6</sparkle:version>
+            <sparkle:shortVersionString>0.2.1</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <enclosure url="https://github.com/kabrapratik28/Everest/releases/download/v0.2.1/Everest.dmg" length="20700455" type="application/octet-stream" sparkle:edSignature="6p/4/0LfjFhmF5LHrsblncg84hVgMtJ5yYGL5vUbZmsbDy+UqNCo7NCLWsDug2v0SlMFaaxfgupe9OzmCEJRDw==" />
+        </item>
+        <item>
             <title>0.2.0</title>
             <pubDate>Wed, 16 Sep 2026 12:14:43 -0700</pubDate>
             <link>https://github.com/kabrapratik28/Everest</link>
