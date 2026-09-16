@@ -27,6 +27,51 @@ RW=$(mktemp -u).dmg
 trap 'rm -rf "$STAGE" "$RW"' EXIT
 
 cp -R "$APP" "$STAGE/Everest.app"
+
+# Sparkle's helpers have to carry the SAME signing identity as the app, or
+# the updater refuses to launch them and the user sees "An error occurred
+# while launching the installer." They do not get it from the build:
+# project.yml sets `CODE_SIGN_IDENTITY: "-"` in `settings.base`, which is
+# required there (a real identity in base breaks eight SPM packages at once)
+# and which reaches Sparkle's nested tools, leaving them ad-hoc.
+#
+# Signed inside-out, because signing an inner item invalidates every
+# signature outside it. The app itself is last.
+SPARKLE="$STAGE/Everest.app/Contents/Frameworks/Sparkle.framework/Versions/B"
+IDENTITY=$(sed -n 's/^CODE_SIGN_IDENTITY *= *//p' \
+  "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/Everest/Signing.local.xcconfig" 2>/dev/null | tr -d ' ')
+
+if [ -n "$IDENTITY" ] && [ -d "$SPARKLE" ]; then
+  for item in \
+    "$SPARKLE/XPCServices/Downloader.xpc" \
+    "$SPARKLE/XPCServices/Installer.xpc" \
+    "$SPARKLE/Updater.app" \
+    "$SPARKLE/Autoupdate" \
+    "$SPARKLE/../../../Sparkle.framework" \
+    "$STAGE/Everest.app"
+  do
+    [ -e "$item" ] || continue
+    codesign --force --options runtime --timestamp=none \
+      --sign "$IDENTITY" "$item" >/dev/null 2>&1 \
+      || { echo "failed to sign $item" >&2; exit 1; }
+  done
+
+  # Assert rather than hope. Every nested Mach-O must report the app's team,
+  # because one ad-hoc helper is enough to break every future auto-update,
+  # and it fails silently on the user's machine rather than here.
+  WANT=$(codesign -dvvv "$STAGE/Everest.app" 2>&1 | sed -n 's/^TeamIdentifier=//p')
+  BAD=0
+  while IFS= read -r m; do
+    got=$(codesign -dvvv "$m" 2>&1 | sed -n 's/^TeamIdentifier=//p')
+    [ "$got" = "$WANT" ] || { echo "  team mismatch: ${m#$STAGE/} is '${got:-none}', want '$WANT'" >&2; BAD=1; }
+  done <<EOT
+$(find "$STAGE/Everest.app/Contents/Frameworks" -type f -perm +111 2>/dev/null | while read -r f; do file "$f" | grep -q Mach-O && echo "$f"; done)
+EOT
+  [ "$BAD" = "0" ] || { echo "Sparkle helpers are not signed with the app identity; the updater would fail" >&2; exit 1; }
+  echo "  Sparkle helpers signed with $WANT"
+else
+  echo "  note: no Signing.local.xcconfig, leaving signatures alone (auto-update will not work)" >&2
+fi
 ln -s /Applications "$STAGE/Applications"
 mkdir "$STAGE/.background"
 cp "$BG" "$STAGE/.background/background.tiff"
