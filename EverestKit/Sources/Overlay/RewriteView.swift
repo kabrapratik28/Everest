@@ -133,6 +133,11 @@ struct RewriteView: View {
             }
 
             Spacer(minLength: 8)
+            if let hint = state.headerNote {
+                Text(hint)
+                    .font(.caption)
+                    .foregroundStyle(appearance.dimsSecondaryText ? AnyShapeStyle(.secondary) : AnyShapeStyle(.primary))
+            }
             progress
         }
     }

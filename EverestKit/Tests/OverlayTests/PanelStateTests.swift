@@ -23,6 +23,42 @@ struct PanelStateTests {
         .heldForManualCopy(text: "The quick brown fox", reason: "the window moved"),
     ]
 
+    /// The picker is the first and usually only place someone sees the style
+    /// list, so it is where they should learn the list is theirs to change.
+    ///
+    /// `AppSettings.styles` is user-editable and uncapped — `PanelKeyMap`
+    /// numbers nine rows precisely because people add their own — and nothing
+    /// on this screen said so, so the six shipped styles read as the product.
+    ///
+    /// **It sits in the header, and that is the whole point.** The first
+    /// attempt put it under the rows, which added 24pt to a panel already
+    /// capped at 40% of the screen, and on a smaller display that pushed the
+    /// keycap hint row off the bottom — measured, and visible half-sliced in
+    /// `B-divider-below-capped.png`. Those hints are the only place the
+    /// picker's keys are ever shown. The header has spare width because the
+    /// picker draws no progress indicator, so this costs zero height and
+    /// cannot clip anything at any screen size.
+    ///
+    /// **Nowhere else.** Every other state either fills that space with a
+    /// progress indicator or has nothing to say there, and a note that
+    /// appeared during a rewrite would be noise on a panel the user is
+    /// reading for two seconds.
+    @Test("only the style picker carries a header note, and it points at Settings")
+    func onlyTheStylePickerHasAHeaderNote() {
+        let note = PanelState.stylePicker(presets: []).headerNote
+
+        #expect(note?.localizedCaseInsensitiveContains("Settings") == true)
+        // No glyph, ever. `ShortcutCopy` exists because prose naming a binding
+        // went stale three times and broke a first run; the picker's keys are
+        // already shown as keycaps by `keyHints`.
+        #expect(note?.contains("⌥") == false)
+        #expect(note?.contains("⌘") == false)
+
+        for state in Self.samples where state.kind != .stylePicker {
+            #expect(state.headerNote == nil, "\(state.kind) must not carry a header note")
+        }
+    }
+
     @Test("covers exactly eleven kinds, one sample each")
     func coversElevenKinds() {
         #expect(PanelStateKind.allCases.count == 11)

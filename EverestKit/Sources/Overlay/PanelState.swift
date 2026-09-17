@@ -213,6 +213,23 @@ public extension PanelState {
         }
     }
 
+    /// A short aside on the header line, to the right of the title.
+    ///
+    /// Only the picker has one. It goes here rather than under the rows
+    /// because the panel is capped at 40% of the screen and a row below the
+    /// list pushed the keycap hints off the bottom on a smaller display; the
+    /// header has spare width because the picker draws no progress
+    /// indicator, so this costs no height at all.
+    ///
+    /// "Prompts" is the tab's real name, checked against `SettingsView`.
+    /// It edits styles but is not called Styles.
+    var headerNote: String? {
+        switch self {
+        case .stylePicker: "Edit in Settings ▸ Prompts"
+        default: nil
+        }
+    }
+
     /// What VoiceOver reads for the panel as a whole.
     ///
     /// Composed from the words and the reason, and deliberately never from the
