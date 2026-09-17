@@ -29,9 +29,16 @@ public enum ShortcutCopy {
                 back and try it here.
                 """
         }
+        // The load note belongs here and not on the unbound branch: with no
+        // shortcut set there is no rewrite to wait for, and that branch's
+        // whole job is sending the user to Settings.
         return """
             Type something below, select it, and press \(rendered). The panel appears at the \
             bottom of the screen and the rewrite replaces what you selected.
+
+            The first rewrite is slow. The model is loaded into memory before it can start, \
+            which takes a few seconds, and nothing moves while it does. It stays loaded \
+            afterwards, so every rewrite after the first is quick.
             """
     }
 }

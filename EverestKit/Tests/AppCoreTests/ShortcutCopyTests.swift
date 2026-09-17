@@ -143,3 +143,29 @@ func aNonPrintingBindingSaysNothing() {
     #expect(ShortcutNotice.characterCost(for: nil) == nil)
     #expect(ShortcutNotice.characterCost(for: "") == nil)
 }
+
+/// The first rewrite is not the speed the app settles at, and silence reads
+/// as breakage.
+///
+/// The weights are ~2.3 GB and load into memory on first use rather than at
+/// launch, so the very first press on the try-it screen can sit for seconds
+/// with nothing moving. This is the one screen whose job is the user's first
+/// successful rewrite, so an unexplained pause here is the most expensive
+/// place in the app to have one.
+///
+/// **Only on the branch that can actually be tried.** With nothing bound
+/// there is no rewrite to wait for, and that sentence's whole job is sending
+/// the user to Settings — a note about model loading would be advice about
+/// something they cannot do yet.
+@Test("the try-it instruction says the first rewrite waits for the model to load")
+func theInstructionWarnsAboutTheFirstModelLoad() {
+    let bound = ShortcutCopy.tryItInstruction(quickImprove: "⌥R")
+
+    #expect(bound.localizedCaseInsensitiveContains("first"))
+    #expect(bound.localizedCaseInsensitiveContains("model"))
+    // Still naming the live binding, which is the older rule this must not break.
+    #expect(bound.contains("⌥R"))
+
+    let unbound = ShortcutCopy.tryItInstruction(quickImprove: nil)
+    #expect(unbound.localizedCaseInsensitiveContains("model") == false)
+}
