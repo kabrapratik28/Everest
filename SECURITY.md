@@ -42,8 +42,10 @@ that is the interesting class of bug:
 - **Clipboard-history apps recording a rewrite despite the transient marker.**
   `org.nspasteboard.TransientType` is a convention those apps choose to
   honour, not something Everest can enforce.
-- **Gatekeeper refusing an unnotarised build.** Known and documented in the
-  README; it is a cost decision, not a defect.
+- **The Developer ID name in the signature.** Releases are Developer ID
+  signed and notarised, and that certificate carries the account holder's
+  legal name, readable with `codesign -d -r-`. Apple issues no anonymous
+  distribution certificate, so this is not something a build can change.
 - Findings that require the attacker to already have code execution as the
   user, or physical access to an unlocked Mac.
 

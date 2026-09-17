@@ -15,7 +15,7 @@
      style-src is 'self', so there is no style="" attribute and no <style>
      block anywhere in this file. Inline SVG is markup, not style, and the
      presentation attributes on it (fill, stroke) are not covered by CSP. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self'; style-src 'self'; script-src 'sha256-H/83osbhUFFVibYf7OlcfyE0C+A1wKt2N1wL/xZLjFo='; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self'; style-src 'self'; script-src 'sha256-51nmL5uYFQmUH1GMF9RsDT0gEDytLzzLPPcq2qnh7cY='; base-uri 'none'; form-action 'none'">
 
 <title>Everest: Local AI writing improvement for Mac</title>
 <meta name="description" content="Rewrite selected text across macOS with a local language model. Everest is shortcut-driven, open source, and runs the model on your Mac.">
@@ -466,44 +466,21 @@
   <div class="wrap">
     <header class="sec-head">
       <p class="kicker">Install</p>
-      <h2>Six steps, once.</h2>
-      <p class="section-lede">Everest is a developer preview. It is signed but not notarised, so
-        macOS asks you to approve the first launch by hand.</p>
+      <h2>Four steps, once.</h2>
+      <p class="section-lede">Everest is signed with an Apple Developer ID and notarised by Apple,
+        so it opens on a double click. No Gatekeeper warning, no trip to System Settings.</p>
     </header>
 
-    <div class="install-grid">
-      <ol class="steps-list">
-        <li>
-          <a href="https://github.com/kabrapratik28/Everest/releases/latest/download/Everest.dmg">Download <code>Everest.dmg</code></a>,
-          or pick a specific build from
-          <a href="https://github.com/kabrapratik28/Everest/releases" target="_blank" rel="noopener noreferrer">Releases</a>.
-        </li>
-        <li>Open the disk image and drag Everest to Applications.</li>
-        <li>Open Everest. macOS will say it could not verify Everest is free of malware. Click <strong>Done</strong>.</li>
-        <li>Open <strong>System&nbsp;Settings ▸ Privacy&nbsp;&amp;&nbsp;Security</strong>, scroll to Security, and click <strong>Open Anyway</strong> next to Everest. Since macOS&nbsp;15 that pane is the only route; right-click ▸ Open no longer works.</li>
-        <li>Grant Accessibility access when Everest guides you there.</li>
-        <li>Let Everest download the default local model, about 2.3&nbsp;GB. It is not bundled in the app.</li>
-      </ol>
-
-      <div class="panel callout">
-        <h3>Why Open Anyway?</h3>
-        <p>
-          This build is signed but not notarised, and notarisation requires Apple's paid Developer
-          Program. The source and the checksums are public, but macOS still blocks the first launch
-          until you approve it by hand. Once a notarised build ships, this step goes away.
-        </p>
-        <h3>On a managed or work Mac</h3>
-        <p>
-          IT policy often removes the Open Anyway button. If it is not there, clear the download
-          flag from Terminal instead:
-        </p>
-        <pre><code>xattr -dr com.apple.quarantine /Applications/Everest.app</code></pre>
-        <p>
-          That is not a way around the signature check. The app is signed either way; this removes
-          the "downloaded from the internet" marker that triggers the block.
-        </p>
-      </div>
-    </div>
+    <ol class="steps-list">
+      <li>
+        <a href="https://github.com/kabrapratik28/Everest/releases/latest/download/Everest.dmg">Download <code>Everest.dmg</code></a>,
+        or pick a specific build from
+        <a href="https://github.com/kabrapratik28/Everest/releases" target="_blank" rel="noopener noreferrer">Releases</a>.
+      </li>
+      <li>Open the disk image and drag Everest to Applications.</li>
+      <li>Open Everest, and grant Accessibility access when it guides you there.</li>
+      <li>Let Everest download the default local model, about 2.3&nbsp;GB. It is not bundled in the app.</li>
+    </ol>
   </div>
 </section>
 
@@ -577,8 +554,8 @@
       </details>
 
       <details>
-        <summary>Why does macOS block the first launch?</summary>
-        <p>This build is signed but not notarised, and notarisation requires Apple's paid Developer Program. Follow the <a href="#install">Open Anyway steps</a> once and every later launch is normal. A notarised build would remove the step.</p>
+        <summary>Will macOS block the first launch?</summary>
+        <p>No. Everest is signed with an Apple Developer ID and notarised by Apple, so it opens on a double click with no Gatekeeper warning.</p>
       </details>
 
       <details>
@@ -598,7 +575,7 @@
 
       <details>
         <summary>How are updates delivered?</summary>
-        <p><strong>Automatic update checks are on by default</strong>, because a build that is not notarised can only be corrected by an update that actually reaches people. The switch is in Settings ▸ Privacy ▸ Software updates, and <em>Check for Updates…</em> in the menu-bar menu keeps working whichever way you set it. Updates come from <a href="https://sparkle-project.org" target="_blank" rel="noopener noreferrer">Sparkle</a> and a signed feed in the repository; every build is signed with an EdDSA key, and Sparkle refuses an update whose signature does not verify. Version 0.1.0 predates the updater and has to be updated by hand once.</p>
+        <p><strong>Automatic update checks are on by default</strong>, because a security fix only helps the people it reaches, and a prompt shown on second launch gets dismissed by exactly the users who most need the fix. The switch is in Settings ▸ Privacy ▸ Software updates, and <em>Check for Updates…</em> in the menu-bar menu keeps working whichever way you set it. Updates come from <a href="https://sparkle-project.org" target="_blank" rel="noopener noreferrer">Sparkle</a> and a signed feed in the repository; every build is signed with an EdDSA key, and Sparkle refuses an update whose signature does not verify.</p>
       </details>
 
       <details>

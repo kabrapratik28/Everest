@@ -19,9 +19,9 @@ Two things do go out, and neither carries your text:
   version, and if you accept an update it downloads the new build from
   `github.com`. Those requests tell GitHub your IP address, your app version
   and your macOS version — ordinary HTTP metadata, and nothing about your
-  text. **This is on by default**, because a build that is not notarised can
-  only be corrected by an update reaching people, and a fix nobody receives
-  is not a fix. Turn it off in **Settings ▸ Privacy ▸ Software updates**;
+  text. **This is on by default**, because a fix nobody receives is not a
+  fix, and a prompt shown on second launch gets dismissed by exactly the
+  people who most need it. Turn it off in **Settings ▸ Privacy ▸ Software updates**;
   **Check for Updates…** in the menu-bar menu keeps working if you do. There
   is no separate server: the feed is a file in the public repository.
 

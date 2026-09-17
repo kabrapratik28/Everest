@@ -18,6 +18,13 @@
 // The SHA-1, not the certificate's name. Naming it sends Xcode into automatic
 // provisioning even under Manual style, which then fails looking for a legacy
 // "Mac Development" certificate that a free account cannot be issued.
+//
+// **For a release, that certificate must be `Developer ID Application`.**
+// Notarisation accepts nothing else: an Apple Development certificate signs a
+// build that runs fine here and comes back Invalid from the notary service.
+// `scripts/make_dmg.sh` reads this same file to re-sign Sparkle's nested
+// helpers, which the build leaves ad-hoc, and warns when the identity is not
+// a Developer ID one. See docs/RELEASING.md.
 
 CODE_SIGN_STYLE = Manual
 CODE_SIGN_IDENTITY = -

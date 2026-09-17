@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
-"""Draw the .dmg window background: brand wash, drag arrow, Open Anyway steps.
+"""Draw the .dmg window background: brand wash, drag arrow, first-run steps.
 
 The background is the Finder window wallpaper shown when someone double-clicks
-the disk image. It is the only surface that exists before first launch —
-Gatekeeper stops the app from running, so nothing in the app can help — which
-is why the Open Anyway steps are painted into it rather than left to the
-release notes alone.
+the disk image. It is still the only surface that exists before first launch,
+so the steps are painted into it rather than left to the release notes alone.
+
+It used to carry the Open Anyway walk through System Settings, because
+Gatekeeper refused an unnotarised build and nothing in the app could help.
+Releases are notarised from 0.2.5 and open on a double click, so what is left
+here is the Accessibility grant, which no amount of signing removes.
 
 The icons are NOT drawn here. Finder draws the real app icon and the real
 Applications alias on top, at the positions `scripts/make_dmg.sh` sets, so the
@@ -132,14 +135,18 @@ def render(s):
     d.line([x0 + 16 * s, y0 + 1 * s, x1 - 16 * s, y0 + 1 * s], fill=(84, 132, 208), width=max(1, s))
 
     tx = x0 + 26 * s
-    d.text((tx, y0 + 15 * s), "macOS blocks the first launch. Three steps, once.",
+    d.text((tx, y0 + 15 * s), "Drag across, then open it. Two steps, once.",
            font=font(15 * s, "Semibold"), fill=(242, 246, 253))
     d.line([tx, y0 + 42 * s, x1 - 26 * s, y0 + 42 * s], fill=(44, 82, 148), width=max(1, s))
 
+    # Was three steps, two of them the Open Anyway walk through System
+    # Settings. Releases are notarised from 0.2.5, so macOS no longer blocks
+    # the first launch and those two steps describe a dialog nobody sees. What
+    # is left is the one thing the DMG still cannot do for the user, which is
+    # the Accessibility grant.
     steps = [
-        "Open Everest from Applications, then click Done.",
-        "Go to System Settings, then Privacy & Security.",
-        "Scroll to Security and click Open Anyway.",
+        "Open Everest from Applications.",
+        "Grant Accessibility access when it asks.",
     ]
     fnum, ftxt = font(11 * s, "Bold"), font(13 * s)
     for i, text in enumerate(steps):
@@ -154,10 +161,13 @@ def render(s):
     # The last step ran off the bottom of the card once, and the render said
     # nothing. Measured against the real glyph box rather than the nominal
     # point size, because a descender is what actually crosses the edge.
-    last = d.textbbox((tx + 28 * s, y0 + (55 + 2 * 23) * s), steps[-1], font=ftxt)[3]
+    # Indexed off len(steps), not a hardcoded 2. It was 2 while there were
+    # three steps, so dropping one would have measured the wrong line and
+    # checked a row that is no longer the last.
+    last = d.textbbox((tx + 28 * s, y0 + (55 + (len(steps) - 1) * 23) * s), steps[-1], font=ftxt)[3]
     if last > y1 - 6 * s:
         sys.exit(
-            f"step 3 ends at y={last // s} and the card ends at {y1 // s}: "
+            f"step {len(steps)} ends at y={last // s} and the card ends at {y1 // s}: "
             "lower PANEL_TOP, tighten the 23pt step pitch, or raise H."
         )
 

@@ -39,10 +39,28 @@ cp -R "$APP" "$STAGE/Everest.app"
 # signature outside it. The app itself is last.
 SPARKLE="$STAGE/Everest.app/Contents/Frameworks/Sparkle.framework/Versions/B"
 REPO=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+# `|| true` because the file is legitimately absent on a clean clone, and
+# under `set -euo pipefail` a failing `sed` here kills the script on the spot
+# with no message at all — which is what happened once the missing-config
+# branch below was made fatal: correct exit status, empty stderr, nothing to
+# act on. Let the assignment come back empty and let that branch explain it.
 IDENTITY=$(sed -n 's/^CODE_SIGN_IDENTITY *= *//p' \
-  "$REPO/Everest/Signing.local.xcconfig" 2>/dev/null | tr -d ' ')
+  "$REPO/Everest/Signing.local.xcconfig" 2>/dev/null | tr -d ' ' || true)
 
 if [ -n "$IDENTITY" ] && [ -d "$SPARKLE" ]; then
+  # **`SKIP_APP_SIGNING=1` packages an app that is already signed AND stapled.**
+  #
+  # Needed because a stapled ticket does not survive re-signing: `codesign`
+  # rewrites the bundle, the cdhash changes, and Apple's ticket — which is
+  # looked up by cdhash — no longer applies. So the order for an offline-safe
+  # release is sign, notarise the app, staple the app, then package WITHOUT
+  # touching the signature again. Running the loop below at that point would
+  # silently undo the stapling this flag exists to preserve.
+  if [ "${SKIP_APP_SIGNING:-0}" = "1" ]; then
+    xcrun stapler validate "$STAGE/Everest.app" >/dev/null 2>&1 \
+      || { echo "SKIP_APP_SIGNING=1 but the app has no stapled ticket; staple it first" >&2; exit 1; }
+    echo "  app already signed and stapled, leaving its signature alone" >&2
+  else
   for item in \
     "$SPARKLE/XPCServices/Downloader.xpc" \
     "$SPARKLE/XPCServices/Installer.xpc" \
@@ -58,27 +76,86 @@ if [ -n "$IDENTITY" ] && [ -d "$SPARKLE" ]; then
     # of their own — checked, before and after — so only the app passes one,
     # and it passes the tracked file `project.yml` already builds from rather
     # than re-reading the signature it is about to replace.
-    ENT=""
-    [ "$item" = "$STAGE/Everest.app" ] && ENT="$REPO/Everest/Resources/Everest.entitlements"
-    codesign --force --options runtime --timestamp=none \
-      ${ENT:+--entitlements "$ENT"} \
-      --sign "$IDENTITY" "$item" >/dev/null 2>&1 \
-      || { echo "failed to sign $item" >&2; exit 1; }
+    # **`--timestamp`, never `--timestamp=none`.** Notarisation rejects a
+    # signature with no secure timestamp ("The signature does not include a
+    # secure timestamp"), and it rejects the whole submission, so one helper
+    # signed without one fails the app. `=none` was correct while this was a
+    # Development-signed build that could never be notarised; it is not any
+    # more. This reaches Apple's timestamp server, so signing now needs the
+    # network and is a little slower.
+    #
+    # **An array, not `${ENT:+--entitlements "$ENT"}`.** That form expands to
+    # the single argument `--entitlements /path/to/file`, space and all, and
+    # codesign answers `unrecognized option` and exits 2. The app is the only
+    # item that passes entitlements and the last one signed, so the effect was
+    # that the app alone silently kept whatever signature Xcode left on it —
+    # which carries `Signed Time`, not a secure `Timestamp`, and would have
+    # come back Invalid from the notary service.
+    args=(--force --options runtime --timestamp)
+    if [ "$item" = "$STAGE/Everest.app" ]; then
+      args+=(--entitlements "$REPO/Everest/Resources/Everest.entitlements")
+    fi
+    # stderr is captured rather than discarded. `>/dev/null 2>&1` here is what
+    # kept the `unrecognized option` line off the screen while the build
+    # carried on and reported success.
+    if ! err=$(codesign "${args[@]}" --sign "$IDENTITY" "$item" 2>&1); then
+      echo "failed to sign $item" >&2
+      printf '%s\n' "$err" | sed 's/^/    /' >&2
+      exit 1
+    fi
   done
+  fi
 
   # Assert rather than hope. Every nested Mach-O must report the app's team,
   # because one ad-hoc helper is enough to break every future auto-update,
   # and it fails silently on the user's machine rather than here.
+  #
+  # **Walks the whole bundle, not just Contents/Frameworks.** The narrower
+  # find matched what the signing loop happens to touch, so it could only ever
+  # confirm work already done: a dylib or helper dropped anywhere else would
+  # go unsigned and unreported, and notarytool would be the first to say so.
   WANT=$(codesign -dvvv "$STAGE/Everest.app" 2>&1 | sed -n 's/^TeamIdentifier=//p')
   BAD=0
   while IFS= read -r m; do
-    got=$(codesign -dvvv "$m" 2>&1 | sed -n 's/^TeamIdentifier=//p')
+    # One codesign call, both answers. A secure timestamp is checked on every
+    # nested Mach-O and not just on the app, because notarytool rejects the
+    # whole submission for one helper that lacks it, and it reports that as a
+    # path inside the DMG half an hour after the release build started.
+    # `Timestamp=` is the secure one; a local signature says `Signed Time=`.
+    desc=$(codesign -dvvv "$m" 2>&1)
+    got=$(printf '%s\n' "$desc" | sed -n 's/^TeamIdentifier=//p')
     [ "$got" = "$WANT" ] || { echo "  team mismatch: ${m#$STAGE/} is '${got:-none}', want '$WANT'" >&2; BAD=1; }
+    printf '%s\n' "$desc" | grep -q '^Timestamp=' \
+      || { echo "  no secure timestamp: ${m#$STAGE/} — notarisation would reject the submission" >&2; BAD=1; }
   done <<EOT
-$(find "$STAGE/Everest.app/Contents/Frameworks" -type f -perm +111 2>/dev/null | while read -r f; do file "$f" | grep -q Mach-O && echo "$f"; done)
+$(find "$STAGE/Everest.app" -type f -perm +111 2>/dev/null | while read -r f; do file "$f" | grep -q Mach-O && echo "$f"; done)
 EOT
-  [ "$BAD" = "0" ] || { echo "Sparkle helpers are not signed with the app identity; the updater would fail" >&2; exit 1; }
-  echo "  Sparkle helpers signed with $WANT"
+  [ "$BAD" = "0" ] || { echo "a binary in the bundle is not signed with the app identity: the updater would fail and notarisation would reject it" >&2; exit 1; }
+  echo "  all bundle Mach-Os signed with $WANT, timestamped" >&2
+
+  # The loop above now reaches the app too, via Contents/MacOS/Everest, which
+  # codesign resolves to the enclosing bundle. This is kept because it is the
+  # only check that prints what it actually saw, and a bare "team mismatch"
+  # line from the loop is not enough to act on. APPDESC is also what the
+  # Developer ID check below reads.
+  APPDESC=$(codesign -dvvv "$STAGE/Everest.app" 2>&1)
+  if ! printf '%s\n' "$APPDESC" | grep -q '^Timestamp='; then
+    echo "the app has no secure timestamp: notarisation would reject it" >&2
+    printf '%s\n' "$APPDESC" | grep -iE '^Authority=|^Timestamp|^Signed Time|^TeamIdentifier|flags=' | sed 's/^/    /' >&2
+    exit 1
+  fi
+
+  # Developer ID is what notarisation accepts. An Apple Development cert
+  # signs a build that runs here and is refused by the notary service, and
+  # the difference is invisible until the submission comes back Invalid.
+  #
+  # Reuses the captured text rather than piping codesign into `grep -q`. See
+  # the note on the allow-jit check below: under `pipefail` that pattern
+  # reports failure at random.
+  printf '%s\n' "$APPDESC" | grep -q '^Authority=Developer ID Application' \
+    || { echo "not a Developer ID signature: this DMG cannot be notarised" >&2
+         echo "set ALLOW_UNSIGNED_DMG=1 to build one anyway, for local testing only" >&2
+         [ "${ALLOW_UNSIGNED_DMG:-0}" = "1" ] || exit 1; }
 
   # Assert the entitlement survived the re-sign above.
   #
@@ -88,14 +165,25 @@ EOT
   # entitlement set, while every local build had `allow-jit` — so no amount
   # of testing the Xcode build could have shown it. Checked on the staged
   # app, which is the thing about to become the DMG.
-  if ! codesign -d --entitlements - "$STAGE/Everest.app" 2>/dev/null \
-      | grep -q "com.apple.security.cs.allow-jit"; then
+  # **Capture first, then grep. Never pipe codesign straight into `grep -q`.**
+  # `grep -q` exits on its first match and closes the pipe, codesign dies of
+  # SIGPIPE, and `set -o pipefail` at the top of this file then reports the
+  # whole pipeline as failed *because the match succeeded*. It is a race on
+  # output buffering, so it passes on one run and fails on the next with no
+  # change to the input: two of these gates flipped verdicts between two
+  # consecutive runs on 2026-09-17. Piping from `printf` is safe because a
+  # builtin writing a short string always finishes before grep exits.
+  ENTS=$(codesign -d --entitlements - "$STAGE/Everest.app" 2>/dev/null || true)
+  if ! printf '%s\n' "$ENTS" | grep -q "com.apple.security.cs.allow-jit"; then
     echo "allow-jit is missing from the signed app: Hardened Runtime is on, so MLX cannot JIT Metal shaders" >&2
     exit 1
   fi
-  echo "  allow-jit present after signing"
+  echo "  allow-jit present after signing" >&2
 else
-  echo "  note: no Signing.local.xcconfig, leaving signatures alone (auto-update will not work)" >&2
+  echo "no Everest/Signing.local.xcconfig: signatures left alone, so Sparkle's helpers stay" >&2
+  echo "ad-hoc, auto-update would fail, and the image cannot be notarised." >&2
+  echo "set ALLOW_UNSIGNED_DMG=1 to build one anyway, for local testing only" >&2
+  [ "${ALLOW_UNSIGNED_DMG:-0}" = "1" ] || exit 1
 fi
 ln -s /Applications "$STAGE/Applications"
 mkdir "$STAGE/.background"
@@ -203,5 +291,34 @@ hdiutil detach "$DEV" -quiet || { sleep 3; hdiutil detach "$DEV" -force -quiet; 
 rm -f "$OUT"
 hdiutil convert "$RW" -format UDZO -imagekey zlib-level=9 -o "$OUT" >/dev/null
 
+# Sign the disk image itself, not only the app inside it.
+#
+# Notarisation accepts an unsigned DMG whose contents are signed, so this is
+# not what unblocks the notary. What it buys is that the thing the user
+# actually downloads is tamper-evident on its own: without it, the only
+# signature is on a bundle nobody can check until after they have opened the
+# image. Apple's documented order is sign, notarise, staple, and stapling a
+# signed DMG does not break the signature — the ticket goes to a reserved
+# area of the image rather than into the signed payload.
+if [ -n "$IDENTITY" ]; then
+  if ! err=$(codesign --force --timestamp --sign "$IDENTITY" "$OUT" 2>&1); then
+    echo "failed to sign the DMG" >&2
+    printf '%s\n' "$err" | sed 's/^/    /' >&2
+    exit 1
+  fi
+  # Captured then grepped, never piped into `grep -q`. See the note on the
+  # allow-jit check above for what that costs under pipefail.
+  DMGDESC=$(codesign -dvvv "$OUT" 2>&1)
+  printf '%s\n' "$DMGDESC" | grep -q '^Timestamp=' \
+    || { echo "the DMG has no secure timestamp" >&2; exit 1; }
+  codesign --verify --strict "$OUT" >/dev/null 2>&1 \
+    || { echo "the DMG signature does not verify" >&2; exit 1; }
+  echo "  DMG signed and verified" >&2
+fi
+
 echo "$OUT"
-echo "  $(du -h "$OUT" | cut -f1)   sha256 $(shasum -a 256 "$OUT" | cut -d' ' -f1)"
+# **After any stapling, this hash is stale.** `xcrun stapler staple` rewrites
+# the image, so the release-body sha256 and Sparkle's `length` and
+# `edSignature` all have to be taken from the stapled file. See
+# "Stapling comes before the appcast" in docs/RELEASING.md.
+echo "  $(du -h "$OUT" | cut -f1)   sha256 $(shasum -a 256 "$OUT" | cut -d' ' -f1)   (pre-staple)" >&2

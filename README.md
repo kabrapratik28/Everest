@@ -12,7 +12,7 @@ No account, no server, no telemetry. Unplug the network and it still works.
 <img src="docs/assets/download.png" width="300" alt="Download Everest for macOS">
 </a>
 
-<sub>macOS 15+ · Apple silicon · free and MIT · ~2.3 GB model on first run · <a href="#install">first launch takes one extra step</a></sub>
+<sub>macOS 15+ · Apple silicon · free and MIT · ~2.3 GB model on first run · <a href="#install">signed and notarised, opens on a double click</a></sub>
 
 <br><br>
 
@@ -42,21 +42,9 @@ Some apps do not let macOS hand over a selection at all: terminals, PDFs, Google
 
 **[⬇ Download Everest.dmg](https://github.com/kabrapratik28/Everest/releases/latest/download/Everest.dmg)**, or pick a specific build from [Releases](../../releases).
 
-Open the disk image and drag Everest to Applications.
+Open the disk image and drag Everest to Applications, then open it. That is the whole install.
 
-**The first launch needs one extra step.** Everest is signed but not notarised. Notarisation requires Apple's $99/year Developer Program and this app is not earning that yet, so macOS will refuse the first launch and say *"Apple could not verify Everest is free of malware."* Click **Done**, then:
-
-> **System Settings ▸ Privacy & Security**, scroll to Security, and next to *"Everest was blocked to protect your Mac"* click **Open Anyway**.
-
-Since macOS 15 that pane is the only route; the old right-click ▸ Open shortcut no longer works. You do this once, and every later launch is normal.
-
-**On a managed or work Mac**, IT policy often removes the Open Anyway button entirely. If it is not there, clear the download flag from Terminal instead:
-
-```bash
-xattr -dr com.apple.quarantine /Applications/Everest.app
-```
-
-That is not a way around the signature check. The app is signed either way; this clears the "downloaded from the internet" marker, which is the thing that triggers the block.
+Everest is signed with an Apple Developer ID and notarised by Apple, so it opens on a double click with no Gatekeeper warning and no trip to System Settings.
 
 On first run Everest asks for Accessibility permission (System Settings ▸ Privacy & Security ▸ Accessibility) and then downloads the rewrite model, about 2.3 GB, with a progress bar. **The model is not bundled in the app.**
 
@@ -107,11 +95,9 @@ Xcode 26 needs the Metal toolchain: `xcodebuild -downloadComponent MetalToolchai
 
 ## Updates
 
-Everest updates itself with [Sparkle](https://sparkle-project.org). It checks a signed feed in this repository, offers the new version, and installs on quit. **Automatic checks are on by default.** This build is not notarised, so an update is the only way a bad one can be corrected. The switch is in Settings ▸ Privacy, and **Check for Updates…** in the menu-bar menu works either way.
+Everest updates itself with [Sparkle](https://sparkle-project.org). It checks a signed feed in this repository, offers the new version, and installs on quit. **Automatic checks are on by default**, because a security fix only helps the people it reaches, and a prompt shown on second launch gets dismissed by exactly the users who most need the fix. The switch is in Settings ▸ Privacy, and **Check for Updates…** in the menu-bar menu works either way.
 
 Every update is signed with an EdDSA key whose private half never leaves the maintainer's Keychain. Sparkle refuses an update whose signature does not verify, which is what stops anyone else shipping you an "update".
-
-If you are on 0.1.0 you must update by hand once, because that build predates Sparkle and cannot check for anything. 0.1.1 can update itself, but only after you accept its first-run prompt; 0.1.2 removed that prompt.
 
 ## Contributing
 
