@@ -1116,6 +1116,45 @@ struct FloatingPanelControllerTests {
         #expect(surface.presented.last?.state == .review(text: "edited", original: "the original", showsChanges: true))
         #expect(shows.value == true)
     }
+
+    @Test("the panel opens at the anchor it was given, and a drop is reported and used next time")
+    func dropIsRememberedAndReused() {
+        let surface = SpySurface()
+        let controller = makeController(surface: surface)
+        let saved = Box<PanelAnchor>()
+        controller.onAnchorChanged = { saved.value = $0 }
+        controller.anchor = PanelAnchor(x: 0.25, y: 0.5, pinsTop: false)
+
+        controller.show(.capturing)
+        let first = try! #require(surface.presented.last?.layout.frame)
+        #expect(abs(first.midX - Self.screen.width * 0.25) < 0.001)
+
+        let dropped = first.offsetBy(dx: 300, dy: -100)
+        controller.moved(to: dropped)
+        #expect(saved.value == PanelGeometry.anchor(for: dropped, in: Self.screen))
+
+        controller.dismiss()
+        controller.show(.capturing)
+        #expect(PanelGeometryTests.close(try! #require(surface.presented.last?.layout.frame), dropped))
+    }
+
+    /// The window reports its own programmatic moves too. Taking the layout
+    /// the controller just asked for as a drop would overwrite the user's
+    /// place with whatever the panel happened to be showing.
+    @Test("a move the controller made itself is not taken for the user's")
+    func ownMovesAreIgnored() {
+        let surface = SpySurface()
+        let controller = makeController(surface: surface)
+        let saved = Box<PanelAnchor>()
+        controller.onAnchorChanged = { saved.value = $0 }
+        controller.show(.capturing)
+        let placed = try! #require(surface.presented.last?.layout.frame)
+
+        controller.moved(to: placed)
+        #expect(saved.value == nil)
+        controller.moved(to: placed.offsetBy(dx: 40, dy: 0))
+        #expect(saved.value != nil)
+    }
 }
 
 @MainActor

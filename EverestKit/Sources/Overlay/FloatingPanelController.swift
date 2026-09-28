@@ -12,6 +12,12 @@ public final class FloatingPanelController {
     public var onReplace: (@MainActor (String) -> Void)?
     /// Review's ⇥, with the view it switched to: true for the changes.
     public var onToggleChanges: (@MainActor (Bool) -> Void)?
+    /// Where the user dropped the panel, so it can be remembered.
+    public var onAnchorChanged: (@MainActor (PanelAnchor) -> Void)?
+
+    /// Where the panel opens. Handed in from Settings at launch; replaced
+    /// when the user drags the panel somewhere else.
+    public var anchor: PanelAnchor?
 
     private let surface: PanelSurface
     private let keyMonitor: KeyMonitoring
@@ -45,6 +51,8 @@ public final class FloatingPanelController {
     private var reviewIsSpent = false
     /// Sampled once per presentation. See `screenIsCapturedAtShow`.
     private var anchorScreen: CGRect?
+    /// The frame this controller last asked for. See `moved(to:)`.
+    private var lastFrame: CGRect?
 
     public init(
         surface: PanelSurface,
@@ -83,6 +91,23 @@ public final class FloatingPanelController {
         render(state)
     }
 
+    /// The window moved. The surface reports every move, including the ones
+    /// `present` makes, and only a frame this controller did not ask for is
+    /// the user dragging the panel.
+    ///
+    /// Measured against the screen under the pointer now, not the one sampled
+    /// at `show()`: the pointer is where the panel was dropped, which may be
+    /// another display, and the next layout should happen there.
+    public func moved(to frame: CGRect) {
+        guard state != nil, frame != lastFrame else { return }
+        let screen = visibleFrame()
+        let dropped = PanelGeometry.anchor(for: frame, in: screen)
+        anchorScreen = screen
+        anchor = dropped
+        lastFrame = frame
+        onAnchorChanged?(dropped)
+    }
+
     /// The user took over the scroll position. Following resumes only when
     /// they come back to the bottom themselves.
     public func userScrolled(isAtBottom: Bool) {
@@ -93,9 +118,13 @@ public final class FloatingPanelController {
         let screen = anchorScreen ?? visibleFrame()
         surface.highlightedStyleIndex = highlightedStyleIndex
         let height = surface.contentHeight(for: state, width: PanelGeometry.width(in: screen))
+        let layout = PanelGeometry.layout(
+            contentHeight: height, in: screen, anchor: anchor ?? PanelGeometry.defaultAnchor
+        )
+        lastFrame = layout.frame
         surface.present(
             state,
-            layout: PanelGeometry.layout(contentHeight: height, in: screen),
+            layout: layout,
             followsTail: followsTail,
             acceptsKey: state.acceptsKeyWindow
         )
