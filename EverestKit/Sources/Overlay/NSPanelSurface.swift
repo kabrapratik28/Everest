@@ -219,6 +219,14 @@ public final class NSPanelSurface: PanelSurface {
         panel.orderOut(nil)
     }
 
+    public var hasKeyFocus: Bool { panel.isKeyWindow }
+
+    public var isComposingText: Bool {
+        (panel.firstResponder as? NSTextView)?.hasMarkedText() ?? false
+    }
+
+    public var reviewText: String? { nil }
+
     private func view(for state: PanelState) -> AnyView {
         AnyView(
             RewriteView(

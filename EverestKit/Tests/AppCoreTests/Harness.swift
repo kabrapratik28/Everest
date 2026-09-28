@@ -58,6 +58,13 @@ final class SpySurface: PanelSurface {
         hides += 1
         log.record("hide")
     }
+
+    /// Focus and editing are the controller's concern and `OverlayTests`
+    /// owns them; this suite only ever answers the pane through the
+    /// coordinator's entry points.
+    var hasKeyFocus: Bool { false }
+    var isComposingText: Bool { false }
+    var reviewText: String? { nil }
 }
 
 /// The panel's own key monitor. This suite does not drive keystrokes through

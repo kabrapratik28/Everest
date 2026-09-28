@@ -43,6 +43,19 @@ public protocol PanelSurface: AnyObject {
     func announce(_ value: String)
 
     func hide()
+
+    /// Whether the panel holds keyboard focus. Only the review state takes
+    /// it, and a key typed while it does not belongs to the app underneath:
+    /// the global monitor reports keys typed anywhere.
+    var hasKeyFocus: Bool { get }
+
+    /// Whether an input method is mid-composition in the review editor,
+    /// where Return commits the composition rather than the rewrite.
+    var isComposingText: Bool { get }
+
+    /// The review text as the user has left it, or nil while no editor is
+    /// up: the changes view, and every other state.
+    var reviewText: String? { get }
 }
 
 // MARK: - The keyboard

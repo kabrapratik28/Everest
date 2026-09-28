@@ -18,6 +18,9 @@ final class SpySurface: PanelSurface {
     private(set) var hides = 0
     private(set) var appearanceRefreshes = 0
     private(set) var announced: [String] = []
+    var hasKeyFocus = false
+    var isComposingText = false
+    var reviewText: String?
 
     func refreshAppearance() { appearanceRefreshes += 1 }
 
@@ -1026,6 +1029,92 @@ struct FloatingPanelControllerTests {
 
         clock.fire()
         #expect(surface.presented.last?.state == .generating(text: "snapshot 99"))
+    }
+
+    static let review = PanelState.review(text: "the rewrite", original: "the original", showsChanges: false)
+
+    /// ↩ hands over the text as the user left it, once. A second ↩ arriving
+    /// before the coordinator has taken the panel down must not write twice.
+    @Test("in review, Return hands over the edited text once, and is consumed")
+    func returnReplacesOnce() {
+        let monitor = SpyKeyMonitor()
+        let surface = SpySurface()
+        let controller = makeController(surface: surface, keyMonitor: monitor)
+        let replaced = Box<String>()
+        let calls = Counter()
+        controller.onReplace = { replaced.value = $0; calls.bump() }
+
+        controller.show(.capturing)
+        controller.update(Self.review)
+        surface.hasKeyFocus = true
+        surface.reviewText = "the rewrite, edited"
+
+        #expect(monitor.send(PanelKeyMapTests.enter))
+        #expect(monitor.send(PanelKeyMapTests.enter))
+        #expect(replaced.value == "the rewrite, edited")
+        #expect(calls.count == 1)
+    }
+
+    /// The global monitor reports every key typed anywhere. A Return typed
+    /// into Slack after the user clicked away belongs to Slack, and an input
+    /// method mid-composition owns its own Return.
+    @Test("Return is left alone while the pane lacks focus or an input method is composing")
+    func returnNeedsFocusAndNoComposition() {
+        let monitor = SpyKeyMonitor()
+        let surface = SpySurface()
+        let controller = makeController(surface: surface, keyMonitor: monitor)
+        let replaced = Box<String>()
+        controller.onReplace = { replaced.value = $0 }
+        controller.show(.capturing)
+        controller.update(Self.review)
+
+        surface.hasKeyFocus = false
+        #expect(monitor.send(PanelKeyMapTests.enter) == false)
+        surface.hasKeyFocus = true
+        surface.isComposingText = true
+        #expect(monitor.send(PanelKeyMapTests.enter) == false)
+        #expect(replaced.value == nil)
+
+        // Positive control: focused and not composing, the same key acts.
+        surface.isComposingText = false
+        #expect(monitor.send(PanelKeyMapTests.enter))
+        #expect(replaced.value == "the rewrite")
+    }
+
+    @Test("Return on an emptied rewrite does nothing")
+    func emptyRewriteIsNotReplaced() {
+        let monitor = SpyKeyMonitor()
+        let surface = SpySurface()
+        let controller = makeController(surface: surface, keyMonitor: monitor)
+        let replaced = Box<String>()
+        controller.onReplace = { replaced.value = $0 }
+        controller.show(.capturing)
+        controller.update(Self.review)
+        surface.hasKeyFocus = true
+
+        surface.reviewText = ""
+        monitor.send(PanelKeyMapTests.enter)
+        #expect(replaced.value == nil)
+        surface.reviewText = "typed again"
+        monitor.send(PanelKeyMapTests.enter)
+        #expect(replaced.value == "typed again")
+    }
+
+    @Test("Tab switches the view, carries the edits across, and reports the choice")
+    func tabTogglesTheView() {
+        let monitor = SpyKeyMonitor()
+        let surface = SpySurface()
+        let controller = makeController(surface: surface, keyMonitor: monitor)
+        let shows = Box<Bool>()
+        controller.onToggleChanges = { shows.value = $0 }
+        controller.show(.capturing)
+        controller.update(Self.review)
+        surface.hasKeyFocus = true
+        surface.reviewText = "edited"
+
+        #expect(monitor.send(PanelKeyMapTests.tab))
+        #expect(surface.presented.last?.state == .review(text: "edited", original: "the original", showsChanges: true))
+        #expect(shows.value == true)
     }
 }
 

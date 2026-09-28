@@ -8,6 +8,10 @@ public final class FloatingPanelController {
     public var onCancel: (@MainActor () -> Void)?
     public var onPickStyle: (@MainActor (Preset) -> Void)?
     public var onCopy: (@MainActor (String) -> Bool)?
+    /// Review's ↩, with the text as the user left it.
+    public var onReplace: (@MainActor (String) -> Void)?
+    /// Review's ⇥, with the view it switched to: true for the changes.
+    public var onToggleChanges: (@MainActor (Bool) -> Void)?
 
     private let surface: PanelSurface
     private let keyMonitor: KeyMonitoring
@@ -37,6 +41,8 @@ public final class FloatingPanelController {
     private var announcedKind: PanelStateKind?
     /// Whether the picker has already produced its outcome. See `endPicker`.
     private var pickerIsSpent = false
+    /// Whether review has already been answered with ↩. See `replace()`.
+    private var reviewIsSpent = false
     /// Sampled once per presentation. See `screenIsCapturedAtShow`.
     private var anchorScreen: CGRect?
 
@@ -62,6 +68,7 @@ public final class FloatingPanelController {
         followsTail = true
         announcedKind = nil
         pickerIsSpent = false
+        reviewIsSpent = false
         // No `clock.cancel()` here. A pending flush from the transaction just
         // superseded is harmless once the coalescer is fresh: it finds nothing
         // held and renders nothing, or it releases this presentation's own
@@ -139,6 +146,29 @@ public final class FloatingPanelController {
         onCancel?()
     }
 
+    /// Review's ↩, or a click on its Replace hint: hands the text as the user
+    /// left it to the coordinator.
+    ///
+    /// Once. A second ↩ can arrive before the coordinator takes the panel
+    /// down, and it must not write the text twice. An emptied editor is not
+    /// an answer: replacing a selection with nothing is deleting it, which
+    /// nobody asks for by pressing Return.
+    public func replace() {
+        guard !reviewIsSpent, case let .review(text, _, _) = state else { return }
+        let current = surface.reviewText ?? text
+        guard !current.isEmpty else { return }
+        reviewIsSpent = true
+        onReplace?(current)
+    }
+
+    /// Review's ⇥, or a click on its hint: the other view, with any edits
+    /// carried across, and the choice reported so it can be remembered.
+    public func toggleChanges() {
+        guard !reviewIsSpent, case let .review(text, original, showsChanges) = state else { return }
+        update(.review(text: surface.reviewText ?? text, original: original, showsChanges: !showsChanges))
+        onToggleChanges?(!showsChanges)
+    }
+
     /// Hands the rewrite the panel is holding to the coordinator to put on the
     /// pasteboard. Silent when the current state has nothing finished to give.
     ///
@@ -209,6 +239,16 @@ public final class FloatingPanelController {
         guard let dispatchedAgainst = state,
               let action = PanelKeyMap.action(for: keystroke, in: dispatchedAgainst)
         else { return false }
+
+        // Review's keys belong to the pane only while it holds focus. The
+        // global monitor also reports a Return typed into the app underneath
+        // after the user clicked away, and a Return meant for Slack must never
+        // replace anything. Nor while an input method is composing, where
+        // Return commits the composition.
+        if action == .replace || action == .toggleChanges,
+           !surface.hasKeyFocus || surface.isComposingText {
+            return false
+        }
 
         // Fail closed. These monitors observe and cannot consume, so in a
         // state that needs a key taken from the app underneath they are only
@@ -315,8 +355,15 @@ public final class FloatingPanelController {
             return pickStyle(at: highlightedStyleIndex)
         case let .moveHighlight(offset):
             return moveHighlight(by: offset)
-        case .replace, .toggleChanges:
-            return false
+        // Aimed at the pane either way, so claimed even when there was
+        // nothing to do: a Return swallowed on an emptied editor beats one
+        // that lands in it as a new line.
+        case .replace:
+            replace()
+            return true
+        case .toggleChanges:
+            toggleChanges()
+            return true
         }
     }
 
