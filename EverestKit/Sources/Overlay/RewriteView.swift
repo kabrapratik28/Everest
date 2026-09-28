@@ -103,6 +103,7 @@ struct RewriteView: View {
         case .cancel:  onCancel()
         // Never produced by `keyHints`; the picker's keys have their own rows.
         case .pickStyle, .commitHighlightedStyle, .moveHighlight: break
+        case .replace, .toggleChanges: break
         }
     }
 
@@ -111,6 +112,8 @@ struct RewriteView: View {
         case .copy:    "Copy the rewrite to the clipboard"
         case .cancel:  "Close this panel"
         case .pickStyle, .commitHighlightedStyle, .moveHighlight: ""
+        case .replace: "Replace your selection with the rewrite"
+        case .toggleChanges: "Switch between the rewrite and its changes"
         }
     }
 

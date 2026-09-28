@@ -43,7 +43,7 @@ public struct PanelAppearance: Equatable, Sendable {
         case .capturing, .generating, .applying:
             return reduceMotion ? .hidden : .indeterminate
         case .success, .readOnly, .targetChanged, .refused, .error,
-             .stylePicker, .heldForManualCopy:
+             .stylePicker, .heldForManualCopy, .review:
             return .hidden
         }
     }

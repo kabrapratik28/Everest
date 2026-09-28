@@ -21,6 +21,7 @@ struct PanelStateTests {
         .error(reason: "the model ran out of memory"),
         .stylePicker(presets: []),
         .heldForManualCopy(text: "The quick brown fox", reason: "the window moved"),
+        .review(text: "The quick brown fox", original: "the quick fox", showsChanges: false),
     ]
 
     /// The picker is the first and usually only place someone sees the style
@@ -43,7 +44,7 @@ struct PanelStateTests {
     /// progress indicator or has nothing to say there, and a note that
     /// appeared during a rewrite would be noise on a panel the user is
     /// reading for two seconds.
-    @Test("only the style picker carries a header note, and it points at Settings")
+    @Test("the style picker's header note points at Settings, and no other sampled state has one")
     func onlyTheStylePickerHasAHeaderNote() {
         let note = PanelState.stylePicker(presets: []).headerNote
 
@@ -59,9 +60,9 @@ struct PanelStateTests {
         }
     }
 
-    @Test("covers exactly eleven kinds, one sample each")
-    func coversElevenKinds() {
-        #expect(PanelStateKind.allCases.count == 11)
+    @Test("covers exactly twelve kinds, one sample each")
+    func coversTwelveKinds() {
+        #expect(PanelStateKind.allCases.count == 12)
         #expect(Set(Self.samples.map(\.kind)) == Set(PanelStateKind.allCases))
     }
 
@@ -139,7 +140,7 @@ struct PanelStateTests {
     @Test("the rewrite is shown while streaming and in every state that is holding one")
     func bodyTextIsPerState() {
         let showsTheRewrite: Set<PanelStateKind> = [
-            .generating, .readOnly, .targetChanged, .heldForManualCopy,
+            .generating, .readOnly, .targetChanged, .heldForManualCopy, .review,
         ]
 
         for state in Self.samples {
@@ -199,8 +200,8 @@ struct PanelStateTests {
     /// overwrite it. `refused` and `error` hold nothing, so there is no ⌘C
     /// to take and no tap is armed for them.
     ///
-    /// The panel itself is never key, in any state — see
-    /// `PanelKeyWindowTests`. Making terminal panels key was the previous way
+    /// The panel itself is never key except in review, where the user types
+    /// into it — see `PanelKeyWindowTests`. Making terminal panels key was the previous way
     /// to consume ⌘C, and a key window takes *every* keystroke, which is how
     /// it came to swallow the ⌘V the panel was telling the user to press.
     @Test("only the picker and a state holding a rewrite take keys from the app underneath")
@@ -225,7 +226,7 @@ struct PanelStateTests {
         // States that will not go away on their own have to say how to close
         // them. The ones that vanish in a second or two do not.
         let offersCancel: Set<PanelStateKind> = [
-            .capturing, .preparing, .generating, .applying, .stylePicker, .heldForManualCopy,
+            .capturing, .preparing, .generating, .applying, .stylePicker, .heldForManualCopy, .review,
         ]
 
         for state in Self.samples {
@@ -267,6 +268,56 @@ struct PanelStateTests {
         // A reason nobody can hear is not a reason.
         let failed = PanelState.error(reason: "the model ran out of memory")
         #expect(failed.accessibilityValue.contains("ran out of memory"))
+    }
+
+    /// The review panel is the user's copy of the rewrite until they answer,
+    /// so it has no timer. It is the one state that takes keyboard focus,
+    /// because the user types into it, and ⌘C there belongs to the editor,
+    /// so no tap is armed to take it.
+    @Test("review waits for an answer, takes keyboard focus, and leaves ⌘C to the editor")
+    func reviewWaitsAndTakesFocus() {
+        let review = PanelState.review(text: "t", original: "o", showsChanges: false)
+        #expect(review.autoDismissAfter == nil)
+        #expect(review.copyableText == nil)
+        #expect(review.needsKeyInterception == false)
+        for state in Self.samples {
+            #expect(state.acceptsKeyWindow == (state.kind == .review), "\(state.kind)")
+        }
+    }
+
+    /// ⇥ leads the row because it changes what the panel shows rather than
+    /// answering it; ↩ ends it. ⇧↩ is only true while there is an editor.
+    @Test("review offers ⇥, esc and ↩, and ⇧↩ only while editing")
+    func reviewHints() {
+        let editing = PanelState.review(text: "t", original: "o", showsChanges: false).keyHints
+        #expect(editing.map(\.keys) == ["⇥", "⇧↩", "esc", "↩"])
+        #expect(editing.map(\.performs) == [.toggleChanges, nil, .cancel, .replace])
+        #expect(editing.map(\.action) == ["Show changes", "New line", "Keep original", "Replace"])
+
+        let changes = PanelState.review(text: "t", original: "o", showsChanges: true).keyHints
+        #expect(changes.map(\.keys) == ["⇥", "esc", "↩"])
+        #expect(changes.first?.action == "Hide changes")
+    }
+
+    @Test("the changes view lists its runs and counts them in the header; the edit view does neither")
+    func changesViewCountsChanges() {
+        let changes = PanelState.review(text: "It's fine than", original: "its fine then", showsChanges: true)
+        #expect(changes.changes == WordDiff.segments(from: "its fine then", to: "It's fine than"))
+        #expect(changes.headerNote == "2 changes")
+        #expect(PanelState.review(text: "One", original: "one", showsChanges: true).headerNote == "1 change")
+
+        let editing = PanelState.review(text: "It's fine than", original: "its fine then", showsChanges: false)
+        #expect(editing.changes == nil)
+        #expect(editing.headerNote == nil)
+    }
+
+    /// The keys are drawn as keycaps a screen reader does not announce, so
+    /// the spoken value has to say how to answer the panel.
+    @Test("review tells a screen reader which keys answer it")
+    func reviewSpeaksItsKeys() {
+        let value = PanelState.review(text: "t", original: "o", showsChanges: false).accessibilityValue
+        #expect(value.contains("Return"))
+        #expect(value.contains("Escape"))
     }
 }
 

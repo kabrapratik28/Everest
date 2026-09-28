@@ -315,6 +315,8 @@ public final class FloatingPanelController {
             return pickStyle(at: highlightedStyleIndex)
         case let .moveHighlight(offset):
             return moveHighlight(by: offset)
+        case .replace, .toggleChanges:
+            return false
         }
     }
 

@@ -41,6 +41,10 @@ public enum PanelKeyAction: Equatable, Sendable {
     case pickStyle(index: Int)
     case commitHighlightedStyle
     case moveHighlight(by: Int)
+    /// Review: write the text as it now stands.
+    case replace
+    /// Review: switch between the editable text and the tracked changes.
+    case toggleChanges
 }
 
 public enum PanelKeyMap {

@@ -13,6 +13,11 @@ public enum PanelState: Equatable, Sendable {
     case error(reason: String)
     case stylePicker(presets: [Preset])
     case heldForManualCopy(text: String, reason: String)
+    /// The finished rewrite, waiting for ↩ (replace) or esc (keep the
+    /// original) before anything reaches the document. `text` is what ↩ will
+    /// write, edits included; `original` is what the user selected, for the
+    /// changes view.
+    case review(text: String, original: String, showsChanges: Bool)
 }
 
 /// A `PanelState` with its payload stripped off.
@@ -35,6 +40,7 @@ public enum PanelStateKind: String, CaseIterable, Sendable {
     case error
     case stylePicker
     case heldForManualCopy
+    case review
 }
 
 /// A keystroke the panel offers. Drawn as a keycap badge and the words beside
@@ -73,6 +79,16 @@ public extension PanelState {
     /// were pressable, so they read as decoration and people arrowed down
     /// instead. The arrows were unmentioned too.
     var keyHints: [KeyHint] {
+        // Listed, like the picker's: esc here keeps the original rather than
+        // cancelling anything, and ⇥ leads because it changes the view
+        // rather than answering the panel.
+        if case let .review(_, _, showsChanges) = self {
+            var hints = [KeyHint(keys: "⇥", action: showsChanges ? "Hide changes" : "Show changes", performs: .toggleChanges)]
+            if !showsChanges { hints.append(KeyHint(keys: "⇧↩", action: "New line", performs: nil)) }
+            hints.append(KeyHint(keys: "esc", action: "Keep original", performs: .cancel))
+            hints.append(KeyHint(keys: "↩", action: "Replace", performs: .replace))
+            return hints
+        }
         var hints: [KeyHint] = []
         if case .stylePicker = self {
             hints.append(KeyHint(keys: "1-9", action: "Pick a style", performs: nil))
@@ -123,6 +139,8 @@ public extension PanelState {
         case .error:              "xmark.octagon"
         case .stylePicker:        "list.number"
         case .heldForManualCopy:  "tray.and.arrow.down"
+        case let .review(_, _, showsChanges):
+            showsChanges ? "text.badge.checkmark" : "square.and.pencil"
         }
     }
 
@@ -149,6 +167,7 @@ public extension PanelState {
         // would point at nothing of theirs. Both steps are named because
         // neither happens on its own, and nothing here closes on a timer.
         case .heldForManualCopy:  "Press ⌘C, then paste your rewrite"
+        case .review:             "Review your rewrite"
         }
     }
 
@@ -164,6 +183,9 @@ public extension PanelState {
         case .capturing, .preparing, .generating, .applying: nil
         case .stylePicker:                                   nil
         case .heldForManualCopy:                             nil
+        // The user's rewrite, and their edits to it, until they answer.
+        // A timer would throw both away.
+        case .review:                                        nil
         // Long enough to see the tick, short enough not to sit on the thing
         // it is confirming. The tick is *wanted* — it acknowledges that the
         // replacement happened rather than merely reporting what the
@@ -198,7 +220,7 @@ public extension PanelState {
     /// is the panel's body, not a caption for it.
     var detail: String? {
         switch self {
-        case .capturing, .generating, .applying, .success, .stylePicker: nil
+        case .capturing, .generating, .applying, .success, .stylePicker, .review: nil
         case let .preparing(progress):
             progress.map { "\(Int($0 * 100))% downloaded" } ?? "Loading the model"
         // The two reasons are different situations and must not read alike:
@@ -226,6 +248,13 @@ public extension PanelState {
     var headerNote: String? {
         switch self {
         case .stylePicker: "Edit in Settings ▸ Prompts"
+        // How much the model changed, which is what someone opening the
+        // changes view is asking. Only there; the edit view has no marks.
+        case let .review(text, original, true):
+            switch WordDiff.changeCount(WordDiff.segments(from: original, to: text)) {
+            case 1: "1 change"
+            case let count: "\(count) changes"
+            }
         default: nil
         }
     }
@@ -235,6 +264,10 @@ public extension PanelState {
     /// Composed from the words and the reason, and deliberately never from the
     /// streaming text.
     var accessibilityValue: String {
+        // The keycaps are hidden from VoiceOver, so the answer keys are said.
+        if case .review = self {
+            return "\(title). Return replaces your selection, Escape keeps your original."
+        }
         guard let detail else { return title }
         return "\(title). \(detail)"
     }
@@ -258,6 +291,11 @@ public extension PanelState {
         case .capturing, .preparing, .generating, .applying, .stylePicker,
              .success, .readOnly, .targetChanged, .heldForManualCopy,
              .refused, .error:                                             false
+        // The one exception, and the reason is the same fact turned round: a
+        // key window receives every keystroke, which is exactly what an
+        // editor needs. Capture and the write both happen with the panel not
+        // key; see `Review/AGENTS.md`.
+        case .review:                                                      true
         }
     }
 
@@ -281,6 +319,7 @@ public extension PanelState {
         case let .readOnly(text):              text
         case let .targetChanged(text):         text
         case let .heldForManualCopy(text, _):  text
+        case let .review(text, _, _):          text
         case .capturing, .preparing, .applying, .success,
              .refused, .error, .stylePicker:   nil
         }
@@ -295,9 +334,17 @@ public extension PanelState {
         case let .readOnly(text):              text
         case let .targetChanged(text):         text
         case let .heldForManualCopy(text, _):  text
+        // Review holds one too, but ⌘C there copies whatever the user has
+        // selected in the editor, so the panel offers no Copy of its own.
         case .capturing, .preparing, .generating, .applying, .success,
-             .refused, .error, .stylePicker:   nil
+             .refused, .error, .stylePicker, .review:   nil
         }
+    }
+
+    /// The tracked changes to draw, in the changes view only.
+    var changes: [DiffSegment]? {
+        guard case let .review(text, original, true) = self else { return nil }
+        return WordDiff.segments(from: original, to: text)
     }
 
     var kind: PanelStateKind {
@@ -313,6 +360,7 @@ public extension PanelState {
         case .error:              .error
         case .stylePicker:        .stylePicker
         case .heldForManualCopy:  .heldForManualCopy
+        case .review:             .review
         }
     }
 }
