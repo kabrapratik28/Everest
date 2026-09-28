@@ -11,11 +11,13 @@ import SwiftUI
 /// server and a second application to point at, and is verified by hand.
 @MainActor
 public final class NSPanelSurface: PanelSurface {
-    /// A panel that cannot become key even by accident.
+    /// A panel that never activates, and becomes key only in review.
     ///
     /// If this window activates, the source application resigns active, its
     /// selection stops being a live selection, and the capture the whole
     /// product depends on returns an empty string. No crash, no log line.
+    /// Being key is a different thing, and review needs it for typing: a
+    /// non-activating panel can be key while the source app stays frontmost.
     private final class NonActivatingPanel: NSPanel {
         /// Set per state from `PanelState.acceptsKeyWindow`: true only in
         /// review, where the user types into the panel.

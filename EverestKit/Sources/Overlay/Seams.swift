@@ -28,8 +28,8 @@ public protocol PanelSurface: AnyObject {
     /// the document behind it, which is taller once the cap bites.
     /// `followsTail` asks the scroll position to stay pinned to the newest
     /// text — false once the user has scrolled up to read. `acceptsKey` is
-    /// `PanelState.acceptsKeyWindow`: true only in terminal states, where
-    /// taking focus no longer costs the user their selection.
+    /// `PanelState.acceptsKeyWindow`: true only in review, where the user
+    /// types; leaving review must hand focus back to the app underneath.
     func present(_ state: PanelState, layout: PanelLayout, followsTail: Bool, acceptsKey: Bool)
 
     /// Speak this to a screen reader.

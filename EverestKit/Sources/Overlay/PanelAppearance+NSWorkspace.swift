@@ -6,7 +6,8 @@ public extension PanelAppearance {
     /// Read from `NSWorkspace` rather than the SwiftUI environment. The
     /// environment values are populated for views inside an application's
     /// normal window hierarchy; this content lives in an `NSHostingView` in a
-    /// borderless panel that is never key and is not in a `WindowGroup`.
+    /// borderless panel that is not key outside review and is not in a
+    /// `WindowGroup`.
     /// `NSWorkspace` is where those environment values come from anyway, so
     /// reading the source removes a dependency that might not hold.
     ///

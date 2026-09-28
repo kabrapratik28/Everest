@@ -20,7 +20,12 @@ engine told to stop **and** its late output discarded — or a buffered
   write — by accident, and only while both presses resolved one `EngineID`.
 - **Capture before any panel, always** (root §7), read once into `pending`.
 - **`.finished` is the engine stopping, not the transaction ending**, so this
-  drives the terminal state; `Overlay` only maps it to `.applying`.
+  drives the terminal state; `Overlay` only maps it to `.applying`, which is
+  why review does not forward it: nothing is being replaced yet.
+- **Review parks the transaction in `pendingReview`**, the picker's `pending`
+  one step on: token carried, cleared by `supersede()`, so a late ↩ writes
+  nothing. `replace(_:)` writes the user's text exactly; the validator is for
+  model output, and this text is theirs once they have seen it.
 - **Every exit is terminal, including the empty stream.** The check above has
   already proved the transaction current, so a silent return on no
   `.finished` stranded the panel on "Rewriting" with nothing else coming.

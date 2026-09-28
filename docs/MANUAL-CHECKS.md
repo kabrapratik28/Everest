@@ -260,7 +260,7 @@ that produced the Alacritty bug.
     the border: the field name used to be only a placeholder, and placeholders
     disappear the moment there is content.
 36. **Both replacement toggles actually do something.** Settings ▸ General ▸
-    Replacing text. *Do:* with "Replace automatically" on, rewrite in a
+    Replacing text. *Do:* with "Paste for me where Everest can't type" on, rewrite in a
     terminal or PDF — the rewrite should paste itself rather than telling you
     to press ⌘V. Switch it off mid-session and rewrite again *without
     relaunching*: it must go back to handing you the clipboard, because both
@@ -295,3 +295,34 @@ that produced the Alacritty bug.
     after the update installs, press the hotkey. If macOS asks for
     Accessibility again, the designated requirement moved and every future
     update will silently break the app for everyone. Untested as of 0.1.1.
+
+## Review pane — two apps measured, the rest by hand
+
+*Measured 2026-09-28 on macOS 26.7, driven with synthetic keys against a
+scratch TextEdit document and a scratch Chrome textarea:* the pane took
+keyboard focus while the source app stayed frontmost; ⇥ flipped the stored
+view and back with the editor keeping focus; text typed into the pane was
+what ↩ wrote, 120 ms after ↩ in TextEdit (Accessibility write) and 282 ms in
+Chrome (paste route); esc left the page untouched and handed focus straight
+back; a drag was stored, and the next pane opened there, pulled 12 pt inside
+the visible frame because it had been dropped flush against a left-side Dock.
+
+42. **Slack: ↩ replaces and never sends.** The failure this whole design is
+    built against. *Do:* select a draft in Slack's composer, ⌥R, press ↩ in
+    the pane. The draft must change and no message may be sent. Then ⌥R
+    again, click into Slack's composer (the pane loses focus), press ↩
+    there: Slack's own Return, and the pane must not replace anything.
+43. **Google Docs and Sublime Text.** Both take the verified paste route
+    with no element to check. *Do:* rewrite a selection in each through the
+    pane and confirm it lands in place, not on the clipboard.
+44. **An input method.** *Do:* with Japanese (Romaji) input on, type into the
+    pane and press ↩ while the candidate bar is up. ↩ must commit the
+    composition; only a second ↩ replaces.
+45. **VoiceOver.** *Do:* with VoiceOver on, ⌥R. The announcement must name
+    Return and Escape, and the editor's text must be readable and editable.
+46. **Dragging mid-stream and in the picker.** *Do:* drag the panel while a
+    rewrite is streaming and while the style picker is up; both must move,
+    and the next panel must open where it was left.
+47. **"Replace my selection straight away" is the old flow exactly.**
+    *Do:* choose it in Settings ▸ General, ⌥R: no pane waits, the selection
+    is replaced as before.

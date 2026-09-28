@@ -3,7 +3,7 @@ import SwiftUI
 
 /// The numbered list behind the Choose Style hotkey.
 ///
-/// Not a `List(selection:)`. A non-activating panel is never key, so nothing in
+/// Not a `List(selection:)`. The picker's panel is never key, so nothing in
 /// it is ever first responder and a `List`'s selection never moves with the
 /// arrow keys. The highlight is a plain `Int` the controller owns and the key
 /// monitor moves.

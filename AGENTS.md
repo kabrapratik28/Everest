@@ -1,6 +1,6 @@
 # Everest — architecture and decisions
 
-Menu-bar app. Select text anywhere, press a hotkey, a local model streams a rewrite into a floating panel and replaces the selection. Nothing leaves the machine.
+Menu-bar app. Select text anywhere, press a hotkey, a local model streams a rewrite into a floating panel, and ↩ replaces the selection once the user has seen it (review, on by default; esc keeps the original). Nothing leaves the machine.
 
 macOS 15+, Apple Silicon. MLX floors at 14, but a transitive dependency uses **typed throws**, whose runtime entry point `_swift_willThrowTypedImpl` ships in macOS 15; a 14 build links it strongly, embeds no shim, and dyld kills it before `main`. Measured on an M1 running 14.6.1: no log, no window, no menu bar item. Apple's own model needs 26 and reports `.requiresNewerOS` below it. `⌥R` = Quick Improve (one prompt, one output). `⌥⇧R` = pick a style, then rewrite. Both configurable. Two keys, and `⌥` because `⌘`+letter steals a formatting command and `⌃`+letter steals emacs bindings and terminal control codes; `⌥R` only costs `®`. Never `⌥I`/`⌥E`/`⌥U`/`⌥N` — dead keys, they break accented typing.
 
@@ -105,14 +105,14 @@ Each caused a real defect. Each has a test. **And a user-facing cause carries it
 | Target revalidation before writing | 3s is long enough to click elsewhere. Wrong-target writes are unrecoverable. |
 | Range-derived capture → copy-only | A shifted range validates against itself; revalidation can't catch it. |
 | Never trim captured text | Silently alters what the user selected. |
-| Picker keys consumed by a `CGEventTap`, armed and torn down from `state.didSet` | A digit typed at the picker lands in the document about to be rewritten. Discipline instead of structure leaks a monitor or tap that then watches every keystroke forever. |
+| Picker keys consumed by a `CGEventTap`, armed and torn down from `state.didSet`; review's ↩ acted on only while the pane holds focus | A digit typed at the picker lands in the document about to be rewritten. Discipline instead of structure leaks a monitor or tap that then watches every keystroke forever. A Return typed into Slack after clicking away from the review pane replaces the selection there. |
 | Only the current transaction's original in memory | More is an undeclared history of private selections. |
 | No content in logs | Defeats the local-only premise. |
 
 ## 7. Platform facts
 
 - **Sandbox is off and the Mac App Store is impossible.** Sandboxed, `AXUIElementSetAttributeValue` and `AXUIElementCopyElementAtPosition` don't work even with permission granted, and `AXIsProcessTrusted()` is permanently false. Never add `com.apple.security.app-sandbox`.
-- **A non-activating panel is never key and receives no key events.** Escape needs an `NSEvent` monitor. "Fixing" it to a normal `NSWindow` destroys the selection.
+- **The panel is key only in review, and non-activating even then**, so the source app stays frontmost with a live selection. Everywhere else it receives no key events: Escape needs an `NSEvent` monitor. "Fixing" it to a normal `NSWindow` destroys the selection.
 - **A global monitor observes keys; only a `CGEventTap` consumes them.** The picker arms one, measured: without it `3` picks style 3 *and* types `3` into the frontmost app, destroying the selection. The tap needs the same signature-keyed permission and returns nil without it, so **still capture the selection before showing the picker** — one revoked grant and the old behaviour is back.
 - **`RewriteEvent.finished` ≠ transaction finished.** Validation and replacement still follow and can fail.
 - **Terminals, PDFs and web prose can't be replaced** — no editable buffer. Copy-only is correct behaviour, not a bug.

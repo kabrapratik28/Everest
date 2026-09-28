@@ -272,14 +272,9 @@ public extension PanelState {
         return "\(title). \(detail)"
     }
 
-    /// Whether the panel may take key status while showing this state.
-    ///
-    /// Non-activating is the default because activating makes the source app
-    /// resign and its selection stop being live. That is only worth protecting
-    /// while a write is still intended. Terminal states will never write, so
-    /// they can take focus — and taking focus is what lets ⌘C be consumed
-    /// rather than also reaching the frontmost app, whose own copy would land
-    /// after ours and overwrite the rewrite we just put on the clipboard.
+    /// Whether the panel may take key status while showing this state: in
+    /// review, where the user types, and nowhere else. The panel is
+    /// non-activating either way, so the source app stays frontmost.
     var acceptsKeyWindow: Bool {
         switch self {
         // Never, in any state. A key window receives *every* keystroke, and
