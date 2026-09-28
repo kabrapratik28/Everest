@@ -42,6 +42,28 @@ public final class AppSettings: ObservableObject {
         didSet { store.set(keepsOutOfClipboardHistory, forKey: Keys.keepsOutOfClipboardHistory) }
     }
 
+    /// Show the rewrite for review before it replaces anything. On by
+    /// default: a rewrite nobody has looked at should not reach a document
+    /// unless the user has asked for exactly that.
+    @Published public var reviewsBeforeReplacing: Bool {
+        didSet { store.set(reviewsBeforeReplacing, forKey: Keys.reviewsBeforeReplacing) }
+    }
+
+    /// Whether the review panel opens on the tracked changes rather than the
+    /// editable text. The panel's ⇥ flips it, and it sticks.
+    @Published public var showsChanges: Bool {
+        didSet { store.set(showsChanges, forKey: Keys.showsChanges) }
+    }
+
+    /// Where the panel was last dropped. `nil` until the user drags it, and
+    /// then the panel opens there rather than at its default place.
+    @Published public var panelAnchor: PanelAnchor? {
+        didSet {
+            if let panelAnchor { save(panelAnchor, forKey: Keys.panelAnchor) }
+            else { store.removeObject(forKey: Keys.panelAnchor) }
+        }
+    }
+
     private let store: UserDefaults
 
     private enum Keys {
@@ -51,6 +73,9 @@ public final class AppSettings: ObservableObject {
         static let excludedBundleIDs = "everest.settings.excludedBundleIDs"
         static let replacesAutomatically = "everest.settings.replacesAutomatically"
         static let keepsOutOfClipboardHistory = "everest.settings.keepsOutOfClipboardHistory"
+        static let reviewsBeforeReplacing = "everest.settings.reviewsBeforeReplacing"
+        static let showsChanges = "everest.settings.showsChanges"
+        static let panelAnchor = "everest.settings.panelAnchor"
     }
 
     public init(store: UserDefaults = .standard) {
@@ -88,6 +113,9 @@ public final class AppSettings: ObservableObject {
 
         self.replacesAutomatically = Self.flag(store, Keys.replacesAutomatically, default: true)
         self.keepsOutOfClipboardHistory = Self.flag(store, Keys.keepsOutOfClipboardHistory, default: true)
+        self.reviewsBeforeReplacing = Self.flag(store, Keys.reviewsBeforeReplacing, default: true)
+        self.showsChanges = Self.flag(store, Keys.showsChanges, default: false)
+        self.panelAnchor = Self.load(PanelAnchor.self, from: store, forKey: Keys.panelAnchor)
     }
 
     /// `bool(forKey:)` answers `false` for a key that was never written, so

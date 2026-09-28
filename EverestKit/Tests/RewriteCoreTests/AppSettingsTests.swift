@@ -27,3 +27,29 @@ func appSettingsRoundTripsThroughInjectedStore() {
     #expect(reloaded.styles == customStyles)
     #expect(reloaded.excludedBundleIDs == customExcluded)
 }
+
+/// Review defaults on, because a rewrite nobody has seen should not reach a
+/// document by default; once turned off it must stay off across launches,
+/// which `flag(_:_:default:)` exists to guarantee. The view choice and the
+/// panel's place are remembered the same way.
+@Test("review defaults on and stays off once turned off; the view and the panel's place survive a relaunch")
+@MainActor
+func reviewSettingsDefaultAndPersist() {
+    let suiteName = "com.kabrapratik.Everest.tests.\(UUID().uuidString)"
+    let store = UserDefaults(suiteName: suiteName)!
+    defer { store.removePersistentDomain(forName: suiteName) }
+
+    let fresh = AppSettings(store: store)
+    #expect(fresh.reviewsBeforeReplacing)
+    #expect(fresh.showsChanges == false)
+    #expect(fresh.panelAnchor == nil)
+
+    fresh.reviewsBeforeReplacing = false
+    fresh.showsChanges = true
+    fresh.panelAnchor = PanelAnchor(x: 0.8, y: 0.25, pinsTop: false)
+
+    let relaunched = AppSettings(store: store)
+    #expect(relaunched.reviewsBeforeReplacing == false)
+    #expect(relaunched.showsChanges)
+    #expect(relaunched.panelAnchor == PanelAnchor(x: 0.8, y: 0.25, pinsTop: false))
+}
