@@ -88,6 +88,9 @@ struct ScreenshotGenerator {
             // Reduce Transparency + Increase Contrast, to prove the
             // accessibility path renders and is not an untested branch.
             ("14-accessible-contrast",  .generating(text: Self.longText), accessible, .dark),
+            // The edit view is an `NSTextView`, which `ImageRenderer` cannot
+            // rasterise, so only the changes view is shot here.
+            ("15-review-changes",       .review(text: Self.longText, original: Self.longText.lowercased().replacingOccurrences(of: "I would rather", with: "id rather"), showsChanges: true), plain, .dark),
         ]
 
         var written: [String] = []
@@ -98,7 +101,10 @@ struct ScreenshotGenerator {
                 highlightedStyleIndex: 0,
                 onCopy: {},
                 onCancel: {},
-                onPickStyle: { _ in }
+                onPickStyle: { _ in },
+                onReplace: {},
+                onToggleChanges: {},
+                editor: EditorSlot()
             )
             .frame(width: Self.panelWidth)
             // The real chrome lives in NSPanelSurface, not in RewriteView:

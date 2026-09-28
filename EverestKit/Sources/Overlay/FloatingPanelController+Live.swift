@@ -34,6 +34,9 @@ public extension FloatingPanelController {
         surface.onCopy = { [weak controller] in controller?.copy() }
         surface.onCancel = { [weak controller] in controller?.cancel() }
         surface.onPickStyle = { [weak controller] index in controller?.pickStyle(at: index) }
+        surface.onReplace = { [weak controller] in controller?.replace() }
+        surface.onToggleChanges = { [weak controller] in controller?.toggleChanges() }
+        surface.onMove = { [weak controller] frame in controller?.moved(to: frame) }
         surface.onScroll = { [weak controller] isAtBottom in
             controller?.userScrolled(isAtBottom: isAtBottom)
         }

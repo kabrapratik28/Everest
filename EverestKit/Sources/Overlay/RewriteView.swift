@@ -13,6 +13,10 @@ struct RewriteView: View {
     let onCopy: @MainActor () -> Void
     let onCancel: @MainActor () -> Void
     let onPickStyle: @MainActor (Int) -> Void
+    let onReplace: @MainActor () -> Void
+    let onToggleChanges: @MainActor () -> Void
+    /// Where the review editor registers itself for the surface to read.
+    let editor: EditorSlot
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -25,6 +29,8 @@ struct RewriteView: View {
                     appearance: appearance,
                     onPick: onPickStyle
                 )
+            } else if case .review = state {
+                ReviewBody(state: state, editor: editor, appearance: appearance)
             } else if let bodyText = state.bodyText {
                 Text(bodyText)
                     .font(.body)
@@ -34,9 +40,14 @@ struct RewriteView: View {
             }
 
             if !state.keyHints.isEmpty {
+                // ⇥ changes what the panel shows rather than answering it, so
+                // it sits apart on the left; the answers stay right-aligned.
                 HStack(spacing: 12) {
+                    ForEach(state.keyHints.filter { $0.performs == .toggleChanges }, id: \.keys) { hint in
+                        keycap(hint)
+                    }
                     Spacer(minLength: 0)
-                    ForEach(state.keyHints, id: \.keys) { hint in
+                    ForEach(state.keyHints.filter { $0.performs != .toggleChanges }, id: \.keys) { hint in
                         keycap(hint)
                     }
                 }
@@ -46,6 +57,18 @@ struct RewriteView: View {
         // long URL is tested against is the width it is actually drawn at.
         .padding(PanelGeometry.contentPadding)
         .frame(width: PanelGeometry.preferredWidth, alignment: .leading)
+        // The whole panel drags, in every state; the editor keeps its own
+        // mouse for selecting text. The handle only says so.
+        .contentShape(Rectangle())
+        .gesture(WindowDragGesture())
+        .allowsWindowActivationEvents(true)
+        .overlay(alignment: .top) {
+            Capsule()
+                .fill(.tertiary)
+                .frame(width: 36, height: 4)
+                .padding(.top, 6)
+                .accessibilityHidden(true)
+        }
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Everest")
         .accessibilityValue(state.accessibilityValue)
@@ -74,27 +97,38 @@ struct RewriteView: View {
     }
 
     private func badge(_ hint: KeyHint) -> some View {
-        HStack(spacing: 4) {
+        // ↩ Replace is the answer the review panel is waiting for, so it is
+        // drawn as one: a filled keycap and a heavier label. Shape and
+        // weight carry it, as with every other badge; the fill is extra.
+        let primary = hint.performs == .replace
+        return HStack(spacing: 4) {
                 Text(hint.keys)
-                    .font(.caption.weight(.medium))
+                    .font(.caption.weight(primary ? .bold : .medium))
                     .monospaced()
                     .padding(.horizontal, 5)
                     .padding(.vertical, 1)
+                    .foregroundStyle(primary ? AnyShapeStyle(Color.white) : secondaryStyle)
+                    .background(
+                        RoundedRectangle(cornerRadius: 4)
+                            .fill(primary ? AnyShapeStyle(.tint) : AnyShapeStyle(Color.clear))
+                    )
                     .overlay(
                         RoundedRectangle(cornerRadius: 4)
                             .strokeBorder(.separator, lineWidth: appearance.borderWidth)
                     )
                 Text(hint.action)
-                    .font(.caption)
+                    .font(.caption.weight(primary ? .semibold : .regular))
+                    .foregroundStyle(primary ? AnyShapeStyle(.primary) : secondaryStyle)
             }
             .contentShape(Rectangle())
-            .foregroundStyle(
-                appearance.dimsSecondaryText ? AnyShapeStyle(.secondary) : AnyShapeStyle(.primary)
-            )
             // The badge is decoration for the eye. A screen reader hears the
             // key equivalent through the standard mechanism, and "Copy command
             // C" read as a label is noise.
             .accessibilityHidden(true)
+    }
+
+    private var secondaryStyle: AnyShapeStyle {
+        appearance.dimsSecondaryText ? AnyShapeStyle(.secondary) : AnyShapeStyle(.primary)
     }
 
     private func perform(_ action: PanelKeyAction) {
@@ -103,7 +137,8 @@ struct RewriteView: View {
         case .cancel:  onCancel()
         // Never produced by `keyHints`; the picker's keys have their own rows.
         case .pickStyle, .commitHighlightedStyle, .moveHighlight: break
-        case .replace, .toggleChanges: break
+        case .replace: onReplace()
+        case .toggleChanges: onToggleChanges()
         }
     }
 

@@ -17,8 +17,8 @@ public final class NSPanelSurface: PanelSurface {
     /// selection stops being a live selection, and the capture the whole
     /// product depends on returns an empty string. No crash, no log line.
     private final class NonActivatingPanel: NSPanel {
-        /// Set per state from `PanelState.acceptsKeyWindow`. False for every
-        /// state where a write is still intended, which is the default.
+        /// Set per state from `PanelState.acceptsKeyWindow`: true only in
+        /// review, where the user types into the panel.
         var acceptsKey = false
 
         override var canBecomeKey: Bool { acceptsKey }
@@ -39,6 +39,11 @@ public final class NSPanelSurface: PanelSurface {
     public var onCopy: (@MainActor () -> Void)?
     public var onCancel: (@MainActor () -> Void)?
     public var onPickStyle: (@MainActor (Int) -> Void)?
+    public var onReplace: (@MainActor () -> Void)?
+    public var onToggleChanges: (@MainActor () -> Void)?
+    /// Every move of the window, the ones `present` makes included; telling
+    /// the user's drags apart is the controller's job.
+    public var onMove: (@MainActor (CGRect) -> Void)?
     /// Reports whether the user is at the bottom, so tail-following can stop
     /// when they scroll up to read and resume when they come back.
     public var onScroll: (@MainActor (Bool) -> Void)?
@@ -49,6 +54,10 @@ public final class NSPanelSurface: PanelSurface {
     /// nothing holds the means to unregister it. A bare `addObserver` here
     /// would be the key-monitor hazard one layer over.
     private var scrollObserver: KeyMonitorHandle?
+    /// Same ownership rule, for the move observer.
+    private var moveObserver: KeyMonitorHandle?
+    /// The review editor, while one is up.
+    private let editor = EditorSlot()
 
     public init() {
         panel = NonActivatingPanel(
@@ -70,7 +79,9 @@ public final class NSPanelSurface: PanelSurface {
         panel.hidesOnDeactivate = false
         panel.becomesKeyOnlyIfNeeded = true
         panel.isExcludedFromWindowsMenu = true
-        panel.isMovable = false
+        // Draggable in every state; where it is dropped is remembered.
+        panel.isMovable = true
+        panel.isMovableByWindowBackground = true
         panel.animationBehavior = .none
 
         // The background is behind the scroll view, not inside it. Scrolling
@@ -116,6 +127,20 @@ public final class NSPanelSurface: PanelSurface {
             NotificationCenter.default.removeObserver(token)
         }
 
+        let moveToken = NotificationCenter.default.addObserver(
+            forName: NSWindow.didMoveNotification,
+            object: panel,
+            queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                self.onMove?(self.panel.frame)
+            }
+        }
+        moveObserver = KeyMonitorHandle {
+            NotificationCenter.default.removeObserver(moveToken)
+        }
+
         let content = NSView()
         content.addSubview(backgroundView)
         content.addSubview(scrollView)
@@ -158,6 +183,10 @@ public final class NSPanelSurface: PanelSurface {
         followsTail: Bool,
         acceptsKey: Bool
     ) {
+        // Leaving review: give focus back to the app underneath first, so the
+        // write that follows ↩ finds it listening. Ordering out is the only
+        // way to resign key; the panel comes straight back below, not key.
+        if !acceptsKey, panel.isKeyWindow { panel.orderOut(nil) }
         panel.acceptsKey = acceptsKey
         hostingView.rootView = view(for: state)
         // The width is a constant size on the hosting view rather than pinned
@@ -180,7 +209,12 @@ public final class NSPanelSurface: PanelSurface {
         // deferred until the app is next activated.
         panel.orderFrontRegardless()
 
-        // Nothing calls `makeKey()`. It was called here, to let the local
+        // Review only, where the editor needs the keystrokes. The panel is
+        // non-activating, so the app underneath stays frontmost and keeps its
+        // selection for the write.
+        if acceptsKey { panel.makeKey() }
+
+        // Nothing else calls `makeKey()`. It was called here, to let the local
         // monitor consume ⌘C, and it worked — but a key window takes *every*
         // keystroke, and this panel answers none of them, so ⌘V vanished
         // while the panel was up. Measured against TextEdit: with `makeKey()`
@@ -221,11 +255,9 @@ public final class NSPanelSurface: PanelSurface {
 
     public var hasKeyFocus: Bool { panel.isKeyWindow }
 
-    public var isComposingText: Bool {
-        (panel.firstResponder as? NSTextView)?.hasMarkedText() ?? false
-    }
+    public var isComposingText: Bool { editor.textView?.hasMarkedText() ?? false }
 
-    public var reviewText: String? { nil }
+    public var reviewText: String? { editor.textView?.string }
 
     private func view(for state: PanelState) -> AnyView {
         AnyView(
@@ -235,7 +267,10 @@ public final class NSPanelSurface: PanelSurface {
                 highlightedStyleIndex: highlightedStyleIndex,
                 onCopy: { [weak self] in self?.onCopy?() },
                 onCancel: { [weak self] in self?.onCancel?() },
-                onPickStyle: { [weak self] index in self?.onPickStyle?(index) }
+                onPickStyle: { [weak self] index in self?.onPickStyle?(index) },
+                onReplace: { [weak self] in self?.onReplace?() },
+                onToggleChanges: { [weak self] in self?.onToggleChanges?() },
+                editor: editor
             )
         )
     }

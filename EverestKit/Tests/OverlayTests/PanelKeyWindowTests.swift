@@ -15,21 +15,22 @@ import Testing
 struct PanelKeyWindowTests {
     static let screen = CGRect(x: 0, y: 0, width: 1728, height: 1079)
 
-    /// The panel never takes key status, in any state.
+    /// The panel takes key status in review and nowhere else.
     ///
     /// It did, briefly, in terminal states — that was how ⌘C was consumed
     /// before the tap existed. But a key window receives *every* keystroke,
-    /// and this one has no responder to answer them, so ⌘V died in an empty
-    /// chain: the state whose own detail line reads "paste it where you want
-    /// it" was the state preventing the paste. Measured against TextEdit —
-    /// with `makeKey()`, ⌘V put nothing in the document; without it, the
+    /// and those states have no responder to answer them, so ⌘V died in an
+    /// empty chain: the state whose own detail line reads "paste it where you
+    /// want it" was the state preventing the paste. Measured against TextEdit
+    /// — with `makeKey()`, ⌘V put nothing in the document; without it, the
     /// clipboard pasted.
     ///
-    /// Consumption belongs to `CGEventTapKeyInterceptor`, which takes exactly
-    /// the keys it acts on and leaves ⌘V alone. A key window cannot do that,
-    /// which is why nothing here is ever key again.
-    @Test("no state takes key status, so the app underneath keeps its own keystrokes")
-    func noStateTakesKeyStatus() {
+    /// Review is the exception because it is the same fact turned round: the
+    /// user types into it, so every keystroke is exactly what it needs. And
+    /// leaving review must hand focus back, or the write that follows ↩ lands
+    /// on an app that is not listening.
+    @Test("only review takes key status, and leaving it gives the focus back")
+    func onlyReviewTakesKeyStatus() {
         let surface = NSPanelSurface()
         defer { surface.hide() }
         let layout = PanelGeometry.layout(contentHeight: 120, in: Self.screen)
@@ -50,5 +51,13 @@ struct PanelKeyWindowTests {
             )
             #expect(NSApplication.shared.keyWindow == nil, "\(state.kind)")
         }
+
+        // The positive control, and the one exception.
+        let review = PanelState.review(text: "the rewrite", original: "the original", showsChanges: false)
+        surface.present(review, layout: layout, followsTail: false, acceptsKey: review.acceptsKeyWindow)
+        #expect(NSApplication.shared.keyWindow != nil)
+
+        surface.present(.applying, layout: layout, followsTail: false, acceptsKey: PanelState.applying.acceptsKeyWindow)
+        #expect(NSApplication.shared.keyWindow == nil)
     }
 }
