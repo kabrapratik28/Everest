@@ -1100,8 +1100,8 @@ struct FloatingPanelControllerTests {
         #expect(replaced.value == "typed again")
     }
 
-    @Test("Tab switches the view, carries the edits across, and reports the choice")
-    func tabTogglesTheView() {
+    @Test("⌘D switches the view, carries the edits across, and reports the choice")
+    func commandDTogglesTheView() {
         let monitor = SpyKeyMonitor()
         let surface = SpySurface()
         let controller = makeController(surface: surface, keyMonitor: monitor)
@@ -1112,7 +1112,7 @@ struct FloatingPanelControllerTests {
         surface.hasKeyFocus = true
         surface.reviewText = "edited"
 
-        #expect(monitor.send(PanelKeyMapTests.tab))
+        #expect(monitor.send(PanelKeyMapTests.commandD))
         #expect(surface.presented.last?.state == .review(text: "edited", original: "the original", showsChanges: true))
         #expect(shows.value == true)
     }

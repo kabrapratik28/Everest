@@ -50,7 +50,7 @@ public final class AppSettings: ObservableObject {
     }
 
     /// Whether the review panel opens on the tracked changes rather than the
-    /// editable text. The panel's ⇥ flips it, and it sticks.
+    /// editable text. The panel's ⌘D flips it, and it sticks.
     @Published public var showsChanges: Bool {
         didSet { store.set(showsChanges, forKey: Keys.showsChanges) }
     }

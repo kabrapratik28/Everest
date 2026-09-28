@@ -10,7 +10,7 @@ public final class FloatingPanelController {
     public var onCopy: (@MainActor (String) -> Bool)?
     /// Review's ↩, with the text as the user left it.
     public var onReplace: (@MainActor (String) -> Void)?
-    /// Review's ⇥, with the view it switched to: true for the changes.
+    /// Review's ⌘D, with the view it switched to: true for the changes.
     public var onToggleChanges: (@MainActor (Bool) -> Void)?
     /// Where the user dropped the panel, so it can be remembered.
     public var onAnchorChanged: (@MainActor (PanelAnchor) -> Void)?
@@ -190,7 +190,7 @@ public final class FloatingPanelController {
         onReplace?(current)
     }
 
-    /// Review's ⇥, or a click on its hint: the other view, with any edits
+    /// Review's ⌘D, or a click on its hint: the other view, with any edits
     /// carried across, and the choice reported so it can be remembered.
     public func toggleChanges() {
         guard !reviewIsSpent, case let .review(text, original, showsChanges) = state else { return }

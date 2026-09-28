@@ -285,17 +285,17 @@ struct PanelStateTests {
         }
     }
 
-    /// ⇥ leads the row because it changes what the panel shows rather than
+    /// ⌘D leads the row because it changes what the panel shows rather than
     /// answering it; ↩ ends it. ⇧↩ is only true while there is an editor.
-    @Test("review offers ⇥, esc and ↩, and ⇧↩ only while editing")
+    @Test("review offers ⌘D, esc and ↩, and ⇧↩ only while editing")
     func reviewHints() {
         let editing = PanelState.review(text: "t", original: "o", showsChanges: false).keyHints
-        #expect(editing.map(\.keys) == ["⇥", "⇧↩", "esc", "↩"])
+        #expect(editing.map(\.keys) == ["⌘D", "⇧↩", "esc", "↩"])
         #expect(editing.map(\.performs) == [.toggleChanges, nil, .cancel, .replace])
         #expect(editing.map(\.action) == ["Show changes", "New line", "Keep original", "Replace"])
 
         let changes = PanelState.review(text: "t", original: "o", showsChanges: true).keyHints
-        #expect(changes.map(\.keys) == ["⇥", "esc", "↩"])
+        #expect(changes.map(\.keys) == ["⌘D", "esc", "↩"])
         #expect(changes.first?.action == "Hide changes")
     }
 

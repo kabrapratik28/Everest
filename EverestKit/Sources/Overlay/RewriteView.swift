@@ -40,7 +40,7 @@ struct RewriteView: View {
             }
 
             if !state.keyHints.isEmpty {
-                // ⇥ changes what the panel shows rather than answering it, so
+                // ⌘D changes what the panel shows rather than answering it, so
                 // it sits apart on the left; the answers stay right-aligned.
                 HStack(spacing: 12) {
                     ForEach(state.keyHints.filter { $0.performs == .toggleChanges }, id: \.keys) { hint in

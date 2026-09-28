@@ -161,7 +161,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         panel.onCancel = { [coordinator] in Task { await coordinator.cancel() } }
         panel.onPickStyle = { [coordinator] preset in Task { await coordinator.pickStyle(preset) } }
         panel.onCopy = { [weak self] text in self?.copyToPasteboard(text) ?? false }
-        // Review: ↩ writes the text as the user left it. The view ⇥ chose and
+        // Review: ↩ writes the text as the user left it. The view ⌘D chose and
         // the place the panel was dropped are kept in Settings, and the place
         // is handed back here so the first panel after a launch opens there.
         panel.onReplace = { [coordinator] text in Task { await coordinator.replace(text) } }

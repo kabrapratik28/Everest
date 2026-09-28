@@ -19,7 +19,6 @@ public struct Keystroke: Equatable, Sendable {
     public static let returnKeyCode: UInt16 = 36
     public static let upArrowKeyCode: UInt16 = 126
     public static let downArrowKeyCode: UInt16 = 125
-    public static let tabKeyCode: UInt16 = 48
 
     public let keyCode: UInt16
     public let characters: String
@@ -62,13 +61,13 @@ public enum PanelKeyMap {
     public static func action(for keystroke: Keystroke, in state: PanelState) -> PanelKeyAction? {
         if keystroke.keyCode == Keystroke.escapeKeyCode { return .cancel }
 
-        // Bare only: ⇧↩ is the editor's new line, and everything else in
-        // review is the user typing into it. Whether the pane may act on
-        // these at all is the controller's call, made on focus.
+        // ↩ bare only, since ⇧↩ is the editor's new line; ⌘D (D for diff)
+        // with exactly ⌘, matched by character like ⌘C. Everything else in
+        // review, Tab included, is the user typing. Whether the pane may act
+        // on these at all is the controller's call, made on focus.
         if case .review = state {
-            guard keystroke.isPlain else { return nil }
-            if keystroke.keyCode == Keystroke.returnKeyCode { return .replace }
-            if keystroke.keyCode == Keystroke.tabKeyCode { return .toggleChanges }
+            if keystroke.isPlain, keystroke.keyCode == Keystroke.returnKeyCode { return .replace }
+            if keystroke.modifiers == .command, keystroke.characters.lowercased() == "d" { return .toggleChanges }
             return nil
         }
 

@@ -80,10 +80,10 @@ public extension PanelState {
     /// instead. The arrows were unmentioned too.
     var keyHints: [KeyHint] {
         // Listed, like the picker's: esc here keeps the original rather than
-        // cancelling anything, and ⇥ leads because it changes the view
+        // cancelling anything, and ⌘D leads because it changes the view
         // rather than answering the panel.
         if case let .review(_, _, showsChanges) = self {
-            var hints = [KeyHint(keys: "⇥", action: showsChanges ? "Hide changes" : "Show changes", performs: .toggleChanges)]
+            var hints = [KeyHint(keys: "⌘D", action: showsChanges ? "Hide changes" : "Show changes", performs: .toggleChanges)]
             if !showsChanges { hints.append(KeyHint(keys: "⇧↩", action: "New line", performs: nil)) }
             hints.append(KeyHint(keys: "esc", action: "Keep original", performs: .cancel))
             hints.append(KeyHint(keys: "↩", action: "Replace", performs: .replace))

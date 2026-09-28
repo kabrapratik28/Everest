@@ -9,7 +9,11 @@ struct PanelKeyMapTests {
     static let arrowUp = Keystroke(keyCode: Keystroke.upArrowKeyCode, characters: "\u{F700}", modifiers: [])
     static let arrowDown = Keystroke(keyCode: Keystroke.downArrowKeyCode, characters: "\u{F701}", modifiers: [])
 
-    static let tab = Keystroke(keyCode: Keystroke.tabKeyCode, characters: "\t", modifiers: [])
+    /// A literal key code: nothing in production names Tab any more.
+    static let tab = Keystroke(keyCode: 48, characters: "\t", modifiers: [])
+    /// Matched by character, like ⌘C, so the key code is incidental.
+    static let commandD = Keystroke(keyCode: 2, characters: "d", modifiers: .command)
+    static let commandShiftD = Keystroke(keyCode: 2, characters: "D", modifiers: [.command, .shift])
     static let shiftEnter = Keystroke(keyCode: Keystroke.returnKeyCode, characters: "\r", modifiers: .shift)
 
     /// Matched by character, not key code, so a keyCode of 0 is deliberate.
@@ -39,18 +43,21 @@ struct PanelKeyMapTests {
         Preset(name: "Style \($0)", subtitle: "sub \($0)", instruction: "do \($0)")
     }
 
-    /// Return and Tab answer the review panel only bare: ⇧↩ is the editor's
-    /// new line, letters are the user typing, and ⌘C copies inside the editor.
-    @Test("in review, bare Return replaces and bare Tab switches the view; everything else is the editor's")
+    /// ↩ answers the review panel only bare, and ⌘D (D for diff) only with
+    /// exactly ⌘. ⇧↩ is the editor's new line, Tab and letters are the user
+    /// typing, and ⌘C copies inside the editor.
+    @Test("in review, bare Return replaces and ⌘D switches the view; everything else is the editor's")
     func reviewKeys() {
         let review = PanelState.review(text: "t", original: "o", showsChanges: false)
         #expect(PanelKeyMap.action(for: Self.enter, in: review) == .replace)
-        #expect(PanelKeyMap.action(for: Self.tab, in: review) == .toggleChanges)
+        #expect(PanelKeyMap.action(for: Self.commandD, in: review) == .toggleChanges)
         #expect(PanelKeyMap.action(for: Self.escape, in: review) == .cancel)
         #expect(PanelKeyMap.action(for: Self.shiftEnter, in: review) == nil)
+        #expect(PanelKeyMap.action(for: Self.commandShiftD, in: review) == nil)
+        #expect(PanelKeyMap.action(for: Self.tab, in: review) == nil)
         #expect(PanelKeyMap.action(for: Self.bareZ, in: review) == nil)
         #expect(PanelKeyMap.action(for: Self.commandC, in: review) == nil)
-        #expect(PanelKeyMap.action(for: Self.tab, in: .generating(text: "half")) == nil)
+        #expect(PanelKeyMap.action(for: Self.commandD, in: .generating(text: "half")) == nil)
     }
 
     @Test("Escape cancels from every state")
@@ -82,7 +89,7 @@ struct PanelKeyMapTests {
     /// The monitors stay armed for the whole transaction, not just while the
     /// picker is up, so this map sees every keystroke typed anywhere during a
     /// rewrite. Only Escape may mean something outside the picker, apart
-    /// from the review pane's own ↩ and ⇥, which `reviewKeys` covers.
+    /// from the review pane's own ↩ and ⌘D, which `reviewKeys` covers.
     @Test("the picker's keys do nothing when the picker is not up")
     func pickerKeysDoNothingOutsideThePicker() {
         for state in PanelStateTests.samples where state.kind != .stylePicker {

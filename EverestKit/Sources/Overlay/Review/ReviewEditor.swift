@@ -13,7 +13,7 @@ final class EditorSlot {
 /// A plain `NSTextView`, not SwiftUI's `TextEditor`: the controller must know
 /// when an input method is composing, because Return then commits the
 /// composition, and only the AppKit view can say (`hasMarkedText`). Keys are
-/// not handled here. ↩, ⇥ and esc reach the controller through the key
+/// not handled here. ↩, ⌘D and esc reach the controller through the key
 /// monitor first; everything else is ordinary typing.
 struct ReviewEditor: NSViewRepresentable {
     let text: String

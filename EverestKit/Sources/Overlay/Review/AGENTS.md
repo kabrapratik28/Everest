@@ -8,13 +8,13 @@ A key window receives every keystroke. That is why no other state may be key (`O
 
 It is safe only because nothing is read or written while the pane is key. Capture happened before the rewrite. On ↩ the surface orders the panel out before drawing `.applying`, the only way to resign key, and `ReplacementService` waits up to 500 ms for the target app to report a focused element again before its validator runs, unchanged and with the final word. The panel is non-activating, so the target app stays frontmost the whole time and `TargetValidator`'s frontmost check holds. If focus does not come back in time the validator refuses and the rewrite goes to the clipboard under "Press ⌘V to paste your rewrite": degraded, never lost. `PanelKeyWindowTests` is the one test that can see this: the real panel is key in review and not key once `.applying` is drawn. *Measured 2026-09-28, macOS 26.7: frontmost stayed the source app while the pane was key; ↩ to replaced text took 120 ms in TextEdit (Accessibility write) and 282 ms in a Chrome textarea (paste route); `docs/MANUAL-CHECKS.md` has the apps still to check.*
 
-## ↩ and ⇥ go through the key monitor, and only with focus
+## ↩ and ⌘D go through the key monitor, and only with focus
 
 Same path as every other key: monitor, `PanelKeyMap`, controller, so the mapping is tested. The local monitor sees them before the editor and swallows them, which is why ↩ never lands as a new line; ⇧↩ is left alone and does.
 
 The global monitor also reports keys typed in other apps. A Return typed into Slack after the user clicked away must reach Slack and replace nothing, so review's keys act only while `surface.hasKeyFocus`. Nor while an input method is composing (`isComposingText`), where Return commits the composition. esc works from anywhere, as in every state: a leaked Escape is harmless.
 
-⇥ switches views because the pane has nothing else for Tab to move to, and a tab character in a rewrite is rare.
+⌘D (D for diff) switches views. It was ⇥ first, and a ⇥ keycap told nobody which key it was; a letter with ⌘ reads at a glance and never types into the editor, so Tab is ordinary typing again.
 
 ## One answer per review
 
@@ -24,7 +24,7 @@ The global monitor also reports keys typed in other apps. A Return typed into Sl
 
 `WordDiff` splits on words *with* their trailing whitespace and compares them without it, so a changed line break is not a changed word, and the kept and added runs join back into the rewrite byte for byte. Built on the stdlib's `difference(from:by:)`; no dependency. Removed runs come before added runs at each change, the order people read track changes in.
 
-Struck through for removed, underlined for added, colour on top, so the marks survive a reader who cannot tell the red from the green. Read-only: ⇥ goes back to the editor with any edits intact. Typing in the changes view to switch automatically would mean mapping the diff's offsets back onto the text, and nobody has asked for it.
+Struck through for removed, underlined for added, colour on top, so the marks survive a reader who cannot tell the red from the green. Read-only: ⌘D goes back to the editor with any edits intact. Typing in the changes view to switch automatically would mean mapping the diff's offsets back onto the text, and nobody has asked for it.
 
 ## The editor
 
@@ -32,4 +32,4 @@ Struck through for removed, underlined for added, colour on top, so the marks su
 
 ## Tests
 
-`PanelStateTests` (review holds the rewrite, takes key, hints), `PanelKeyMapTests.reviewKeys`, `FloatingPanelControllerTests` (focus and composition gate with positive controls, one answer, empty text, ⇥ carrying edits, drops), `PanelKeyWindowTests` (the real window), `WordDiffTests`. Everything else here is hand-checked: `docs/MANUAL-CHECKS.md`.
+`PanelStateTests` (review holds the rewrite, takes key, hints), `PanelKeyMapTests.reviewKeys`, `FloatingPanelControllerTests` (focus and composition gate with positive controls, one answer, empty text, ⌘D carrying edits, drops), `PanelKeyWindowTests` (the real window), `WordDiffTests`. Everything else here is hand-checked: `docs/MANUAL-CHECKS.md`.
