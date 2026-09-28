@@ -7,14 +7,25 @@
 /// Privacy screen said text goes "Nowhere" and that was false; this is the
 /// same trap with a different mechanism.
 public enum ReplacementCopy {
-    /// Under "Replace automatically".
+    /// Under "When a rewrite is ready".
     ///
-    /// Says what **off** does, because the label does not. "Replace
-    /// automatically" reads as replace-versus-do-not, which is not the
-    /// choice on offer: Everest replaces either way. The switch decides
-    /// whether it posts the paste itself or hands over the clipboard and
-    /// says so, and naming the clipboard is the only thing that makes the
-    /// off state legible.
+    /// Names both answers, because the choice is really between seeing the
+    /// rewrite first and not, and what the panel asks of you is the part a
+    /// label cannot carry. The keys are the review panel's own and fixed, so
+    /// writing them down cannot go stale the way a recordable hotkey did.
+    public static let reviewExplanation = """
+        Review shows the rewrite in the panel so you can edit it. \
+        ↩ replaces your selection, esc keeps your original text.
+        """
+
+    /// Under "Paste for me where Everest can't type".
+    ///
+    /// Says what **off** does. The label used to be "Replace automatically",
+    /// which read as replace-versus-do-not; that was never the choice on
+    /// offer, and next to the review setting it read as review's opposite.
+    /// Everest replaces either way. The switch decides whether it posts the
+    /// paste itself or hands over the clipboard and says so, and naming the
+    /// clipboard is the only thing that makes the off state legible.
     ///
     /// "Where it can" is doing real work and must not become "always".
     /// Auto-replace is only reached once writing in place has already

@@ -26,10 +26,12 @@ func theHistoryCaveatDoesNotOverclaim() {
 /// A toggle has to say what turning it **off** does, or nobody can tell what
 /// they are switching away from.
 ///
-/// "Replace automatically" reads as "replace text" versus "do not", which is
-/// not the choice. Everest replaces either way; the switch decides whether it
-/// posts the paste for you or hands you the clipboard and says so. Naming the
-/// clipboard is what makes the off state legible.
+/// Its old label, "Replace automatically", read as "replace text" versus "do
+/// not", which is not the choice, and next to review it read as the opposite
+/// of review; it is now "Paste for me where Everest can't type". Everest
+/// replaces either way; the switch decides whether it posts the paste for you
+/// or hands you the clipboard and says so. Naming the clipboard is what makes
+/// the off state legible.
 ///
 /// It must also not promise pasting everywhere. Auto-replace only reaches the
 /// cases where writing in place already failed, and not even all of those.
@@ -101,4 +103,14 @@ func theReplacementSettingsDefaultOn() {
     let relaunched = AppSettings(store: store)
     #expect(relaunched.replacesAutomatically == false)
     #expect(relaunched.keepsOutOfClipboardHistory == false)
+}
+
+/// Said under "When a rewrite is ready". The keys are fixed, not
+/// user-recordable, so naming them cannot go stale the way a hotkey glyph did.
+@Test("the review explanation names the keys that answer the panel")
+func reviewExplanationNamesTheKeys() {
+    let explanation = ReplacementCopy.reviewExplanation
+    #expect(explanation.contains("↩"))
+    #expect(explanation.contains("esc"))
+    #expect(explanation.localizedCaseInsensitiveContains("edit"))
 }

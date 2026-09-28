@@ -109,12 +109,23 @@ private struct GeneralTab: View {
                 }
             }
 
-            // All three sentences are `ReplacementCopy`, pinned by tests in
+            // Every sentence here is `ReplacementCopy`, pinned by tests in
             // `AppCore`. The history caveat especially: `TransientType` is a
             // convention managers opt into, and a toggle implying macOS
             // enforces it would be the Privacy screen's "Nowhere" again.
             Section("Replacing text") {
-                Toggle("Replace automatically", isOn: $settings.replacesAutomatically)
+                Picker("When a rewrite is ready", selection: $settings.reviewsBeforeReplacing) {
+                    Text("Let me review it first (Recommended)").tag(true)
+                    Text("Replace my selection straight away").tag(false)
+                }
+                .pickerStyle(.radioGroup)
+                Text(ReplacementCopy.reviewExplanation)
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+
+                // Was "Replace automatically", which next to review read as
+                // its opposite. It only ever decided who posts the paste.
+                Toggle("Paste for me where Everest can't type", isOn: $settings.replacesAutomatically)
                 Text(ReplacementCopy.autoReplaceExplanation)
                     .font(.callout)
                     .foregroundStyle(.secondary)
