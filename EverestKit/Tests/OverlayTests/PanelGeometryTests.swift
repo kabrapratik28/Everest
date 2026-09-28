@@ -1,4 +1,5 @@
 import CoreGraphics
+import RewriteCore
 import Testing
 @testable import Overlay
 
@@ -9,14 +10,63 @@ struct PanelGeometryTests {
     /// screen at the origin and puts the panel off the side of this one.
     static let screen = CGRect(x: -1728, y: 300, width: 1728, height: 1079)
 
-    @Test("panel is 460pt wide, horizontally centred, and sits near the bottom")
-    func bottomCentred() {
+    /// Fractions of a negative-origin screen do not come back bit-exact.
+    static func close(_ a: CGRect, _ b: CGRect) -> Bool {
+        abs(a.minX - b.minX) < 0.001 && abs(a.minY - b.minY) < 0.001
+            && abs(a.width - b.width) < 0.001 && abs(a.height - b.height) < 0.001
+    }
+
+    /// Where Spotlight opens, and clear of the chat composers that sit at
+    /// the bottom of a full-screen window, where the old bottom-centre
+    /// panel covered the text being rewritten.
+    @Test("by default the panel is 460pt wide, centred, with its top edge a fifth of the way down")
+    func opensCentredHigh() {
         let frame = PanelGeometry.layout(contentHeight: 120, in: Self.screen).frame
 
         #expect(frame.width == 460)
         #expect(frame.midX == Self.screen.midX)
-        #expect(frame.minY > Self.screen.minY)
-        #expect(frame.maxY < Self.screen.midY)
+        #expect(abs(frame.maxY - (Self.screen.maxY - Self.screen.height * 0.2)) < 0.001)
+    }
+
+    /// The pinned edge is the one nearer the screen edge it faces, so a
+    /// panel parked low grows upward rather than off the bottom, and one
+    /// parked high grows downward rather than crawling up the screen.
+    @Test("a dropped panel comes back where it was left and grows away from the edge it was parked against")
+    func droppedPanelIsReproduced() {
+        let low = CGRect(x: Self.screen.maxX - 500, y: Self.screen.minY + 80, width: 460, height: 120)
+        let lowAnchor = PanelGeometry.anchor(for: low, in: Self.screen)
+        #expect(lowAnchor.pinsTop == false)
+        #expect(Self.close(PanelGeometry.layout(contentHeight: 120, in: Self.screen, anchor: lowAnchor).frame, low))
+        let taller = PanelGeometry.layout(contentHeight: 300, in: Self.screen, anchor: lowAnchor).frame
+        #expect(abs(taller.minY - low.minY) < 0.001)
+
+        let high = CGRect(x: Self.screen.minX + 40, y: Self.screen.maxY - 200, width: 460, height: 120)
+        let highAnchor = PanelGeometry.anchor(for: high, in: Self.screen)
+        #expect(highAnchor.pinsTop)
+        let grown = PanelGeometry.layout(contentHeight: 300, in: Self.screen, anchor: highAnchor).frame
+        #expect(abs(grown.maxY - high.maxY) < 0.001)
+
+        // No screen found comes through as `.zero`; fall back rather than
+        // divide by it.
+        #expect(PanelGeometry.anchor(for: low, in: .zero) == PanelGeometry.defaultAnchor)
+    }
+
+    /// A place remembered on a big external display is replayed on the
+    /// laptop's own screen. Proportionally the same place, and never off it:
+    /// a panel you cannot see is worse than one in the wrong place.
+    @Test("a place remembered on one display lands in the same place on another, and never off it")
+    func anchorCarriesAcrossScreensAndIsClamped() {
+        let small = CGRect(x: 0, y: 0, width: 1280, height: 800)
+        let frame = PanelGeometry.layout(
+            contentHeight: 120, in: small, anchor: PanelAnchor(x: 0.75, y: 0.5, pinsTop: false)
+        ).frame
+        #expect(frame.midX == 960)
+        #expect(frame.minY == 400)
+
+        let corner = PanelGeometry.layout(
+            contentHeight: 120, in: small, anchor: PanelAnchor(x: 1, y: 1, pinsTop: true)
+        ).frame
+        #expect(small.insetBy(dx: PanelGeometry.margin, dy: PanelGeometry.margin).contains(corner))
     }
 
     @Test("height follows the content up to 40% of the visible screen and no further")

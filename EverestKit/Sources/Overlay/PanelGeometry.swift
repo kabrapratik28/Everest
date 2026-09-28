@@ -1,4 +1,5 @@
 import CoreGraphics
+import RewriteCore
 
 /// Where the panel goes, how big it is, and how much content is behind that.
 ///
@@ -24,10 +25,6 @@ public enum PanelGeometry {
     /// the only text whose height is predictable, and a panel that changes
     /// width as it streams is noise.
     public static let preferredWidth: CGFloat = 460
-
-    /// Distance from the bottom of the visible frame to the bottom of the
-    /// panel, when there is room for it.
-    public static let preferredBottomInset: CGFloat = 96
 
     /// Minimum gap to any edge of the visible frame.
     public static let margin: CGFloat = 12
@@ -79,22 +76,47 @@ public enum PanelGeometry {
         )
     }
 
-    public static func layout(contentHeight: CGFloat, in visibleFrame: CGRect) -> PanelLayout {
+    /// Centred, with the top edge a fifth of the way down: roughly where
+    /// Spotlight opens, and clear of the chat composers at the bottom of a
+    /// full-screen window, which the old bottom-centre panel sat on top of.
+    public static let defaultAnchor = PanelAnchor(x: 0.5, y: 0.8, pinsTop: true)
+
+    /// The anchor that reproduces a panel the user dropped at `frame`.
+    ///
+    /// The pinned edge is whichever is nearer the screen edge it faces, so
+    /// the panel grows away from where it was parked rather than off it.
+    public static func anchor(for frame: CGRect, in visibleFrame: CGRect) -> PanelAnchor {
+        // The live `visibleFrame` reports `.zero` when no screen matches, and
+        // a fraction of nothing is NaN, which would park the panel nowhere.
+        guard visibleFrame.width > 0, visibleFrame.height > 0 else { return defaultAnchor }
+        let pinsTop = frame.midY >= visibleFrame.midY
+        return PanelAnchor(
+            x: (frame.midX - visibleFrame.minX) / visibleFrame.width,
+            y: ((pinsTop ? frame.maxY : frame.minY) - visibleFrame.minY) / visibleFrame.height,
+            pinsTop: pinsTop
+        )
+    }
+
+    public static func layout(
+        contentHeight: CGFloat, in visibleFrame: CGRect, anchor: PanelAnchor = defaultAnchor
+    ) -> PanelLayout {
         let width = width(in: visibleFrame)
         let height = min(max(contentHeight, 0), maxHeight(in: visibleFrame))
+        let midX = visibleFrame.minX + visibleFrame.width * anchor.x
+        let edgeY = visibleFrame.minY + visibleFrame.height * anchor.y
 
-        // Sit at the preferred inset, but never so high that the panel runs off
-        // the top of a short screen. `max(margin, …)` keeps the second clamp
-        // from pushing it below the bottom edge when the screen is tiny.
-        let inset = min(preferredBottomInset, max(margin, visibleFrame.height - height - margin))
+        // Proposed from the anchor, then held `margin` inside every edge.
+        // `width` and `height` are already capped so both ranges are
+        // non-empty, which is what keeps a remembered place from putting the
+        // panel off a smaller screen than the one it was remembered on.
+        let x = min(max(midX - width / 2, visibleFrame.minX + margin), visibleFrame.maxX - margin - width)
+        let y = min(
+            max(anchor.pinsTop ? edgeY - height : edgeY, visibleFrame.minY + margin),
+            visibleFrame.maxY - margin - height
+        )
 
         return PanelLayout(
-            frame: CGRect(
-                x: visibleFrame.midX - width / 2,
-                y: visibleFrame.minY + inset,
-                width: width,
-                height: height
-            ),
+            frame: CGRect(x: x, y: y, width: width, height: height),
             contentHeight: contentHeight
         )
     }
