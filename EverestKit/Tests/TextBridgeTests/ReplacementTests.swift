@@ -117,7 +117,10 @@ struct ReplacementTests {
             // route two rather than a ceiling: the rewrite has to outlive an
             // early consumption reading.
             consumptionBudget: consumptionBudget,
-            consumptionPollInterval: .milliseconds(4)
+            consumptionPollInterval: .milliseconds(4),
+            // Short, so a refusal test whose target never has focus does not
+            // sit out the production half second.
+            focusBudget: .milliseconds(40)
         )
     }
 
@@ -1029,6 +1032,23 @@ struct ReplacementTests {
     // looking at — and a synthetic paste lands in the target's undo stack as
     // an ordinary edit with no hint of where it came from, so they may not
     // even know what to undo.
+
+    /// The review panel holds keyboard focus until ↩ and hands it back
+    /// asynchronously, so the first look at the target can find no focused
+    /// element for a few milliseconds. That is the target coming back, not
+    /// the target gone, and refusing it would hand every reviewed rewrite to
+    /// the clipboard.
+    @Test("a target that takes focus back a moment late is still replaced")
+    func waitsForFocusToComeBack() throws {
+        withPrivatePasteboard { pasteboard in
+            let ax = liveTarget()
+            ax.focusArrivesAfter = 3
+            let outcome = service(ax, keystroke: FakeKeystroke(), pasteboard: pasteboard)
+                .apply("the rewrite", to: snapshot(), autoReplace: false, keepOutOfHistory: false)
+            #expect(outcome == .replaced)
+            #expect(ax.writes == ["the rewrite"])
+        }
+    }
 
     @Test("a different process being frontmost refuses the write")
     func refusesWhenAnotherProcessIsFrontmost() throws {

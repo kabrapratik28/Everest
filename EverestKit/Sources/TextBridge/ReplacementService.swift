@@ -22,6 +22,13 @@ public final class ReplacementService {
     private let consumptionBudget: Duration
     private let consumptionPollInterval: Duration
 
+    /// How long `apply` waits for the target to take focus back before it
+    /// decides. The review panel holds keyboard focus until ↩ and hands it
+    /// back asynchronously, so the first look can find no focused element.
+    /// A ceiling on observation like `consumptionBudget`, not a delay: a
+    /// target that already has focus passes on the first look.
+    private let focusBudget: Duration
+
     public init(
         system: SystemProbing,
         accessibility: AccessibilityReading & AccessibilityWriting,
@@ -30,7 +37,8 @@ public final class ReplacementService {
         pasteboard: NSPasteboard,
         borrow: PasteboardBorrow = .shared,
         consumptionBudget: Duration = .milliseconds(450),
-        consumptionPollInterval: Duration = .milliseconds(8)
+        consumptionPollInterval: Duration = .milliseconds(8),
+        focusBudget: Duration = .milliseconds(500)
     ) {
         self.system = system
         self.accessibility = accessibility
@@ -40,6 +48,7 @@ public final class ReplacementService {
         self.borrow = borrow
         self.consumptionBudget = consumptionBudget
         self.consumptionPollInterval = consumptionPollInterval
+        self.focusBudget = focusBudget
     }
 
     /// `autoReplace` is the user's setting, passed per call rather than held,
@@ -112,6 +121,7 @@ public final class ReplacementService {
             return held("this app inserts a paste rather than replacing the selection")
         }
 
+        awaitFocus(on: snapshot)
         let validator = TargetValidator(system: system, accessibility: accessibility)
         if let refusal = validator.validate(snapshot) {
             // Only "could not verify" is overridable, and only for a rung-9
@@ -236,6 +246,22 @@ public final class ReplacementService {
         "net.kovidgoyal.kitty",
         "co.zeit.hyper",
     ]
+
+    /// Returns once the target app is frontmost with a focused element again,
+    /// or when `focusBudget` runs out. It decides nothing: the validator runs
+    /// next either way and has the final word.
+    ///
+    /// Only an empty focus is waited out. Another app in front is the user
+    /// having moved on, and waiting would only delay the honest refusal.
+    /// Polled at the consumption interval; one more knob would buy nothing.
+    private func awaitFocus(on snapshot: TargetSnapshot) {
+        let deadline = ContinuousClock.now + focusBudget
+        while system.frontmostApp()?.pid == snapshot.pid,
+              accessibility.focusedElement(pid: snapshot.pid) == nil,
+              ContinuousClock.now < deadline {
+            Thread.sleep(forTimeInterval: consumptionPollInterval.timeInterval)
+        }
+    }
 
     /// Rung 9 left no element and no range, so the validator can never
     /// confirm this target — but the mechanism that captured the text still

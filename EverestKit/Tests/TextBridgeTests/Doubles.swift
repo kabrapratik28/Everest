@@ -94,9 +94,13 @@ final class FakeAccessibility: AccessibilityReading, AccessibilityWriting {
     /// Any route by which the user's characters could have reached us.
     var textReads: Int { selectedTextReads + rangeStringReads }
 
+    /// How many looks at the focused element come back empty first: the
+    /// target taking focus back from the review panel a moment after ↩.
+    var focusArrivesAfter = 0
+
     func focusedElement(pid: pid_t) -> AXUIElement? {
         focusResolutions += 1
-        return focused
+        return focusResolutions > focusArrivesAfter ? focused : nil
     }
 
     func role(of element: AXUIElement) -> String? { role }
