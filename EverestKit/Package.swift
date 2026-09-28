@@ -60,7 +60,13 @@ let package = Package(
         ),
         .testTarget(name: "EnginesTests", dependencies: ["Engines"]),
 
-        .target(name: "Overlay", dependencies: ["RewriteCore"], exclude: docs),
+        .target(
+            name: "Overlay",
+            dependencies: ["RewriteCore"],
+            // `Review/` has its own pair, for the reason `AppCore/Settings`
+            // does: this directory's doc was at its budget.
+            exclude: docs + docs.map { "Review/\($0)" }
+        ),
         .testTarget(name: "OverlayTests", dependencies: ["Overlay"]),
 
         // The app shell's decisions, so they are testable. The .app target
