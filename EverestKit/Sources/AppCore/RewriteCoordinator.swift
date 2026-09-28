@@ -66,6 +66,12 @@ public actor RewriteCoordinator {
     /// whatever token is current by the time it is picked.
     private(set) var pending: Transaction?
 
+    /// The transaction the review panel is waiting on: validated, shown, and
+    /// not written. Same shape and the same guard as `pending`, one step
+    /// later: it carries its generation, and a ↩ that arrives after anything
+    /// superseded it finds nothing to write.
+    private(set) var pendingReview: Transaction?
+
     public init(
         panel: FloatingPanelController,
         settings: AppSettings,
@@ -135,6 +141,19 @@ public actor RewriteCoordinator {
         await run(transaction, preset: preset)
     }
 
+    /// The review panel's ↩, with the text as the user left it.
+    ///
+    /// Written exactly as given. `OutputValidator` exists to keep a model's
+    /// preamble out of the user's document; this text has been read and
+    /// possibly edited by the user, so it is theirs, and trimming or
+    /// re-checking it would change what they approved.
+    public func replace(_ text: String) async {
+        guard let transaction = pendingReview, transaction.generation == generation else { return }
+        pendingReview = nil
+        await MainActor.run { panel.update(.applying) }
+        await write(text, transaction)
+    }
+
     // MARK: - The transaction
 
     /// Supersedes any predecessor, then reads the selection. `nil` means the
@@ -165,6 +184,7 @@ public actor RewriteCoordinator {
     private func supersede() async {
         generation &+= 1
         pending = nil
+        pendingReview = nil
         preparing?.cancel()
         preparing = nil
         await active?.cancel()
@@ -180,6 +200,9 @@ public actor RewriteCoordinator {
         guard mine == generation else { return }
         let engine = engineFor(await MainActor.run { settings.engineID })
         active = engine
+        // Once per transaction, like the other settings: flipping it
+        // mid-rewrite applies from the next one.
+        let reviews = await MainActor.run { settings.reviewsBeforeReplacing }
 
         await MainActor.run { panel.show(.preparing(progress: nil)) }
 
@@ -196,7 +219,12 @@ public actor RewriteCoordinator {
         do {
             for try await event in engine.stream(RewriteRequest(text: snapshot.text, preset: preset)) {
                 guard mine == generation else { return }
-                if case let .finished(text) = event { finished = text }
+                if case let .finished(text) = event {
+                    finished = text
+                    // `.finished` shows "Replacing selection", which under
+                    // review would be false: nothing is replaced until ↩.
+                    if reviews { continue }
+                }
                 await MainActor.run { panel.update(from: event) }
             }
         } catch {
@@ -227,16 +255,36 @@ public actor RewriteCoordinator {
         case let .failure(failure):
             await settle(.refused(reason: failure.message), generation: mine)
         case let .success(text):
-            // Read here, inside the transaction, not held from construction.
-            let (autoReplace, keepOutOfHistory) = await MainActor.run {
-                (settings.replacesAutomatically, settings.keepsOutOfClipboardHistory)
+            guard reviews else {
+                await write(text, transaction)
+                return
             }
-            let outcome = await MainActor.run {
-                apply(text, snapshot, autoReplace, keepOutOfHistory)
-            }
+            let showsChanges = await MainActor.run { settings.showsChanges }
             guard mine == generation else { return }
-            await settle(PanelOutcome.state(for: outcome, text: text), generation: mine)
+            // Parked, not written. The panel is now the only place the
+            // rewrite exists, and it has no timer; `replace(_:)` or
+            // `cancel()` ends it.
+            pendingReview = transaction
+            await MainActor.run {
+                panel.update(.review(text: text, original: snapshot.text, showsChanges: showsChanges))
+            }
         }
+    }
+
+    /// The one path into the user's document, for the direct flow and for
+    /// the review panel's ↩ alike, so both get the same settings read, the
+    /// same generation check and the same outcome reporting.
+    private func write(_ text: String, _ transaction: Transaction) async {
+        let mine = transaction.generation
+        // Read here, inside the transaction, not held from construction.
+        let (autoReplace, keepOutOfHistory) = await MainActor.run {
+            (settings.replacesAutomatically, settings.keepsOutOfClipboardHistory)
+        }
+        let outcome = await MainActor.run {
+            apply(text, transaction.snapshot, autoReplace, keepOutOfHistory)
+        }
+        guard mine == generation else { return }
+        await settle(PanelOutcome.state(for: outcome, text: text), generation: mine)
     }
 
     /// Downloads and loads the weights if they are not already there, showing

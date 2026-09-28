@@ -108,9 +108,14 @@ func makePanel(log: CallLog) -> (FloatingPanelController, SpySurface) {
 
 /// A settings object on a throwaway `UserDefaults` suite, so a test never reads
 /// or writes the real user's defaults.
+///
+/// Review off unless asked for: most of this suite is about the write path,
+/// which review only defers, and the review tests turn it on by name.
 @MainActor
-func makeSettings() -> AppSettings {
-    AppSettings(store: UserDefaults(suiteName: "com.kabrapratik.Everest.appcore.\(UUID().uuidString)")!)
+func makeSettings(reviews: Bool = false) -> AppSettings {
+    let settings = AppSettings(store: UserDefaults(suiteName: "com.kabrapratik.Everest.appcore.\(UUID().uuidString)")!)
+    settings.reviewsBeforeReplacing = reviews
+    return settings
 }
 
 /// Everything a coordinator needs, defaulted, so adding a dependency touches

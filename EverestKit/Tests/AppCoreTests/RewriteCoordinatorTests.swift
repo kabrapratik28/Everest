@@ -838,3 +838,94 @@ func cancellingStopsASilentPreparation() async {
 
     #expect(engine.prepareSawCancellation, "the download task outlived the transaction that started it")
 }
+
+/// With review on, validation passing is not permission to write: the
+/// rewrite waits in the panel. `.finished` is not forwarded either, or the
+/// panel would say "Replacing selection" while nothing is being replaced.
+@Test("with review on, nothing is written until the user answers, and the panel never claims to be replacing")
+@MainActor
+func reviewDefersTheWrite() async {
+    let log = CallLog()
+    let (panel, surface) = makePanel(log: log)
+    let recorder = ApplyRecorder(log: log)
+    let coordinator = makeCoordinator(
+        panel: panel, settings: makeSettings(reviews: true), snapshot: .stub(text: "the original"),
+        engine: StubEngine(events: [.outputSnapshot("Tight"), .finished("Tightened text.")]), apply: recorder
+    )
+
+    await coordinator.quickImprove()
+
+    #expect(recorder.applied.isEmpty)
+    #expect(surface.presented.last == .review(text: "Tightened text.", original: "the original", showsChanges: false))
+    #expect(!surface.presented.contains(.applying))
+}
+
+/// The text is the user's once they have seen it, edits and trailing space
+/// included, so it is written exactly as handed over.
+@Test("Return writes exactly the text the user left in the panel, and only then reports it")
+@MainActor
+func replaceWritesTheEditedText() async {
+    let log = CallLog()
+    let (panel, _) = makePanel(log: log)
+    let recorder = ApplyRecorder(log: log)
+    let coordinator = makeCoordinator(
+        panel: panel, settings: makeSettings(reviews: true),
+        engine: StubEngine(events: [.finished("Tightened text.")]), apply: recorder
+    )
+
+    await coordinator.quickImprove()
+    await coordinator.replace("Tightened text, edited by me. ")
+
+    #expect(recorder.applied == ["Tightened text, edited by me. "])
+    #expect(Array(log.entries.drop { $0 != "present(applying)" })
+        == ["present(applying)", "apply", "present(success)", "hide"])
+}
+
+@Test("Escape during review writes nothing, and a late Return from that panel writes nothing either")
+@MainActor
+func escapeKeepsTheOriginal() async {
+    let log = CallLog()
+    let (panel, surface) = makePanel(log: log)
+    let recorder = ApplyRecorder(log: log)
+    let coordinator = makeCoordinator(
+        panel: panel, settings: makeSettings(reviews: true),
+        engine: StubEngine(events: [.finished("Tightened text.")]), apply: recorder
+    )
+
+    await coordinator.quickImprove()
+    await coordinator.cancel()
+    await coordinator.replace("Tightened text.")
+
+    #expect(surface.hides == 1)
+    #expect(recorder.applied.isEmpty)
+}
+
+/// A second hotkey press supersedes a review like anything else. The parked
+/// transaction goes with it, so a ↩ that arrives while the new rewrite is
+/// still generating has nothing to write.
+@Test("a new hotkey press abandons the review, and its Return cannot write")
+@MainActor
+func aNewPressAbandonsTheReview() async {
+    let log = CallLog()
+    let (panel, _) = makePanel(log: log)
+    let recorder = ApplyRecorder(log: log)
+    let second = StubEngine(events: [.outputSnapshot("half"), .finished("Second.")], gated: true)
+    let queue = EngineQueue([StubEngine(events: [.finished("First.")]), second])
+    let coordinator = RewriteCoordinator(
+        panel: panel, settings: makeSettings(reviews: true),
+        capture: { _ in .stub() }, engineFor: { _ in queue.next() },
+        apply: { text, target, autoReplace, keep in
+            recorder.apply(text, to: target, autoReplace: autoReplace, keepOutOfHistory: keep)
+        },
+        sleeper: RecordingSleeper()
+    )
+
+    await coordinator.quickImprove()
+    async let running: Void = coordinator.quickImprove()
+    await second.waitUntilStreaming()
+    await coordinator.replace("First.")
+    second.release()
+    await running
+
+    #expect(recorder.applied.isEmpty)
+}
