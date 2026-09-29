@@ -4,7 +4,7 @@
 
 # Everest
 
-### Select text anywhere on your Mac, press `⌥R`, and a local model rewrites it in place.
+### Select text anywhere on your Mac, press `⌥R`, check the rewrite, and press `↩` to put it in place.
 
 No account, no server, no telemetry. Unplug the network and it still works.
 
@@ -18,7 +18,7 @@ No account, no server, no telemetry. Unplug the network and it still works.
 
 <img src="docs/assets/demo.gif" width="700" alt="A rushed message in the Slack composer. Pressing Option-R replaces it with a corrected version while a small floating panel shows the progress. A second message is rewritten with Option-Shift-R, which lists the styles, and pressing 2 picks Professional.">
 
-<sub>Real capture in Slack, not a mockup. Both shortcuts: <code>⌥R</code> rewrites straight away, <code>⌥⇧R</code> lists the styles and a number key picks one. <code>⌘Z</code> puts the original back.</sub>
+<sub>Real capture in Slack from before the review panel, which is how it still works with review switched off in Settings ▸ General. <code>⌥R</code> rewrites, <code>⌥⇧R</code> lists the styles and a number key picks one. <code>⌘Z</code> puts the original back.</sub>
 
 </div>
 
@@ -26,7 +26,8 @@ No account, no server, no telemetry. Unplug the network and it still works.
 
 - **One keystroke, in the app you are already typing in.** No window to switch to, nothing to paste into and back out of.
 - **Your text does not leave the machine.** Not "encrypted in transit", not "we do not train on it". It never goes anywhere.
-- **It replaces the selection.** You are not handed a suggestion to copy. The text in your document changes, and `⌘Z` puts it back.
+- **You see it before it lands.** The rewrite waits in a small panel you can edit. `↩` puts it in place of your selection, `esc` keeps what you wrote, and `⌘D` shows exactly what changed. Drag the panel anywhere and it opens there next time.
+- **Then it replaces the selection.** You are not handed a suggestion to copy. The text in your document changes, and `⌘Z` puts it back. Prefer one keystroke? Switch review off in Settings.
 - **Hand-verified in Slack, Linear, Google Docs, ChatGPT, Google Chat and Sublime Text.** Everything else follows the rules [below](#use) rather than a per-app list. Terminals and PDFs hand you the clipboard instead, and the panel says so rather than failing quietly.
 - **Six styles, and they are yours.** Proofread, Professional, Friendly, Concise, Expand, Simplify. Every prompt is editable in Settings, and you can add your own.
 - **It refuses password fields.** Before reading, and again immediately before any copy.
@@ -56,9 +57,11 @@ The weights are [Qwen3-4B-Instruct-2507-4bit](https://huggingface.co/mlx-communi
 |---|---|
 | `⌥R` | Quick Improve. One prompt, one rewrite. **R for rewrite.** |
 | `⌥⇧R` | Choose Style, then rewrite. |
-| `Esc` | Cancel an in-flight rewrite. |
+| `↩` | In the review panel: replace your selection with the rewrite. |
+| `⌘D` | In the review panel: show or hide what changed. |
+| `esc` | Keep your original, or cancel a rewrite still in progress. |
 
-Both shortcuts are configurable in Settings ▸ General.
+All of these are configurable in Settings ▸ General except `esc`: the two hotkeys are recorded, and the panel's Replace (`↩`, `⌘↩` or `⌘R`) and show-changes (`⌘D`, `⌘⇧E` or Tab) keys are picked from short lists that cannot clash with typing.
 
 **Where it replaces in place:** native text fields, browsers, editors and chat apps. Sublime Text and Google Docs expose nothing usable to Accessibility, so they get a verified paste, which still lands in place.
 
