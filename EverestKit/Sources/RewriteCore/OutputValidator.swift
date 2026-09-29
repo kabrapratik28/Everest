@@ -185,6 +185,8 @@ public enum OutputValidator {
                 .replacing(/<\/?selected_text_[0-9a-fA-F]{16}>/, with: "")
             if !stripped.contains(where: { !$0.isWhitespace }) { return .failure(.packagingOnly) }
         }
-        return .success(cleaned)
+        // Last, after the refusals, so it can never turn a refusal into a
+        // pass: a punctuation swap on text already accepted. See `EmDashes`.
+        return .success(EmDashes.replaced(in: cleaned))
     }
 }

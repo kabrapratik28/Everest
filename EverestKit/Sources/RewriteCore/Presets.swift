@@ -23,14 +23,14 @@ extension Preset {
     // Still its own UUID — the two are independently user-editable
     // AppSettings fields. See RewriteCore/AGENTS.md.
     //
-    // The last sentence is load-bearing: without it a 4B model rewrites text
+    // The last sentence matters most: without it a 4B model rewrites text
     // that was already fine, which is the common case for the broad default.
     public static var quickImprove: Preset {
         Preset(
             id: UUID(uuidString: "00000000-0000-0000-0000-000000000001")!,
             name: "Improve",
             subtitle: "clear + correct",
-            instruction: "Improve the writing for correctness, clarity, concision, and natural flow. Fix grammar, spelling, punctuation, awkward phrasing, and unnecessary repetition. Preserve the writer’s meaning, voice, language, formatting, and level of detail. Do not make it more formal or casual. If it is already clear, change as little as possible."
+            instruction: "Fix grammar, spelling and punctuation, and smooth out awkward, wordy or repetitive phrasing so it reads clearly. Keep the writer's voice and level of detail. If it already reads well, change as little as possible."
         )
     }
 
@@ -56,37 +56,37 @@ extension Preset {
                 id: UUID(uuidString: "11111111-1111-1111-1111-111111111111")!,
                 name: "Proofread",
                 subtitle: "corrections only",
-                instruction: "Correct spelling, grammar, punctuation, capitalization, and obvious typos. Make only changes required for correctness; otherwise preserve the wording, structure, tone, and formatting."
+                instruction: "Fix every spelling, grammar, punctuation and capitalization mistake, and every typo or wrong word. Don't reword, shorten or restyle anything else."
             ),
             Preset(
                 id: UUID(uuidString: "22222222-2222-2222-2222-222222222222")!,
                 name: "Professional",
-                subtitle: "polished + confident",
-                instruction: "Rewrite in a clear, polished, professional tone. Keep it natural and concise, not stiff or corporate. Preserve the original meaning, level of certainty, requests, commitments, and factual details."
+                subtitle: "clear + polished",
+                instruction: "Make it clear, direct and professional, the way a capable colleague would write it: not stiff, not corporate, and no more certain than the original. Keep every request, commitment and detail."
             ),
             Preset(
                 id: UUID(uuidString: "33333333-3333-3333-3333-333333333333")!,
                 name: "Friendly",
                 subtitle: "warm + natural",
-                instruction: "Rewrite in a warm, natural, conversational tone. Keep it clear and respectful without adding greetings, emojis, exclamation marks, enthusiasm, or familiarity that the original does not imply."
+                instruction: "Make it warm, natural and conversational. Keep the meaning, details and level of familiarity. Don't add new points, greetings, emoji, exclamation marks or enthusiasm the original doesn't have."
             ),
             Preset(
                 id: UUID(uuidString: "44444444-4444-4444-4444-444444444444")!,
                 name: "Concise",
                 subtitle: "shorter + direct",
-                instruction: "Make the text shorter and more direct. Remove filler and repetition, combine redundant sentences, and simplify wording. Preserve every essential fact, qualification, request, commitment, and action item."
+                instruction: "Make it shorter and more direct by cutting filler and repetition. Keep the writer's tone and every fact, qualification, request, commitment and action item."
             ),
             Preset(
                 id: UUID(uuidString: "55555555-5555-5555-5555-555555555555")!,
                 name: "Expand",
-                subtitle: "clarify + develop",
-                instruction: "Expand only enough to make the existing meaning, reasoning, and context clearer. Add useful transitions or explanation supported by the text. Do not invent examples, evidence, facts, commitments, or conclusions."
+                subtitle: "explain + clarify",
+                instruction: "Add only enough explanation to make the ideas already there clearer. Keep the tone, facts, uncertainty and scope. Don't invent examples, evidence, claims, commitments or conclusions."
             ),
             Preset(
                 id: UUID(uuidString: "66666666-6666-6666-6666-666666666666")!,
                 name: "Simplify",
                 subtitle: "plain + readable",
-                instruction: "Rewrite in plain, easy-to-read language. Shorten complex sentences and replace unnecessary jargon with familiar words while preserving technical terms, meaning, tone, and important detail. Do not make the text childish."
+                instruction: "Make it easier to read with everyday words and shorter sentences. Keep the meaning, tone, important details and necessary technical terms. Don't make it childish."
             ),
         ]
     }
