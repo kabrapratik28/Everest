@@ -61,9 +61,8 @@ install — or sign and notarise locally and let CI only verify.
 - `CURRENT_PROJECT_VERSION` — a monotonic build number. **Must increase on
   every release**; Sparkle compares it, not the marketing string.
 
-`project.yml` is at `0.2.5` / `10`, unreleased. The public release and
-`appcast.xml` are still on `0.2.4` / `9` and stay there until the exact 0.2.5
-bytes pass every check in step 5.
+`project.yml` is at `0.3.0` / `13`, the build this repository last released; `appcast.xml`
+offers it once step 6 has run over the stapled DMG.
 
 ## Cutting a release
 
