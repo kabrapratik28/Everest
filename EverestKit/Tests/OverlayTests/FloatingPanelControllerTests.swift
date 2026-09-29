@@ -1117,6 +1117,20 @@ struct FloatingPanelControllerTests {
         #expect(shows.value == true)
     }
 
+    @Test("switching views keeps the keys chosen in Settings")
+    func switchingKeepsTheChosenKeys() {
+        let monitor = SpyKeyMonitor()
+        let surface = SpySurface()
+        let controller = makeController(surface: surface, keyMonitor: monitor)
+        let keys = ReviewKeys(replace: .commandReturn, changes: .tab)
+        controller.show(.capturing)
+        controller.update(.review(text: "t", original: "o", showsChanges: false, keys: keys))
+        surface.hasKeyFocus = true
+
+        #expect(monitor.send(PanelKeyMapTests.tab))
+        #expect(surface.presented.last?.state == .review(text: "t", original: "o", showsChanges: true, keys: keys))
+    }
+
     @Test("the panel opens at the anchor it was given, and a drop is reported and used next time")
     func dropIsRememberedAndReused() {
         let surface = SpySurface()

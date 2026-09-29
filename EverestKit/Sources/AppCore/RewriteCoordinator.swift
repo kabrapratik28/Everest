@@ -259,14 +259,14 @@ public actor RewriteCoordinator {
                 await write(text, transaction)
                 return
             }
-            let showsChanges = await MainActor.run { settings.showsChanges }
+            let (showsChanges, keys) = await MainActor.run { (settings.showsChanges, settings.reviewKeys) }
             guard mine == generation else { return }
             // Parked, not written. The panel is now the only place the
             // rewrite exists, and it has no timer; `replace(_:)` or
             // `cancel()` ends it.
             pendingReview = transaction
             await MainActor.run {
-                panel.update(.review(text: text, original: snapshot.text, showsChanges: showsChanges))
+                panel.update(.review(text: text, original: snapshot.text, showsChanges: showsChanges, keys: keys))
             }
         }
     }

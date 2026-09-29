@@ -299,6 +299,16 @@ struct PanelStateTests {
         #expect(changes.first?.action == "Hide changes")
     }
 
+    /// ⇧↩ is only worth mentioning while plain ↩ means Replace; with any
+    /// other Replace key, ↩ is an ordinary new line and needs no hint.
+    @Test("the hints show the keys chosen in Settings, and ⇧↩ only while ↩ is Replace")
+    func reviewHintsFollowTheChosenKeys() {
+        let keys = ReviewKeys(replace: .commandReturn, changes: .commandShiftE)
+        let hints = PanelState.review(text: "t", original: "o", showsChanges: false, keys: keys).keyHints
+        #expect(hints.map(\.keys) == ["⌘⇧E", "esc", "⌘↩"])
+        #expect(hints.map(\.performs) == [.toggleChanges, .cancel, .replace])
+    }
+
     @Test("the changes view lists its runs and counts them in the header; the edit view does neither")
     func changesViewCountsChanges() {
         let changes = PanelState.review(text: "It's fine than", original: "its fine then", showsChanges: true)

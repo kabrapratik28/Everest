@@ -16,8 +16,9 @@ public enum PanelState: Equatable, Sendable {
     /// The finished rewrite, waiting for ↩ (replace) or esc (keep the
     /// original) before anything reaches the document. `text` is what ↩ will
     /// write, edits included; `original` is what the user selected, for the
-    /// changes view.
-    case review(text: String, original: String, showsChanges: Bool)
+    /// changes view; `keys` are the ones chosen in Settings, carried here so
+    /// the key map and the hints read the same answer.
+    case review(text: String, original: String, showsChanges: Bool, keys: ReviewKeys = .standard)
 }
 
 /// A `PanelState` with its payload stripped off.
@@ -80,13 +81,16 @@ public extension PanelState {
     /// instead. The arrows were unmentioned too.
     var keyHints: [KeyHint] {
         // Listed, like the picker's: esc here keeps the original rather than
-        // cancelling anything, and ⌘D leads because it changes the view
+        // cancelling anything, and the view key leads because it changes the view
         // rather than answering the panel.
-        if case let .review(_, _, showsChanges) = self {
-            var hints = [KeyHint(keys: "⌘D", action: showsChanges ? "Hide changes" : "Show changes", performs: .toggleChanges)]
-            if !showsChanges { hints.append(KeyHint(keys: "⇧↩", action: "New line", performs: nil)) }
+        if case let .review(_, _, showsChanges, keys) = self {
+            var hints = [KeyHint(keys: keys.changes.keycap, action: showsChanges ? "Hide changes" : "Show changes", performs: .toggleChanges)]
+            // Only while plain ↩ is Replace; otherwise ↩ is simply a new line.
+            if !showsChanges, keys.replace == .returnKey {
+                hints.append(KeyHint(keys: "⇧↩", action: "New line", performs: nil))
+            }
             hints.append(KeyHint(keys: "esc", action: "Keep original", performs: .cancel))
-            hints.append(KeyHint(keys: "↩", action: "Replace", performs: .replace))
+            hints.append(KeyHint(keys: keys.replace.keycap, action: "Replace", performs: .replace))
             return hints
         }
         var hints: [KeyHint] = []
@@ -139,7 +143,7 @@ public extension PanelState {
         case .error:              "xmark.octagon"
         case .stylePicker:        "list.number"
         case .heldForManualCopy:  "tray.and.arrow.down"
-        case let .review(_, _, showsChanges):
+        case let .review(_, _, showsChanges, _):
             showsChanges ? "text.badge.checkmark" : "square.and.pencil"
         }
     }
@@ -250,7 +254,7 @@ public extension PanelState {
         case .stylePicker: "Edit in Settings ▸ Prompts"
         // How much the model changed, which is what someone opening the
         // changes view is asking. Only there; the edit view has no marks.
-        case let .review(text, original, true):
+        case let .review(text, original, true, _):
             switch WordDiff.changeCount(WordDiff.segments(from: original, to: text)) {
             case 1: "1 change"
             case let count: "\(count) changes"
@@ -314,7 +318,7 @@ public extension PanelState {
         case let .readOnly(text):              text
         case let .targetChanged(text):         text
         case let .heldForManualCopy(text, _):  text
-        case let .review(text, _, _):          text
+        case let .review(text, _, _, _):       text
         case .capturing, .preparing, .applying, .success,
              .refused, .error, .stylePicker:   nil
         }
@@ -338,7 +342,7 @@ public extension PanelState {
 
     /// The tracked changes to draw, in the changes view only.
     var changes: [DiffSegment]? {
-        guard case let .review(text, original, true) = self else { return nil }
+        guard case let .review(text, original, true, _) = self else { return nil }
         return WordDiff.segments(from: original, to: text)
     }
 

@@ -8,13 +8,13 @@ A key window receives every keystroke. That is why no other state may be key (`O
 
 It is safe only because nothing is read or written while the pane is key. Capture happened before the rewrite. On ↩ the surface orders the panel out before drawing `.applying`, the only way to resign key, and `ReplacementService` waits up to 500 ms for the target app to report a focused element again before its validator runs, unchanged and with the final word. The panel is non-activating, so the target app stays frontmost the whole time and `TargetValidator`'s frontmost check holds. If focus does not come back in time the validator refuses and the rewrite goes to the clipboard under "Press ⌘V to paste your rewrite": degraded, never lost. `PanelKeyWindowTests` is the one test that can see this: the real panel is key in review and not key once `.applying` is drawn. *Measured 2026-09-28, macOS 26.7: frontmost stayed the source app while the pane was key; ↩ to replaced text took 120 ms in TextEdit (Accessibility write) and 282 ms in a Chrome textarea (paste route); `docs/MANUAL-CHECKS.md` has the apps still to check.*
 
-## ↩ and ⌘D go through the key monitor, and only with focus
+## The answer keys go through the key monitor, and only with focus
 
-Same path as every other key: monitor, `PanelKeyMap`, controller, so the mapping is tested. The local monitor sees them before the editor and swallows them, which is why ↩ never lands as a new line; ⇧↩ is left alone and does.
+Same path as every other key: monitor, `PanelKeyMap`, controller, so the mapping is tested. The keys are the user's (`ReviewKeys`, Settings ▸ General): Replace is ↩, ⌘↩ or ⌘R, and the view switch is ⌘D, ⌘⇧E or Tab, defaulting to ↩ and ⌘D. Lists rather than a recorder, because every choice on them never types into the editor and cannot collide with the other list or with ⌘C and ⌘V, so nothing needs validating. They travel in the state, so the key map and the hints read one answer, and a changed choice applies from the next pane. The local monitor sees them before the editor and swallows them, which is why ↩ never lands as a new line while it is Replace; ⇧↩ is left alone and does.
 
 The global monitor also reports keys typed in other apps. A Return typed into Slack after the user clicked away must reach Slack and replace nothing, so review's keys act only while `surface.hasKeyFocus`. Nor while an input method is composing (`isComposingText`), where Return commits the composition. esc works from anywhere, as in every state: a leaked Escape is harmless.
 
-⌘D (D for diff) switches views. It was ⇥ first, and a ⇥ keycap told nobody which key it was; a letter with ⌘ reads at a glance and never types into the editor, so Tab is ordinary typing again.
+⌘D (D for diff) is the default view switch. It was ⇥ first, and a ⇥ keycap told nobody which key it was, so Tab is now an option drawn as the word "tab", like "esc".
 
 ## One answer per review
 

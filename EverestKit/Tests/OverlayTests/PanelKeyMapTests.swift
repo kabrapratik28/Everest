@@ -60,6 +60,31 @@ struct PanelKeyMapTests {
         #expect(PanelKeyMap.action(for: Self.commandD, in: .generating(text: "half")) == nil)
     }
 
+    /// The keys come from Settings, carried in the state, so a changed choice
+    /// takes effect on the next pane and never mid-answer.
+    @Test("the review pane answers to the keys chosen in Settings, and ↩ is a new line when it is not Replace")
+    func reviewKeysFollowSettings() {
+        let custom = PanelState.review(
+            text: "t", original: "o", showsChanges: false,
+            keys: ReviewKeys(replace: .commandReturn, changes: .tab)
+        )
+        let commandReturn = Keystroke(keyCode: Keystroke.returnKeyCode, characters: "\r", modifiers: .command)
+        #expect(PanelKeyMap.action(for: commandReturn, in: custom) == .replace)
+        #expect(PanelKeyMap.action(for: Self.enter, in: custom) == nil)
+        #expect(PanelKeyMap.action(for: Self.tab, in: custom) == .toggleChanges)
+        #expect(PanelKeyMap.action(for: Self.commandD, in: custom) == nil)
+
+        let lettered = PanelState.review(
+            text: "t", original: "o", showsChanges: false,
+            keys: ReviewKeys(replace: .commandR, changes: .commandShiftE)
+        )
+        let commandR = Keystroke(keyCode: 15, characters: "r", modifiers: .command)
+        let commandShiftE = Keystroke(keyCode: 14, characters: "E", modifiers: [.command, .shift])
+        #expect(PanelKeyMap.action(for: commandR, in: lettered) == .replace)
+        #expect(PanelKeyMap.action(for: commandShiftE, in: lettered) == .toggleChanges)
+        #expect(PanelKeyMap.action(for: Self.enter, in: lettered) == nil)
+    }
+
     @Test("Escape cancels from every state")
     func escapeCancelsFromEveryState() {
         for state in PanelStateTests.samples {

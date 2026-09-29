@@ -1,3 +1,5 @@
+import RewriteCore
+
 /// One keystroke, reduced to the three things the panel cares about.
 ///
 /// Deliberately not an `NSEvent`. The mapping from a key to an action is the
@@ -19,6 +21,7 @@ public struct Keystroke: Equatable, Sendable {
     public static let returnKeyCode: UInt16 = 36
     public static let upArrowKeyCode: UInt16 = 126
     public static let downArrowKeyCode: UInt16 = 125
+    public static let tabKeyCode: UInt16 = 48
 
     public let keyCode: UInt16
     public let characters: String
@@ -61,13 +64,12 @@ public enum PanelKeyMap {
     public static func action(for keystroke: Keystroke, in state: PanelState) -> PanelKeyAction? {
         if keystroke.keyCode == Keystroke.escapeKeyCode { return .cancel }
 
-        // ↩ bare only, since ⇧↩ is the editor's new line; ⌘D (D for diff)
-        // with exactly ⌘, matched by character like ⌘C. Everything else in
-        // review, Tab included, is the user typing. Whether the pane may act
-        // on these at all is the controller's call, made on focus.
-        if case .review = state {
-            if keystroke.isPlain, keystroke.keyCode == Keystroke.returnKeyCode { return .replace }
-            if keystroke.modifiers == .command, keystroke.characters.lowercased() == "d" { return .toggleChanges }
+        // The keys chosen in Settings, carried in the state. Everything else
+        // in review is the user typing. Whether the pane may act on these at
+        // all is the controller's call, made on focus.
+        if case let .review(_, _, _, keys) = state {
+            if keys.replace.matches(keystroke) { return .replace }
+            if keys.changes.matches(keystroke) { return .toggleChanges }
             return nil
         }
 
@@ -88,5 +90,27 @@ public enum PanelKeyMap {
             return .pickStyle(index: number - 1)
         }
         return nil
+    }
+}
+
+// Exact modifiers throughout, and letters matched by character like ⌘C, so
+// an extra modifier falls through and a layout that moves the key still works.
+extension ReviewKeys.Replace {
+    func matches(_ keystroke: Keystroke) -> Bool {
+        switch self {
+        case .returnKey: keystroke.isPlain && keystroke.keyCode == Keystroke.returnKeyCode
+        case .commandReturn: keystroke.modifiers == .command && keystroke.keyCode == Keystroke.returnKeyCode
+        case .commandR: keystroke.modifiers == .command && keystroke.characters.lowercased() == "r"
+        }
+    }
+}
+
+extension ReviewKeys.Changes {
+    func matches(_ keystroke: Keystroke) -> Bool {
+        switch self {
+        case .commandD: keystroke.modifiers == .command && keystroke.characters.lowercased() == "d"
+        case .commandShiftE: keystroke.modifiers == [.command, .shift] && keystroke.characters.lowercased() == "e"
+        case .tab: keystroke.isPlain && keystroke.keyCode == Keystroke.tabKeyCode
+        }
     }
 }

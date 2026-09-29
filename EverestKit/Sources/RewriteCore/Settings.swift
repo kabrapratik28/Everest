@@ -55,6 +55,11 @@ public final class AppSettings: ObservableObject {
         didSet { store.set(showsChanges, forKey: Keys.showsChanges) }
     }
 
+    /// Which keys replace and switch views in the review pane.
+    @Published public var reviewKeys: ReviewKeys {
+        didSet { save(reviewKeys, forKey: Keys.reviewKeys) }
+    }
+
     /// Where the panel was last dropped. `nil` until the user drags it, and
     /// then the panel opens there rather than at its default place.
     @Published public var panelAnchor: PanelAnchor? {
@@ -76,6 +81,7 @@ public final class AppSettings: ObservableObject {
         static let reviewsBeforeReplacing = "everest.settings.reviewsBeforeReplacing"
         static let showsChanges = "everest.settings.showsChanges"
         static let panelAnchor = "everest.settings.panelAnchor"
+        static let reviewKeys = "everest.settings.reviewKeys"
     }
 
     public init(store: UserDefaults = .standard) {
@@ -116,6 +122,7 @@ public final class AppSettings: ObservableObject {
         self.reviewsBeforeReplacing = Self.flag(store, Keys.reviewsBeforeReplacing, default: true)
         self.showsChanges = Self.flag(store, Keys.showsChanges, default: false)
         self.panelAnchor = Self.load(PanelAnchor.self, from: store, forKey: Keys.panelAnchor)
+        self.reviewKeys = Self.load(ReviewKeys.self, from: store, forKey: Keys.reviewKeys) ?? .standard
     }
 
     /// `bool(forKey:)` answers `false` for a key that was never written, so

@@ -105,12 +105,15 @@ func theReplacementSettingsDefaultOn() {
     #expect(relaunched.keepsOutOfClipboardHistory == false)
 }
 
-/// Said under "When a rewrite is ready". The keys are fixed, not
-/// user-recordable, so naming them cannot go stale the way a hotkey glyph did.
-@Test("the review explanation names the keys that answer the panel")
-func reviewExplanationNamesTheKeys() {
+/// Said under "When a rewrite is ready". The Replace key is the user's to
+/// choose now, so a sentence naming ↩ would go stale the way a hotkey glyph
+/// did; esc is fixed and can be named.
+@Test("the review explanation says how to answer the panel without naming a key the user can change")
+func reviewExplanationNamesOnlyFixedKeys() {
     let explanation = ReplacementCopy.reviewExplanation
-    #expect(explanation.contains("↩"))
     #expect(explanation.contains("esc"))
     #expect(explanation.localizedCaseInsensitiveContains("edit"))
+    for key in ReviewKeys.Replace.allCases {
+        #expect(!explanation.contains(key.keycap), "\(key)")
+    }
 }

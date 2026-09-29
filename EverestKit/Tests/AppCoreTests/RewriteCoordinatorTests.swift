@@ -929,3 +929,23 @@ func aNewPressAbandonsTheReview() async {
 
     #expect(recorder.applied.isEmpty)
 }
+
+@Test("the review panel is built with the keys chosen in Settings")
+@MainActor
+func reviewUsesTheChosenKeys() async {
+    let log = CallLog()
+    let (panel, surface) = makePanel(log: log)
+    let settings = makeSettings(reviews: true)
+    settings.reviewKeys = ReviewKeys(replace: .commandR, changes: .tab)
+    let coordinator = makeCoordinator(
+        panel: panel, settings: settings, snapshot: .stub(text: "the original"),
+        engine: StubEngine(events: [.finished("Tightened text.")]), apply: ApplyRecorder(log: log)
+    )
+
+    await coordinator.quickImprove()
+
+    #expect(surface.presented.last == .review(
+        text: "Tightened text.", original: "the original", showsChanges: false,
+        keys: ReviewKeys(replace: .commandR, changes: .tab)
+    ))
+}

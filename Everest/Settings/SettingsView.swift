@@ -122,6 +122,21 @@ private struct GeneralTab: View {
                 Text(ReplacementCopy.reviewExplanation)
                     .font(.callout)
                     .foregroundStyle(.secondary)
+                // Lists, not recorders: every choice is one that cannot type
+                // into the editor or collide, see `ReviewKeys`. Greyed out
+                // when there is no pane to answer.
+                Picker("Replace", selection: $settings.reviewKeys.replace) {
+                    ForEach(ReviewKeys.Replace.allCases, id: \.self) { key in
+                        Text(key.menuTitle).tag(key)
+                    }
+                }
+                .disabled(!settings.reviewsBeforeReplacing)
+                Picker("Show or hide changes", selection: $settings.reviewKeys.changes) {
+                    ForEach(ReviewKeys.Changes.allCases, id: \.self) { key in
+                        Text(key.menuTitle).tag(key)
+                    }
+                }
+                .disabled(!settings.reviewsBeforeReplacing)
 
                 // Was "Replace automatically", which next to review read as
                 // its opposite. It only ever decided who posts the paste.

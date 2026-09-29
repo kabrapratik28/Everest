@@ -53,3 +53,19 @@ func reviewSettingsDefaultAndPersist() {
     #expect(relaunched.showsChanges)
     #expect(relaunched.panelAnchor == PanelAnchor(x: 0.8, y: 0.25, pinsTop: false))
 }
+
+/// The review pane's keys are the user's to choose, from lists short enough
+/// that no choice can break the pane, and the choice survives a relaunch.
+@Test("the review pane's keys default to ↩ and ⌘D and survive a relaunch")
+@MainActor
+func reviewKeysDefaultAndPersist() {
+    let suiteName = "com.kabrapratik.Everest.tests.\(UUID().uuidString)"
+    let store = UserDefaults(suiteName: suiteName)!
+    defer { store.removePersistentDomain(forName: suiteName) }
+
+    let fresh = AppSettings(store: store)
+    #expect(fresh.reviewKeys == ReviewKeys(replace: .returnKey, changes: .commandD))
+
+    fresh.reviewKeys = ReviewKeys(replace: .commandReturn, changes: .tab)
+    #expect(AppSettings(store: store).reviewKeys == ReviewKeys(replace: .commandReturn, changes: .tab))
+}

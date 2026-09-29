@@ -18,7 +18,7 @@ struct ReviewBody: View {
                 .padding(.horizontal, 9)
                 .padding(.vertical, 6)
                 .background(field)
-        } else if case let .review(text, _, _) = state {
+        } else if case let .review(text, _, _, _) = state {
             ReviewEditor(text: text, slot: editor)
                 .background(field)
         }

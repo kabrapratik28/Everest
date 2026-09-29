@@ -11,11 +11,11 @@ public enum ReplacementCopy {
     ///
     /// Names both answers, because the choice is really between seeing the
     /// rewrite first and not, and what the panel asks of you is the part a
-    /// label cannot carry. The keys are the review panel's own and fixed, so
-    /// writing them down cannot go stale the way a recordable hotkey did.
+    /// label cannot carry. The Replace key is chosen just below and may not
+    /// be ↩, so it is pointed at rather than named; esc is fixed.
     public static let reviewExplanation = """
-        Review shows the rewrite in the panel so you can edit it. \
-        ↩ replaces your selection, esc keeps your original text.
+        Review shows the rewrite in the panel so you can edit it first. \
+        The Replace key below puts it in place of your selection; esc keeps your original text.
         """
 
     /// Under "Paste for me where Everest can't type".

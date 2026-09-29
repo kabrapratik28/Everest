@@ -183,7 +183,7 @@ public final class FloatingPanelController {
     /// an answer: replacing a selection with nothing is deleting it, which
     /// nobody asks for by pressing Return.
     public func replace() {
-        guard !reviewIsSpent, case let .review(text, _, _) = state else { return }
+        guard !reviewIsSpent, case let .review(text, _, _, _) = state else { return }
         let current = surface.reviewText ?? text
         guard !current.isEmpty else { return }
         reviewIsSpent = true
@@ -193,8 +193,8 @@ public final class FloatingPanelController {
     /// Review's ⌘D, or a click on its hint: the other view, with any edits
     /// carried across, and the choice reported so it can be remembered.
     public func toggleChanges() {
-        guard !reviewIsSpent, case let .review(text, original, showsChanges) = state else { return }
-        update(.review(text: surface.reviewText ?? text, original: original, showsChanges: !showsChanges))
+        guard !reviewIsSpent, case let .review(text, original, showsChanges, keys) = state else { return }
+        update(.review(text: surface.reviewText ?? text, original: original, showsChanges: !showsChanges, keys: keys))
         onToggleChanges?(!showsChanges)
     }
 
