@@ -30,7 +30,7 @@ extension Preset {
             id: UUID(uuidString: "00000000-0000-0000-0000-000000000001")!,
             name: "Improve",
             subtitle: "clear + correct",
-            instruction: "Fix grammar, spelling and punctuation, and smooth out awkward, wordy or repetitive phrasing so it reads clearly. Keep the writer's voice and level of detail. If it already reads well, change as little as possible."
+            instruction: "Fix grammar, spelling, punctuation and capitalization, and smooth out awkward, wordy or repetitive phrasing so it reads clearly. Keep the writer's voice and level of detail. If it already reads well, change as little as possible."
         )
     }
 
@@ -56,7 +56,7 @@ extension Preset {
                 id: UUID(uuidString: "11111111-1111-1111-1111-111111111111")!,
                 name: "Proofread",
                 subtitle: "corrections only",
-                instruction: "Fix every spelling, grammar, punctuation and capitalization mistake, and every typo or wrong word. Don't reword, shorten or restyle anything else."
+                instruction: "Fix every spelling, grammar, punctuation and capitalization mistake, and every typo or wrong word. Apart from the number and em dash rules above, don't reword, shorten or restyle anything."
             ),
             Preset(
                 id: UUID(uuidString: "22222222-2222-2222-2222-222222222222")!,

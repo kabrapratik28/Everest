@@ -30,3 +30,14 @@ func emDashesThatGetThroughAreReplaced() {
     #expect(rewrite("Run `a — b` and stop — now.") == "Run `a — b` and stop, now.")
     #expect(rewrite("Pages 10–20 are fine.") == "Pages 10–20 are fine.")
 }
+
+/// The owner's dictation rule: number words become digits. His examples are
+/// the spec, and a small model follows a rule far more reliably with them
+/// than without, so the frame carries them. The frame rather than a style,
+/// so custom styles, Proofread included, get it too.
+@Test("the frame asks for digits, with the owner's examples")
+func frameAsksForDigits() {
+    for example in ["25", "10%", "$5", "1:1"] {
+        #expect(PromptBuilder.safetyFrame.contains(example), "\(example)")
+    }
+}
