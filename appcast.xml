@@ -3,6 +3,15 @@
     <channel>
         <title>Everest</title>
         <item>
+            <title>0.3.1</title>
+            <pubDate>Tue, 29 Sep 2026 10:26:22 -0700</pubDate>
+            <link>https://github.com/kabrapratik28/Everest</link>
+            <sparkle:version>14</sparkle:version>
+            <sparkle:shortVersionString>0.3.1</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+            <enclosure url="https://github.com/kabrapratik28/Everest/releases/download/v0.3.1/Everest.dmg" length="20867720" type="application/octet-stream" sparkle:edSignature="e49RD0bIjVfvu6IR1WrVVTygT7W72xZmbj1YDi3+Yf1S9kYfWxHzWTQxtYqup2dzN5YjjyDRCFsoNiVQ3rnJCg==" />
+        </item>
+        <item>
             <title>0.3.0</title>
             <pubDate>Mon, 28 Sep 2026 17:29:11 -0700</pubDate>
             <link>https://github.com/kabrapratik28/Everest</link>
@@ -19,15 +28,6 @@
             <sparkle:shortVersionString>0.2.7</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
             <enclosure url="https://github.com/kabrapratik28/Everest/releases/download/v0.2.7/Everest.dmg" length="20730093" type="application/octet-stream" sparkle:edSignature="lyVsV5xzJ+IfNLsk9OFOd1mFOW4KcFSdMNuUNuRrBl6eWqB+g2vXDY/8LhiME8nwvgK9TdiML3iSeRJAEfG1Cw==" />
-        </item>
-        <item>
-            <title>0.2.6</title>
-            <pubDate>Thu, 17 Sep 2026 13:36:54 -0700</pubDate>
-            <link>https://github.com/kabrapratik28/Everest</link>
-            <sparkle:version>11</sparkle:version>
-            <sparkle:shortVersionString>0.2.6</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
-            <enclosure url="https://github.com/kabrapratik28/Everest/releases/download/v0.2.6/Everest.dmg" length="20734501" type="application/octet-stream" sparkle:edSignature="ilmcotkFSGPPEEdHE7oAFDRICyInIcv3N4XTRG3avGt5mKOmqN7JQGEsZ/wR7wQpqEbJebcl2NK8ifZzCbiyAg==" />
         </item>
         <item>
             <title>0.2.2</title>
