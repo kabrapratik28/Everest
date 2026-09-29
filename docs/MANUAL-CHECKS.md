@@ -300,12 +300,16 @@ that produced the Alacritty bug.
 
 *Measured 2026-09-28 on macOS 26.7, driven with synthetic keys against a
 scratch TextEdit document and a scratch Chrome textarea:* the pane took
-keyboard focus while the source app stayed frontmost; ⇥ flipped the stored
-view and back with the editor keeping focus; text typed into the pane was
-what ↩ wrote, 120 ms after ↩ in TextEdit (Accessibility write) and 282 ms in
-Chrome (paste route); esc left the page untouched and handed focus straight
-back; a drag was stored, and the next pane opened there, pulled 12 pt inside
-the visible frame because it had been dropped flush against a left-side Dock.
+keyboard focus while the source app stayed frontmost; text typed into the
+pane was what ↩ wrote, 120 ms after ↩ in TextEdit (Accessibility write) and
+282 ms in Chrome (paste route); esc left the page untouched and handed focus
+straight back; a drag was stored, and the next pane opened there, pulled
+12 pt inside the visible frame because it had been dropped flush against a
+left-side Dock. *Re-measured on the 0.3.0 release build in TextEdit:* ⌘D
+flipped the stored view and back with the editor keeping focus, and ↩
+replaced in 121 ms; with Tab and ⌘↩ chosen in Settings, Tab switched views,
+plain ↩ added a line without touching the document, and ⌘↩ replaced in
+121 ms.
 
 42. **Slack: ↩ replaces and never sends.** The failure this whole design is
     built against. *Do:* select a draft in Slack's composer, ⌥R, press ↩ in
