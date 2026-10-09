@@ -331,7 +331,7 @@ plain ↩ added a line without touching the document, and ⌘↩ replaced in
     *Do:* choose it in Settings ▸ General, ⌥R: no pane waits, the selection
     is replaced as before.
 
-## Ollama — needs a running Ollama, and a second computer for the last two
+## Ollama — needs a running Ollama, and a second computer for 54
 
 Unit tests run against a scripted server built from responses captured on
 2026-10-08 (Ollama 0.13.0); `EVEREST_OLLAMA_LIVE=1` runs the live tests. These
@@ -364,3 +364,10 @@ need the app, a real Ollama and a person.
     plain http to this Mac and the local network.
 56. **The taller window suits every tab.** *Do:* open each Settings tab, then
     a very long model name: nothing clipped, nothing floating.
+57. **Switching to Ollama gives the built-in model's memory back.** *Do:* on
+    Qwen3 4B, make five rewrites of different lengths: Activity Monitor shows
+    Everest near 2.6 GB (6.8 GB before the cap, measured 2026-10-08). Pick
+    Ollama in Settings ▸ Model and make one rewrite **with the hotkey** (the
+    Settings test box keeps the old engine): Everest falls under 0.5 GB. On a
+    Mac with Qwen3 30B downloaded, repeat from 30B: its idle worst case is
+    measured nowhere else.

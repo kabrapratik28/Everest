@@ -18,8 +18,13 @@ import os
 /// and that is only true if nothing else is still loaded. The gate and the
 /// registry each read correctly alone and were wrong together.
 ///
-/// Apple's engine is exempt: it holds no weights of ours, so evicting it
-/// frees nothing and rebuilding it costs nothing.
+/// Apple's and Ollama's engines are never evicted: they hold no weights of
+/// ours, so evicting them frees nothing and rebuilding them costs nothing.
+/// Asking for one still evicts the MLX engine, or switching to Ollama keeps a
+/// model resident that nothing will use. The cost is a reload for anything
+/// that asks for Apple's engine while an MLX one is warm; only the Model
+/// tab's availability read does, and it already evicted by building the
+/// other MLX row.
 ///
 /// `build` runs inside the lock so that two hotkey presses half a second apart
 /// cannot both miss and both start a load, which is the same reason
@@ -40,8 +45,8 @@ final class EngineRegistry: Sendable {
     private let build: @Sendable (EngineID) -> any RewriteEngine
     private let hasWeights: @Sendable (EngineID) -> Bool
 
-    /// Whether this engine holds weights worth evicting for. Apple's has
-    /// none, so it never displaces anything and is never displaced.
+    /// Whether this engine holds weights worth evicting. Apple's and
+    /// Ollama's hold none, so they are never evicted.
     private static func holdsWeights(_ id: EngineID) -> Bool {
         ModelCatalog.all.first { $0.id == id }.map { !$0.repoID.isEmpty } ?? false
     }
@@ -64,21 +69,21 @@ final class EngineRegistry: Sendable {
         let onDisk = hasWeights(id)
 
         return entries.withLock { entries in
+            // Anything else with weights goes now, whatever is asked for and
+            // before the cached lookup can answer: switching to Ollama or
+            // Apple's model otherwise kept a model resident that nothing would
+            // use. Deferring to "after the previous generation is cancelled"
+            // would mean both resident at once, which is the peak this exists
+            // to avoid — and by the time a new engine is asked for, the old
+            // transaction has already been superseded.
+            entries = entries.filter { $0.key == id || !Self.holdsWeights($0.key) }
+
             if let entry = entries[id] {
                 let weightsWereDeleted = entry.sawWeights && !onDisk
                 if !weightsWereDeleted {
                     if onDisk { entries[id] = Entry(engine: entry.engine, sawWeights: true) }
                     return entry.engine
                 }
-            }
-
-            // Anything else with weights goes now. Deferring to "after the
-            // previous generation is cancelled" would mean both resident at
-            // once, which is the peak this exists to avoid — and by the time
-            // a new engine is asked for, the old transaction has already been
-            // superseded.
-            if Self.holdsWeights(id) {
-                entries = entries.filter { $0.key == id || !Self.holdsWeights($0.key) }
             }
 
             let engine = build(id)

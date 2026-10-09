@@ -164,8 +164,8 @@ func theModelStoreIsPrivateToThisApp() {
 /// registry each look right alone and are wrong together, which is why this
 /// is the registry's test and not the gate's.
 ///
-/// Apple's engine is exempt: it holds no weights of ours, so evicting it
-/// frees nothing and rebuilding it costs nothing.
+/// Apple's and Ollama's engines are never evicted, holding none of our
+/// weights; asking for one still evicts the MLX engine (the next test).
 @Test("switching model releases the previous engine, so two sets of weights are never resident")
 func switchingModelEvictsThePreviousEngine() throws {
     let built = OSAllocatedUnfairLock(initialState: [EngineID]())
@@ -190,4 +190,38 @@ func switchingModelEvictsThePreviousEngine() throws {
     _ = registry.engine(for: .qwen4B)
 
     #expect(built.withLock { $0 } == [.qwen4B, .qwen30B, .qwen4B])
+}
+
+/// Switching to Ollama or Apple's model drops the MLX engine too.
+///
+/// Eviction ran only when the engine asked for held weights, and only after
+/// the cached lookup had not already answered. So moving from Qwen to Ollama
+/// kept 2.3 GB (17.2 GB on 30B) resident beside the model Ollama runs. The one
+/// thing releasing it was Settings ▸ Model building the other MLX row while
+/// reading every row's availability: right by accident.
+///
+/// The second `.ollama` is a cache hit on purpose. Eviction placed after the
+/// lookup misses exactly that request.
+@Test("switching to Ollama or Apple's model releases the MLX engine, even when theirs is already built")
+func switchingToAnEngineWithoutWeightsEvictsTheMLXEngine() {
+    let built = OSAllocatedUnfairLock(initialState: [EngineID]())
+    let registry = EngineRegistry(
+        build: { id in
+            built.withLock { $0.append(id) }
+            return StubEngine(id: id)
+        },
+        hasWeights: { _ in true }
+    )
+
+    _ = registry.engine(for: .ollama)
+    _ = registry.engine(for: .qwen4B)
+    // Positive control: asking again must not rebuild, or this would pass
+    // against a registry that caches nothing.
+    _ = registry.engine(for: .qwen4B)
+    _ = registry.engine(for: .ollama)
+    // Coming back must rebuild: the observable form of "the 4B container was
+    // released when Ollama took over".
+    _ = registry.engine(for: .qwen4B)
+
+    #expect(built.withLock { $0 } == [.ollama, .qwen4B, .qwen4B])
 }

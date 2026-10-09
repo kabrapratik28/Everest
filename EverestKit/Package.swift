@@ -33,6 +33,9 @@ let package = Package(
     ],
     dependencies: [
         .package(url: "https://github.com/ml-explore/mlx-swift-lm", exact: "3.31.4"),
+        // `Memory.cacheLimit` is in its `MLX` module, which mlx-swift-lm does not
+        // re-export. The version it already resolved to, pinned here.
+        .package(url: "https://github.com/ml-explore/mlx-swift", exact: "0.31.6"),
         .package(url: "https://github.com/huggingface/swift-huggingface", exact: "0.10.1"),
         .package(url: "https://github.com/huggingface/swift-transformers", exact: "1.3.4"),
     ],
@@ -51,6 +54,7 @@ let package = Package(
             name: "Engines",
             dependencies: [
                 "RewriteCore",
+                .product(name: "MLX", package: "mlx-swift"),
                 .product(name: "MLXLLM", package: "mlx-swift-lm"),
                 .product(name: "MLXLMCommon", package: "mlx-swift-lm"),
                 .product(name: "HuggingFace", package: "swift-huggingface"),
@@ -60,7 +64,7 @@ let package = Package(
             // server lives there, and this directory's doc was at its budget.
             exclude: docs + docs.map { "Ollama/\($0)" }
         ),
-        .testTarget(name: "EnginesTests", dependencies: ["Engines"]),
+        .testTarget(name: "EnginesTests", dependencies: ["Engines", .product(name: "MLX", package: "mlx-swift")]),
 
         .target(
             name: "Overlay",

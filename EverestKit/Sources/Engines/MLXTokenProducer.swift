@@ -1,4 +1,5 @@
 import Foundation
+import MLX
 import MLXLLM
 import MLXLMCommon
 import Tokenizers
@@ -11,10 +12,12 @@ private let log = Logger(
 
 /// The real `TokenProducer`: `LLMModelFactory` and `ChatSession`.
 ///
-/// **Integration-only.** Exercising any of this needs 2.3 GB of weights and a
-/// Metal device. It is kept to translation for that reason — the accumulation,
-/// budgeting and cancellation logic all live in `MLXEngine`, on the tested
-/// side of the `TokenProducer` seam.
+/// **Integration-only**, except the cache cap in `load`, which `MLXMemoryTests`
+/// checks against MLX's real allocator with no weights (opt-in, xcodebuild).
+/// Loading and generating need 2.3 GB of weights and a Metal device. It is
+/// kept to translation for that reason — the accumulation, budgeting and
+/// cancellation logic all live in `MLXEngine`, on the tested side of the
+/// `TokenProducer` seam.
 public final class MLXTokenProducer: TokenProducer {
     /// One producer serves one engine, which serves one pinned repo and
     /// revision, so the directory is the same on every call and the first
@@ -25,6 +28,17 @@ public final class MLXTokenProducer: TokenProducer {
 
     /// Loads the weights, which is what proves a download.
     public func load(from directory: URL) async throws {
+        // MLX keeps freed GPU buffers for reuse, by default up to its memory
+        // limit (about 45 GB on a 48 GB Mac), and reuses one only for a
+        // request within two pages of its size, so each new selection length
+        // allocated afresh. Measured 2026-10-08, Qwen3 4B, five rewrites: 6.8
+        // GB, and still 6.6 GB once the engine was released. At 20 MB, the
+        // figure mlx-swift's docs give for an LLM: 2.6 GB, and 0.2 GB left
+        // after release, same speed. Here, not in `init`: setting it starts Metal and loads
+        // the metallib, and building a producer must stay allocation-only (the
+        // registry builds inside its lock; the AppCore suite has no metallib,
+        // and MLX exits without one).
+        Memory.cacheLimit = 20 * 1_048_576
         _ = try await container.value {
             try await LLMModelFactory.shared.loadContainer(
                 from: directory,

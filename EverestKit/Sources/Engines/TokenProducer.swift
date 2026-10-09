@@ -44,8 +44,9 @@ public enum TokenEvent: Sendable, Equatable {
 /// Everything the engine decides — accumulating deltas into snapshots, sizing
 /// the output budget, refusing a truncated rewrite, stopping on cancel — is
 /// driven against a fake conformer. The real conformer wraps `ChatSession` and
-/// is integration-only, because exercising it needs 2.3 GB of weights and a
-/// Metal device.
+/// is integration-only, because loading and generating need 2.3 GB of weights
+/// and a Metal device; only its MLX cache cap is checked without weights
+/// (`MLXMemoryTests`, opt-in).
 public protocol TokenProducer: Sendable {
     /// Loads the weights in `directory`, throwing if they will not run.
     ///
