@@ -21,7 +21,9 @@ public struct ModelSpec: Sendable, Identifiable, Hashable {
     }
 }
 
-/// The complete, fixed list of models this app will ever download or run.
+/// The fixed list of engines Settings offers. The MLX entries are the only
+/// weights this app will ever download; Ollama runs whatever models the
+/// user's own server has, named by that server, never by this file.
 /// Never point an entry at a Qwen3.5 model: see RewriteCore/AGENTS.md.
 public enum ModelCatalog {
     public static let all: [ModelSpec] = [
@@ -53,6 +55,17 @@ public enum ModelCatalog {
             // No repo, so no commit to pin — this is a fixed sentinel, not a
             // real revision. Non-empty only to satisfy the shared invariant.
             revision: "n/a-system-framework"
+        ),
+        ModelSpec(
+            id: .ollama,
+            repoID: "",
+            displayName: "Ollama",
+            approxBytes: 0,
+            blurb: "Uses a model you already run in Ollama. Nothing to download here.",
+            isDefault: false,
+            // The same sentinel arrangement as Apple's: the user's server
+            // owns these models, so there is nothing of ours to pin.
+            revision: "n/a-ollama"
         ),
     ]
 }

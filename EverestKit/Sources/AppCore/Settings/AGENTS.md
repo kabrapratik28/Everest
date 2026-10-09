@@ -14,6 +14,8 @@ rewrite going through, this is what the user is told and allowed to change.
   nothing. **`EngineEligibility` gates ahead of both, and at launch** — a row
   is a view, so a 30B choice restored from `UserDefaults` meets no gate before
   the coordinator uses it. `select(_:)` refuses too, and is the only mover.
+- **Ollama's row comes from `refreshOllama`**; `refresh` asks only when it is in
+  use, and the setup line then names it. A reopened finished guide skips models.
 - **A path that clears its output ends by setting something** — `download`'s
   callers used `try?` and `runTest` returned silently, leaving a vanished bar.
 - **Onboarding completion is stored, never inferred from the TCC grant**,
@@ -53,8 +55,6 @@ rewrite going through, this is what the user is told and allowed to change.
 
 ## Seams
 
-| Seam | Production value | Tested with |
+| Seam | Production value | Tested with (in `AppCoreTests`, one bundle per target) |
 |---|---|---|
 | `AppPresence.setPolicy` | `NSApp.setActivationPolicy` | `PolicyRecorder` |
-
-Tests are in `AppCoreTests` — one per SwiftPM target, not per directory.

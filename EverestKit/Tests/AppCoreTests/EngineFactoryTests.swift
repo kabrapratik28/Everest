@@ -24,10 +24,14 @@ struct GlobalEngineRegistryTests {
 /// than in the app target. Getting it wrong is silent: an `MLXEngine` built
 /// for `.apple` would carry an empty `repoID` and fail at download time with
 /// a malformed-repository error, several screens away from the mistake.
-@Test("every catalog id builds the engine that claims that id")
-func everyCatalogEntryBuildsItsOwnEngine() {
-    for spec in ModelCatalog.all {
-        #expect(EngineFactory.live(for: spec.id).id == spec.id)
+///
+/// Every id, not every catalog entry: walking the catalog stays green for an
+/// id the catalog forgot, and "no repository means Apple's" would then build
+/// Apple's engine for it.
+@Test("every engine id builds the engine that claims that id")
+func everyEngineIDBuildsItsOwnEngine() {
+    for id in EngineID.allCases {
+        #expect(EngineFactory.live(for: id).id == id)
     }
 }
 

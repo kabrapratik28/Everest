@@ -142,7 +142,16 @@ targets:
         # Shown in the system permission prompt.
         NSAccessibilityUsageDescription: >-
           Everest needs Accessibility access to read the text you select and
-          replace it with the rewritten version. Text never leaves your Mac.
+          replace it with the rewritten version. Settings ▸ Privacy explains
+          where your text goes.
+        # Plain http to Ollama on this Mac and on the local network. Anything
+        # beyond that still needs https, and gets a message saying so.
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
+        # Shown the first time Everest connects to Ollama on another computer.
+        NSLocalNetworkUsageDescription: >-
+          Everest connects to Ollama on another computer on your network only
+          when you enter that computer's address in Settings ▸ Model.
         # Sparkle. The feed is served from the repo's default branch rather
         # than GitHub Pages: both are free and HTTPS, and this one needs no
         # second deployment target that can silently stop publishing.

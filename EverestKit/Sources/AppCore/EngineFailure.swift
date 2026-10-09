@@ -1,5 +1,6 @@
 import Engines
 import Overlay
+import RewriteCore
 
 /// Turns an error thrown mid-generation into the state the panel ends on.
 ///
@@ -26,6 +27,14 @@ public enum EngineFailure {
         // models, which fixes nothing, and it gives no hint that letting the
         // download run again is the one useful action.
         if case ModelStoreError.readyMarkerWithoutWeights = error { return weightsMissing }
+        // Written where the conditions are known, each naming the user's own
+        // server: "pick a different model" is the wrong advice when Ollama is
+        // simply not running.
+        if let ollama = error as? OllamaError { return ollama.message }
+        // A piece of a long Ollama selection is checked as it finishes, so a
+        // validation refusal can arrive from the engine rather than from the
+        // coordinator's own check of the finished text.
+        if let refused = error as? ValidationFailure { return refused.message }
         return generic
     }
 
@@ -44,15 +53,17 @@ public enum EngineFailure {
     ///
     /// All this decides is whether the model declined. Apple's content filter
     /// cannot be disabled and fires on ordinary prose — a paragraph about a
-    /// death, routine political writing — so `.refused` is accurate there and
-    /// nowhere else: a missing download, an exhausted budget or an ineligible
-    /// device are the app failing, and saying "the model declined" sends the
-    /// user to reword writing that was never the problem.
+    /// death, routine political writing — so `.refused` is accurate there.
+    /// So it is for a validation refusal, which the coordinator already shows
+    /// as `.refused` when it checks a finished rewrite, and which an Ollama
+    /// piece can now raise mid-stream. Nowhere else: a missing download, an
+    /// exhausted budget or an ineligible device are the app failing, and
+    /// saying "the model declined" sends the user to reword writing that was
+    /// never the problem.
     public static func state(for error: any Error) -> PanelState {
         let words = reason(for: error)
-        return (error as? AppleEngineError) == .guardrailRefusal
-            ? .refused(reason: words)
-            : .error(reason: words)
+        let declined = (error as? AppleEngineError) == .guardrailRefusal || error is ValidationFailure
+        return declined ? .refused(reason: words) : .error(reason: words)
     }
 
     private static let generic =

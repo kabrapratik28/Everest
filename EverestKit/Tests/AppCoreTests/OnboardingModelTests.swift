@@ -357,3 +357,44 @@ func aHeldContinueSaysWhy() {
     #expect(ready.canAdvance, "positive control: this one really can move")
     #expect(ready.continueHint == nil, "a live button explains itself by working")
 }
+
+/// A finished guide reopened for a lost permission needs only the permission
+/// back: the engine was chosen the first time. Walking the model step again
+/// showed an Ollama user a list without their engine, under a promise that
+/// nothing leaves the Mac, and held Continue on an engine that step cannot show.
+@Test("a finished guide reopened for a lost permission skips the model step")
+@MainActor
+func recoverySkipsTheModelStep() {
+    let firstRun = OnboardingModel(store: makeOnboardingStore(), isAccessibilityTrusted: { true })
+    firstRun.advance()
+    #expect(firstRun.step == .model)
+
+    let returning = OnboardingModel(
+        store: makeOnboardingStore(),
+        isAccessibilityTrusted: { true },
+        isSelectedEngineReady: { false }
+    )
+    returning.markComplete()
+    returning.rewindForLostPermission()
+    returning.advance()
+    #expect(returning.step == .tryIt)
+}
+
+/// "Download a model" is wrong advice for Ollama, which needs a running
+/// server and a model chosen in Settings. The engine's own reason wins.
+@Test("setup's hint is the engine's own reason when it has one")
+@MainActor
+func engineHintReplacesTheDownloadHint() {
+    let ollama = OnboardingModel(
+        store: makeOnboardingStore(),
+        isAccessibilityTrusted: { true },
+        isSelectedEngineReady: { false },
+        engineHint: { "Can't reach Ollama at localhost:11434. Open Ollama, then press ↻." }
+    )
+    ollama.advance()
+    #expect(ollama.continueHint == "Can't reach Ollama at localhost:11434. Open Ollama, then press ↻.")
+
+    let builtIn = OnboardingModel(store: makeOnboardingStore(), isAccessibilityTrusted: { true }, isSelectedEngineReady: { false })
+    builtIn.advance()
+    #expect(builtIn.continueHint == "Download a model to continue — Everest has nothing to rewrite with yet.")
+}

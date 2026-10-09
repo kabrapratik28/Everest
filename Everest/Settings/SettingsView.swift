@@ -39,7 +39,9 @@ struct SettingsView: View {
             PrivacyTab(settings: settings, automaticUpdateChecks: automaticUpdateChecks)
                 .tabItem { Label("Privacy", systemImage: "lock") }
         }
-        .frame(width: 560, height: 460)
+        // 560 tall since the Ollama row arrived with its server and model
+        // controls; at 460 the Model tab's "Try it" box no longer fit.
+        .frame(width: 560, height: 560)
     }
 }
 
@@ -215,7 +217,11 @@ private struct ModelTab: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             ForEach(models.rows) { row in
-                ModelRow(row: row, models: models)
+                if row.id == .ollama {
+                    OllamaRow(row: row, models: models)
+                } else {
+                    ModelRow(row: row, models: models)
+                }
                 Divider()
             }
 
@@ -337,6 +343,98 @@ private struct ModelRow: View {
                 }
             }
         }
+    }
+}
+
+/// The Ollama row: the same radio-button row as the others, plus the server
+/// address and a dropdown of the models that server runs. Every rule it shows
+/// is `ModelSettingsModel`'s; this is layout. No Delete button: Ollama owns
+/// these models.
+private struct OllamaRow: View {
+    let row: ModelSettingsModel.Row
+    @ObservedObject var models: ModelSettingsModel
+
+    /// The field's text, kept apart from the saved address so typing does
+    /// not ask the server on every keystroke. Committed on Return, when the
+    /// field loses focus with a change, and by ↻.
+    @State private var draft = ""
+    @FocusState private var editing: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Button { models.select(.ollama) } label: {
+                HStack(alignment: .top) {
+                    Image(systemName: row.isSelected ? "largecircle.fill.circle" : "circle")
+                        .foregroundStyle(row.isSelected ? Color.accentColor : .secondary)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(row.spec.displayName).font(.headline)
+                        Text(row.spec.blurb).font(.callout).foregroundStyle(.secondary)
+                        Text(models.ollamaSummary).font(.caption).foregroundStyle(.secondary)
+                    }
+                    Spacer(minLength: 0)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            // Greyed until the server answers with a model; the address field
+            // below stays live so the user can fix what the summary names.
+            .disabled(!row.isEligible)
+            .accessibilityLabel("\(row.spec.displayName). \(row.spec.blurb). \(models.ollamaSummary)")
+            .accessibilityAddTraits(row.isSelected ? [.isSelected] : [])
+            .accessibilityHint("Rewrites with this model")
+
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 8) {
+                    Text("Server").frame(width: 46, alignment: .trailing)
+                    TextField(AppSettings.defaultOllamaServer, text: $draft)
+                        .textFieldStyle(.roundedBorder)
+                        .focused($editing)
+                        .onSubmit(commit)
+                        .frame(width: 270)
+                        .accessibilityLabel("Ollama server address")
+                    Button(action: commit) { Image(systemName: "arrow.clockwise") }
+                        .help("Check again")
+                        .accessibilityLabel("Check again")
+                }
+                if !models.ollamaServerIsOnThisMac {
+                    Label {
+                        Text("This server isn't on this Mac. Text you rewrite is sent to it.")
+                    } icon: {
+                        Image(systemName: "exclamationmark.triangle.fill").symbolRenderingMode(.multicolor)
+                    }
+                    .font(.callout)
+                    .padding(.leading, 54)
+                }
+                HStack(spacing: 8) {
+                    Text("Model").frame(width: 46, alignment: .trailing)
+                    Picker("Model", selection: Binding(
+                        get: { models.ollamaPickerSelection },
+                        set: { models.chooseOllamaModel($0) }
+                    )) {
+                        if models.ollamaPickerSelection.isEmpty {
+                            Text(models.ollamaModels.isEmpty ? "No models" : "Choose a model").tag("")
+                        }
+                        ForEach(models.ollamaModels, id: \.self) { Text($0).tag($0) }
+                    }
+                    .labelsHidden()
+                    .frame(maxWidth: 280, alignment: .leading)
+                    .disabled(models.ollamaModels.isEmpty)
+                }
+            }
+            .padding(.leading, 26)
+        }
+        .onAppear { draft = models.ollamaServer }
+        // Re-synced when the saved address changes, which is how an emptied
+        // field shows the default it was reset to.
+        .onChange(of: models.ollamaServer) { _, saved in draft = saved }
+        .onChange(of: editing) { _, isEditing in
+            if !isEditing, draft != models.ollamaServer { commit() }
+        }
+        .task { await models.refreshOllama() }
+    }
+
+    private func commit() {
+        Task { await models.setOllamaServer(draft) }
     }
 }
 

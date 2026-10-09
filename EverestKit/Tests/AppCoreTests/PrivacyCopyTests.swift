@@ -39,4 +39,12 @@ func thePrivacyCopyIsTrue() {
     // the sync is to the user's own devices and not to a company.
     #expect(copy.localizedCaseInsensitiveContains("nowhere") == false)
     #expect(copy.localizedCaseInsensitiveContains("your own devices"))
+
+    // Ollama can be pointed at another computer, so "nothing is sent to any
+    // server" holds for the built-in models and has to say so, and the one
+    // choice that sends text away has to be named.
+    #expect(copy.localizedCaseInsensitiveContains("built-in models"))
+    #expect(copy.localizedCaseInsensitiveContains("Ollama"))
+    #expect(copy.localizedCaseInsensitiveContains("another computer"))
+    #expect(copy.hasPrefix("Everest runs the model on this Mac.") == false)
 }

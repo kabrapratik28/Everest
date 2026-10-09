@@ -103,9 +103,13 @@ struct OnboardingView: View {
     private var modelStep: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Choose a model").font(.title2).bold()
-            Text("It runs on this Mac. Nothing you rewrite is sent anywhere.")
+            // From `AppCore`, true for the engine in use: Ollama can be chosen
+            // in Settings before setup is finished.
+            Text(models.onboardingPrivacyLine)
 
-            ForEach(models.rows) { row in
+            // Not Ollama: it needs a server address and a model choice, which
+            // belong in Settings ▸ Model, not in the first minute with the app.
+            ForEach(models.onboardingRows) { row in
                 HStack(alignment: .top) {
                     VStack(alignment: .leading) {
                         HStack(spacing: 6) {

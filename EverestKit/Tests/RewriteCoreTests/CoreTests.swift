@@ -307,6 +307,14 @@ func modelCatalogHasExactlyOneDefaultAndItIsQwen4B() {
     #expect(defaults.first?.id == .qwen4B)
 }
 
+/// Settings lists the catalog, so an engine missing from it is one nobody
+/// can pick, and a launch-time gate that looks ids up there treats it as
+/// unknown.
+@Test("every engine is offered in the catalog")
+func everyEngineIsOffered() {
+    #expect(Set(ModelCatalog.all.map(\.id)) == Set(EngineID.allCases))
+}
+
 @Test("ModelCatalog.all pins a non-empty revision for every entry")
 func modelCatalogHasNonEmptyRevisionForEveryEntry() {
     #expect(ModelCatalog.all.allSatisfy { !$0.revision.isEmpty })
@@ -357,4 +365,15 @@ func theUsersOwnTagIsTheirs() {
     let result = OutputValidator.validate(tag, source: "please keep \(tag) exactly as it is")
 
     #expect(result == .success(tag))
+}
+
+/// A long selection is checked piece by piece, but typography waits for the
+/// joined text. Em-dash replacement decides what is code by counting
+/// backticks, and a piece that starts inside a code block counts wrong, so a
+/// per-piece pass would turn `b = 2 -- c` inside code into `b = 2, c`.
+@Test("checking a piece refuses what validate refuses but leaves typography for the joined text")
+func checkingAPieceLeavesTypographyAlone() {
+    #expect(OutputValidator.checked("Ready — set", source: "ready set") == .success("Ready — set"))
+    #expect(OutputValidator.validate("Ready — set", source: "ready set") == .success("Ready, set"))
+    #expect(OutputValidator.checked("  \n", source: "ready set") == .failure(.empty))
 }

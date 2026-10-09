@@ -27,9 +27,16 @@
 	<key>LSUIElement</key>
 	<true/>
 	<key>NSAccessibilityUsageDescription</key>
-	<string>Everest needs Accessibility access to read the text you select and replace it with the rewritten version. Text never leaves your Mac.</string>
+	<string>Everest needs Accessibility access to read the text you select and replace it with the rewritten version. Settings ▸ Privacy explains where your text goes.</string>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
 	<key>NSHumanReadableCopyright</key>
 	<string></string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Everest connects to Ollama on another computer on your network only when you enter that computer's address in Settings ▸ Model.</string>
 	<key>SUAutomaticallyUpdate</key>
 	<true/>
 	<key>SUEnableAutomaticChecks</key>

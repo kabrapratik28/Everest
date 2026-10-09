@@ -69,6 +69,21 @@ public final class AppSettings: ObservableObject {
         }
     }
 
+    /// Where the user's Ollama answers. Their own server, so it is theirs to
+    /// change; an empty field puts this back.
+    public static let defaultOllamaServer = "http://localhost:11434/v1"
+
+    @Published public var ollamaServer: String {
+        didSet { store.set(ollamaServer, forKey: Keys.ollamaServer) }
+    }
+
+    /// The Ollama model to rewrite with, as the server names it. Empty until
+    /// the user picks one: no model name is ever written into the app, because
+    /// the only honest list is the one their own server returns.
+    @Published public var ollamaModel: String {
+        didSet { store.set(ollamaModel, forKey: Keys.ollamaModel) }
+    }
+
     private let store: UserDefaults
 
     private enum Keys {
@@ -82,6 +97,8 @@ public final class AppSettings: ObservableObject {
         static let showsChanges = "everest.settings.showsChanges"
         static let panelAnchor = "everest.settings.panelAnchor"
         static let reviewKeys = "everest.settings.reviewKeys"
+        static let ollamaServer = "everest.settings.ollamaServer"
+        static let ollamaModel = "everest.settings.ollamaModel"
     }
 
     public init(store: UserDefaults = .standard) {
@@ -123,6 +140,8 @@ public final class AppSettings: ObservableObject {
         self.showsChanges = Self.flag(store, Keys.showsChanges, default: false)
         self.panelAnchor = Self.load(PanelAnchor.self, from: store, forKey: Keys.panelAnchor)
         self.reviewKeys = Self.load(ReviewKeys.self, from: store, forKey: Keys.reviewKeys) ?? .standard
+        self.ollamaServer = store.string(forKey: Keys.ollamaServer) ?? Self.defaultOllamaServer
+        self.ollamaModel = store.string(forKey: Keys.ollamaModel) ?? ""
     }
 
     /// `bool(forKey:)` answers `false` for a key that was never written, so

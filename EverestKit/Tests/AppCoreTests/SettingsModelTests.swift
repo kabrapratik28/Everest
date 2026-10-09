@@ -12,6 +12,9 @@ import Testing
 /// engine's own `availability()` rather than from files being on disk, because
 /// `ModelStore` only reports ready once a model has been *loaded* — a download
 /// can finish and still leave weights that fail on every hotkey press.
+///
+/// Ollama's row is the exception: it comes from asking the user's server
+/// (`refreshOllama`), never from this refresh, which onboarding also runs.
 @Test("a model row reports what the engine says about itself, not what is on disk")
 @MainActor
 func modelRowsTakeTheirStateFromTheEngine() async {
@@ -20,6 +23,7 @@ func modelRowsTakeTheirStateFromTheEngine() async {
         .qwen4B: .ready,
         .qwen30B: .needsDownload(bytes: 17_200_000_000),
         .apple: .unavailable(reason: "Apple Intelligence is turned off."),
+        .ollama: .ready,
     ]
     let model = ModelSettingsModel(
         settings: settings,
@@ -29,7 +33,9 @@ func modelRowsTakeTheirStateFromTheEngine() async {
     await model.refresh()
 
     #expect(model.rows.map { $0.spec.id } == ModelCatalog.all.map { $0.id })
-    #expect(model.rows.map { $0.availability } == ModelCatalog.all.map { availability[$0.id]! })
+    let builtIn = model.rows.filter { $0.id != .ollama }
+    #expect(builtIn.map { $0.availability } == builtIn.map { availability[$0.id]! })
+    #expect(model.rows.first { $0.id == .ollama }?.availability == .unavailable(reason: "Checking Ollama…"))
     // The blurb is shown inline, which is the whole reason it exists on the spec.
     #expect(model.rows.allSatisfy { !$0.spec.blurb.isEmpty })
 }

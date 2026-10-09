@@ -114,3 +114,26 @@ func promptBuilderLeavesLegitimateDelimiterTalkIntact() {
 
     #expect(prompt[openRange.upperBound..<closeRange.lowerBound].contains(note))
 }
+
+/// A long selection is rewritten in pieces, and each piece is told so, or a
+/// style that writes letters signs off every piece. The note is ours and
+/// fixed, and it sits between the frame and the user's instruction, so the
+/// instruction still cannot precede anything of ours and the selection stays
+/// last.
+@Test("a piece of a longer selection says which part it is, between the frame and the instruction")
+func promptBuilderNamesThePartBetweenFrameAndInstruction() throws {
+    let piece = PromptBuilder.build(text: "second paragraph", preset: preset, part: (index: 2, count: 3))
+
+    let frame = try #require(piece.range(of: PromptBuilder.safetyFrame))
+    let note = try #require(piece.range(of: "part 2 of 3"))
+    let instruction = try #require(piece.range(of: preset.instruction))
+    let text = try #require(piece.range(of: "second paragraph"))
+    #expect(frame.upperBound <= note.lowerBound)
+    #expect(note.upperBound <= instruction.lowerBound)
+    #expect(instruction.upperBound <= text.lowerBound)
+
+    // A selection that fits in one piece is told nothing about parts.
+    let whole = PromptBuilder.build(text: "second paragraph", preset: preset)
+    #expect(whole.range(of: preset.instruction) != nil)
+    #expect(whole.range(of: "is part") == nil)
+}

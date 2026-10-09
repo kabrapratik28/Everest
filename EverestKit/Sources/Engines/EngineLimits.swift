@@ -2,7 +2,7 @@ import Foundation
 
 /// A generation that cannot be offered to the user as a rewrite.
 ///
-/// Shared by both engines, because both can produce one and the remedy is the
+/// Shared by every engine, because each can produce one and the remedy is the
 /// same. Deliberately an error rather than a `RewriteEvent`: the coordinator
 /// writes whatever reaches `.finished`, so the only safe way to say "this is
 /// not a rewrite" is to never get there.

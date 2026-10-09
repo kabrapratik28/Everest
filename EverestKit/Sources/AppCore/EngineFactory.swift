@@ -118,7 +118,7 @@ public enum EngineFactory {
     }
 
     /// The catalog entry for `id`, or `nil` for an engine with no weights of
-    /// ours. An empty `repoID` is Apple's system model.
+    /// ours. An empty `repoID` is Apple's system model or the user's Ollama.
     private static func downloadable(_ id: EngineID) -> ModelSpec? {
         guard let spec = ModelCatalog.all.first(where: { $0.id == id }), !spec.repoID.isEmpty else {
             return nil
@@ -138,10 +138,25 @@ public enum EngineFactory {
             .installedSnapshot(for: spec.repoID, revision: spec.revision) != nil
     }
 
+    /// What the Model tab shows for the Ollama server at `address`: one
+    /// request answers both the dropdown and whether the row can be picked.
+    public static func ollamaStatus(_ address: String) async -> OllamaStatus {
+        await OllamaClient().status(at: address)
+    }
+
     private static func make(for id: EngineID) -> any RewriteEngine {
+        // Ahead of `downloadable`, whose nil means Apple's engine. Server and
+        // model are read per rewrite, so a Settings edit reaches the next
+        // press without this engine being rebuilt.
+        if id == .ollama {
+            return OllamaEngine(client: OllamaClient(), settings: {
+                await MainActor.run { (AppSettings.shared.ollamaServer, AppSettings.shared.ollamaModel) }
+            })
+        }
         guard let spec = downloadable(id) else {
-            // No repository means Apple's system model: nothing to download,
-            // nothing to pin, and availability is a System Settings toggle.
+            // No repository, and not Ollama, means Apple's system model:
+            // nothing to download, nothing to pin, and availability is a
+            // System Settings toggle.
             //
             // Two guards, because they answer different questions. `canImport`
             // asks whether the SDK has the framework; `#available` asks

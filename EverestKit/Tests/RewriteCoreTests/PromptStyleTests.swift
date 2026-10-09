@@ -9,6 +9,7 @@ import Testing
 func promptsForbidEmDashes() {
     #expect(PromptBuilder.safetyFrame.localizedCaseInsensitiveContains("em dash"))
     let prompts = [PromptBuilder.safetyFrame, Preset.quickImprove.instruction] + Preset.builtInStyles.map(\.instruction)
+        + [PromptBuilder.build(text: "", preset: .quickImprove, part: (index: 1, count: 2))]
     for prompt in prompts {
         #expect(!prompt.contains("\u{2014}"), "\(prompt.prefix(40))")
     }

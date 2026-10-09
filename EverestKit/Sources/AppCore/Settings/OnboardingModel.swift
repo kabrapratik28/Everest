@@ -28,6 +28,9 @@ public final class OnboardingModel: ObservableObject {
     /// Whether the engine the user has chosen can actually run right now:
     /// weights on disk, or an engine that needs none.
     private let isSelectedEngineReady: @MainActor @Sendable () -> Bool
+    /// The engine's own reason it cannot rewrite yet, when it has one:
+    /// Ollama needs a running server and a model, not a download.
+    private let engineHint: @MainActor @Sendable () -> String?
     /// Whether a model download is in flight right now.
     ///
     /// Read live, like the permission. "Use and download" starts a transfer
@@ -46,12 +49,14 @@ public final class OnboardingModel: ObservableObject {
         store: UserDefaults = .standard,
         isAccessibilityTrusted: @escaping @Sendable () -> Bool,
         isPreparing: @escaping @MainActor @Sendable () -> Bool = { false },
-        isSelectedEngineReady: @escaping @MainActor @Sendable () -> Bool = { true }
+        isSelectedEngineReady: @escaping @MainActor @Sendable () -> Bool = { true },
+        engineHint: @escaping @MainActor @Sendable () -> String? = { nil }
     ) {
         self.store = store
         self.isAccessibilityTrusted = isAccessibilityTrusted
         self.isPreparing = isPreparing
         self.isSelectedEngineReady = isSelectedEngineReady
+        self.engineHint = engineHint
         // Resumed, not restarted. The window has a close button, so
         // abandoning setup partway is one click and entirely expected;
         // restarting at the permission step each time would put the model
@@ -172,7 +177,7 @@ public final class OnboardingModel: ObservableObject {
         case .model where isPreparing():
             "Continue once the download finishes."
         case .model:
-            "Download a model to continue — Everest has nothing to rewrite with yet."
+            engineHint() ?? "Download a model to continue — Everest has nothing to rewrite with yet."
         default:
             nil
         }
@@ -180,6 +185,15 @@ public final class OnboardingModel: ObservableObject {
 
     public func advance() {
         guard canAdvance else { return }
+        // A finished guide reopened for a lost permission needs only the
+        // permission back: the engine was chosen the first time. The model
+        // step again would show an Ollama user a list without their engine,
+        // under a promise that nothing leaves the Mac.
+        if step == .accessibility, isComplete {
+            step = .tryIt
+            store.set(step.rawValue, forKey: Keys.step)
+            return
+        }
         // `rawValue + 1` would stop dead at the gap left by the removed step.
         guard let here = Step.allCases.firstIndex(of: step),
               case let next = Step.allCases.index(after: here),

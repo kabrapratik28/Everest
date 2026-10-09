@@ -42,14 +42,25 @@ public enum PromptBuilder {
         return String(repeating: "0", count: 16 - hex.count) + hex
     }
 
-    public static func build(text: String, preset: Preset) -> String {
+    /// `part` is set only when a long selection is rewritten in pieces. The
+    /// note is ours and fixed, like the frame, and goes between the frame and
+    /// the user's instruction, so nothing user-editable ever precedes it.
+    /// Without it, a style that writes letters signs off every piece.
+    public static func build(text: String, preset: Preset, part: (index: Int, count: Int)? = nil) -> String {
         // The id rides in the tag *name*, not an attribute. `</selected_text>`
         // is the grammatically correct close for `<selected_text id="…">`, so
         // an attribute would leave the attacker's forged close looking exactly
         // like the real one — weaker than the fixed delimiter it replaced.
         let tag = "selected_text_\(identifier())"
+        let frame = part.map {
+            """
+            \(safetyFrame)
+
+            The selected text is part \($0.index) of \($0.count) of a longer passage that is being rewritten in pieces. Rewrite only this part, and add no greeting, sign-off, heading or summary that it does not already have.
+            """
+        } ?? safetyFrame
         return """
-        \(safetyFrame)
+        \(frame)
 
         \(preset.instruction)
 

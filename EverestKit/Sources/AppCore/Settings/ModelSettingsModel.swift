@@ -105,11 +105,22 @@ public final class ModelSettingsModel: ObservableObject {
     @Published public private(set) var downloadFailure: [EngineID: String] = [:]
     @Published public private(set) var testOutput: String?
     @Published public private(set) var testFailure: String?
+    /// The local models on the user's Ollama server, as it last answered.
+    @Published public private(set) var ollamaModels: [String] = []
 
     private let settings: AppSettings
     private let engineFor: @Sendable (EngineID) -> any RewriteEngine
     private let storeRoot: URL
     private let physicalMemory: UInt64
+    private let ollamaStatus: @Sendable (String) async -> OllamaStatus
+    /// Bumped by every discovery, so an answer that arrives after a newer
+    /// request was made is dropped rather than shown.
+    private var ollamaGeneration = 0
+
+    /// The Ollama row until the server has answered. Unavailable, so the row
+    /// cannot be chosen on the strength of the placeholder every row starts
+    /// with: "needs download" reads as choosable for an engine with no repo.
+    static let checkingOllama = "Checking Ollama…"
 
     public init(
         settings: AppSettings,
@@ -117,16 +128,20 @@ public final class ModelSettingsModel: ObservableObject {
         storeRoot: URL = EngineFactory.modelStoreRoot,
         // Measured, not assumed. Injected so a test can ask what a 16 GB Mac
         // is told without being run on one.
-        physicalMemory: UInt64 = ProcessInfo.processInfo.physicalMemory
+        physicalMemory: UInt64 = ProcessInfo.processInfo.physicalMemory,
+        ollamaStatus: @escaping @Sendable (String) async -> OllamaStatus = EngineFactory.ollamaStatus
     ) {
         self.settings = settings
         self.engineFor = engineFor
         self.storeRoot = storeRoot
         self.physicalMemory = physicalMemory
+        self.ollamaStatus = ollamaStatus
         rows = ModelCatalog.all.map {
             Row(
                 spec: $0,
-                availability: .needsDownload(bytes: $0.approxBytes),
+                availability: $0.id == .ollama
+                    ? .unavailable(reason: Self.checkingOllama)
+                    : .needsDownload(bytes: $0.approxBytes),
                 isSelected: $0.id == settings.engineID,
                 physicalMemory: physicalMemory
             )
@@ -155,7 +170,12 @@ public final class ModelSettingsModel: ObservableObject {
     /// safe direction: Continue stays shut for the moment it takes the model
     /// step's `.task` to answer.
     public var isSelectedEngineReady: Bool {
-        guard let row = rows.first(where: \.isSelected) else { return false }
+        // The engine the hotkey reads, not the row last marked: the mark only
+        // moves through `select` and `refresh`, so it can lag the setting.
+        guard let row = rows.first(where: { $0.id == settings.engineID }) else { return false }
+        // Ollama's server answering is not enough: without the saved model
+        // the rewrite refuses, so Continue would lead straight to a failure.
+        if row.id == .ollama { return row.isEligible && ollamaModels.contains(settings.ollamaModel) }
         return row.isEligible && !row.needsDownload
     }
 
@@ -180,6 +200,13 @@ public final class ModelSettingsModel: ObservableObject {
                 physicalMemory: physicalMemory
             )
         }
+        // A first choice of Ollama needs a model to be usable at all, so the
+        // first one the server lists is taken. A model the user already chose
+        // is never swapped, even when the server no longer has it: that is
+        // the dropdown's to say, not this method's to decide.
+        if id == .ollama, settings.ollamaModel.isEmpty, let first = ollamaModels.first {
+            settings.ollamaModel = first
+        }
     }
 
     /// Re-asks every engine what it can do right now.
@@ -190,20 +217,133 @@ public final class ModelSettingsModel: ObservableObject {
     /// identically on every hotkey press. Apple's engine answers differently
     /// from one call to the next, because its availability is a System
     /// Settings toggle.
+    ///
+    /// Not Ollama's row, which keeps what its last discovery said. Onboarding
+    /// refreshes here, and asking Ollama from there would be a request the
+    /// user never asked for and, for an address on another computer, a Local
+    /// Network permission prompt out of nowhere. `refreshOllama()` asks, and
+    /// so does this when Ollama is the engine in use: the user chose it, and
+    /// setup has to know whether it works. The model step then says where
+    /// text goes (`onboardingPrivacyLine`) and why Ollama is not ready yet
+    /// (`ollamaInUseHint`), so asking can no longer put a false line on it.
     public func refresh() async {
         var next: [Row] = []
         for spec in ModelCatalog.all {
             next.append(
                 Row(
                     spec: spec,
-                    availability: await engineFor(spec.id).availability(),
+                    availability: spec.id == .ollama
+                        ? ollamaAvailability
+                        : await engineFor(spec.id).availability(),
                     isSelected: spec.id == settings.engineID,
                     physicalMemory: physicalMemory
                 )
             )
         }
         rows = next
+        if settings.engineID == .ollama { await refreshOllama() }
     }
+
+    private var ollamaAvailability: EngineAvailability {
+        rows.first { $0.id == .ollama }?.availability ?? .unavailable(reason: Self.checkingOllama)
+    }
+
+    private func setOllamaAvailability(_ availability: EngineAvailability) {
+        rows = rows.map {
+            $0.id != .ollama ? $0 : Row(spec: $0.spec, availability: availability, isSelected: $0.isSelected, physicalMemory: physicalMemory)
+        }
+    }
+
+    /// Asks the user's Ollama server what it has. One answer fills the
+    /// dropdown and decides whether the row can be chosen, so the two never
+    /// disagree. Published only if no newer request was made meanwhile: a
+    /// slow answer for an old address must not land beside the new one. One
+    /// counter is enough, because every address change comes through here
+    /// and bumps it before anything waits; a second check on the address hid
+    /// this one from every test.
+    public func refreshOllama() async {
+        ollamaGeneration &+= 1
+        let mine = ollamaGeneration
+        let status = await ollamaStatus(settings.ollamaServer)
+        guard mine == ollamaGeneration else { return }
+        ollamaModels = status.models
+        setOllamaAvailability(status.availability)
+    }
+
+    public var ollamaServer: String { settings.ollamaServer }
+
+    /// Saves the address the user typed, trimmed; an emptied field means the
+    /// default. A new address clears the old server's list at once, before
+    /// the new one answers.
+    public func setOllamaServer(_ address: String) async {
+        let trimmed = address.trimmingCharacters(in: .whitespacesAndNewlines)
+        let next = trimmed.isEmpty ? AppSettings.defaultOllamaServer : trimmed
+        if next != settings.ollamaServer {
+            settings.ollamaServer = next
+            ollamaModels = []
+            setOllamaAvailability(.unavailable(reason: Self.checkingOllama))
+        }
+        await refreshOllama()
+    }
+
+    /// Only a model the server listed: anything else would be a name the next
+    /// rewrite refuses to send.
+    public func chooseOllamaModel(_ name: String) {
+        guard ollamaModels.contains(name) else { return }
+        // The setting lives on `AppSettings`, which this screen does not
+        // observe, so the change is announced here.
+        objectWillChange.send()
+        settings.ollamaModel = name
+    }
+
+    /// What the dropdown shows: the saved model when the server lists it,
+    /// otherwise "" so the "Choose a model" item is the one selected. The
+    /// saved setting itself is left alone until the user picks another.
+    public var ollamaPickerSelection: String {
+        ollamaModels.contains(settings.ollamaModel) ? settings.ollamaModel : ""
+    }
+
+    /// Whether the warning under the address can stay hidden. An address
+    /// that does not parse shows its own status instead.
+    public var ollamaServerIsOnThisMac: Bool {
+        OllamaServer(settings.ollamaServer)?.isOnThisMac ?? true
+    }
+
+    /// The line under the Ollama row.
+    public var ollamaSummary: String {
+        switch ollamaAvailability {
+        case .ready:
+            ollamaModels.count == 1 ? "Connected, 1 model" : "Connected, \(ollamaModels.count) models"
+        case let .unavailable(reason):
+            reason
+        case .needsDownload:
+            Self.checkingOllama
+        }
+    }
+
+    /// The model step's line about where text goes, true for the engine in
+    /// use. Ollama can be chosen in Settings before setup is finished, and
+    /// "nothing is sent anywhere" is false for a server on another computer.
+    public var onboardingPrivacyLine: String {
+        guard settings.engineID == .ollama else { return "It runs on this Mac. Nothing you rewrite is sent anywhere." }
+        guard let server = OllamaServer(settings.ollamaServer) else { return "Ollama is selected in Settings ▸ Model." }
+        return server.isOnThisMac
+            ? "Ollama is selected in Settings ▸ Model, and it runs on this Mac, so nothing you rewrite leaves it."
+            : "Ollama is selected in Settings ▸ Model, so what you rewrite is sent to \(server.displayHost)."
+    }
+
+    /// Why the engine in use cannot rewrite yet, when it is Ollama. Setup's
+    /// own hint asks for a download, which is not what Ollama needs.
+    public var ollamaInUseHint: String? {
+        guard settings.engineID == .ollama, !isSelectedEngineReady else { return nil }
+        if case .ready = ollamaAvailability { return "Choose a model for Ollama in Settings ▸ Model." }
+        return ollamaSummary
+    }
+
+    /// The rows the first-run model step offers: everything but Ollama,
+    /// which needs a server address and a model choice that belong in
+    /// Settings, not in the first minute with the app.
+    public var onboardingRows: [Row] { rows.filter { $0.id != .ollama } }
 
     /// Whether this model can be removed.
     ///

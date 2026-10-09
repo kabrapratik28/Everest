@@ -1,6 +1,6 @@
 # Engines — decisions
 
-`MLXEngine` (local weights) and `AppleFoundationEngine`, both `RewriteCore.RewriteEngine`. Verified against mlx-swift-lm **3.31.4**, swift-huggingface 0.10.1, swift-transformers 1.3.4, macOS 27.0 SDK / 26.0 target. Derivations are in source comments.
+`MLXEngine` (local weights), `AppleFoundationEngine` and `OllamaEngine` (the user's own server; `Ollama/AGENTS.md`), all `RewriteCore.RewriteEngine`. Verified against mlx-swift-lm **3.31.4**, swift-huggingface 0.10.1, swift-transformers 1.3.4, macOS 27.0 SDK / 26.0 target. Derivations are in source comments.
 
 ## Build and test
 Root §8 has the isolation and stale-bundle rules; issue this as **one** `&&` command:
@@ -43,7 +43,7 @@ Default is `mlx-community/Qwen3-4B-Instruct-2507-4bit`: the 2507 refresh split I
 `HubCache` scatters one repo across four, three of them **not** under `models--org--name/`. The paths and their writers are the table on `ModelStore.locations(for:)`; what is not in the code is why it matters. `delete` and `residualBytes` both walk that one list, so add a fifth there or the leak assertion stops being one. Removing only the repo directory looks correct — the gigabytes do go — and leaks the lock and metadata trees forever. `byteCount` handles a **plain file**, because `FileManager.enumerator(at:)` returns nil for non-directories and `.ready` is a file: enumerator-only, it reports a clean delete that was not clean.
 
 ## Seams, and rules with teeth
-Everything untestable sits behind a protocol: `ModelFetcher` → `HubModelFetcher`, `TokenProducer` → `MLXTokenProducer` + `TransformersTokenizerBridge`, `AppleSystemModel` → `SystemLanguageModelAdapter`. Real conformers translate and hold **no decisions** — `prepare` resolves the snapshot and hands it to `load(from:)`, so the producer never looks one up. Add an `if` to an adapter and it belongs on the tested side. Manual-only: the download, weights loading, inference quality, Apple Intelligence switched off.
+Everything untestable sits behind a protocol: `ModelFetcher` → `HubModelFetcher`, `TokenProducer` → `MLXTokenProducer` + `TransformersTokenizerBridge`, `AppleSystemModel` → `SystemLanguageModelAdapter`, `HTTPTransport` → `URLSessionTransport`. Real conformers translate and hold **no decisions** — `prepare` resolves the snapshot and hands it to `load(from:)`, so the producer never looks one up. Add an `if` to an adapter and it belongs on the tested side. Manual-only: the download, weights loading, inference quality, Apple Intelligence switched off.
 
 - **Pinned commit, never a branch, never a defaulted parameter; build engines with `MLXEngine(spec:)`.** A moving `main` swaps weights under an install already proven to load and `.ready` still matches, because the revision string never changed. `ModelCatalog` is the only record of which weights were tested; an empty revision throws.
 - **`.ready` means *loaded once*, not *downloaded*.** Only a completed load marks it; `download` clears it before touching the blobs.

@@ -56,7 +56,9 @@ let package = Package(
                 .product(name: "HuggingFace", package: "swift-huggingface"),
                 .product(name: "Tokenizers", package: "swift-transformers"),
             ],
-            exclude: docs
+            // `Ollama/` has its own pair: everything about the user's Ollama
+            // server lives there, and this directory's doc was at its budget.
+            exclude: docs + docs.map { "Ollama/\($0)" }
         ),
         .testTarget(name: "EnginesTests", dependencies: ["Engines"]),
 

@@ -330,3 +330,37 @@ plain ↩ added a line without touching the document, and ⌘↩ replaced in
 47. **"Replace my selection straight away" is the old flow exactly.**
     *Do:* choose it in Settings ▸ General, ⌥R: no pane waits, the selection
     is replaced as before.
+
+## Ollama — needs a running Ollama, and a second computer for the last two
+
+Unit tests run against a scripted server built from responses captured on
+2026-10-08 (Ollama 0.13.0); `EVEREST_OLLAMA_LIVE=1` runs the live tests. These
+need the app, a real Ollama and a person.
+
+48. **The row comes alive with your own models.** *Do:* with Ollama running,
+    open Settings ▸ Model: the Ollama row says "Connected, N models", the
+    dropdown lists exactly `ollama list`'s local models and no `-cloud` ones,
+    and Qwen3 4B is still the selected default.
+49. **A rewrite streams into TextEdit and Slack and replaces on ↩.** *Do:*
+    pick Ollama, choose a model, select a sentence, ⌥R. Then the same in
+    Slack: ↩ replaces and never sends.
+50. **A long passage comes back whole in every style.** *Do:* select about
+    8,000 characters with several paragraphs and a code block, try each
+    style: paragraphs and blank lines are where they were, the code block is
+    unchanged, no piece starts with a greeting or ends with a sign-off.
+51. **Ollama quit mid-use says so.** *Do:* quit Ollama, ⌥R: the panel names
+    `localhost:11434` and says to open Ollama; nothing is replaced. Open it,
+    press ↻ in Settings: the row recovers.
+52. **A removed model is not swapped.** *Do:* `ollama rm` the chosen model:
+    the dropdown says "Choose a model", ⌥R names the model and changes nothing.
+53. **A model that cannot think works.** *Do:* pull a small non-thinking
+    model, choose it, rewrite: no error about thinking.
+54. **Another computer warns and asks.** *Do:* enter another Mac's address
+    (`http://192.168.x.y:11434/v1`, Ollama started with `OLLAMA_HOST=0.0.0.0`):
+    the warning shows, macOS asks for Local Network access once, rewrites work.
+    Deny it once on a fresh install: the row says it cannot reach the server.
+55. **Plain http beyond the local network is refused with the https advice.**
+    *Do:* enter `http://example.com:11434/v1`: the row says macOS only allows
+    plain http to this Mac and the local network.
+56. **The taller window suits every tab.** *Do:* open each Settings tab, then
+    a very long model name: nothing clipped, nothing floating.

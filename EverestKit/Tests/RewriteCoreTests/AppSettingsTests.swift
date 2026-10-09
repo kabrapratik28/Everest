@@ -69,3 +69,29 @@ func reviewKeysDefaultAndPersist() {
     fresh.reviewKeys = ReviewKeys(replace: .commandReturn, changes: .tab)
     #expect(AppSettings(store: store).reviewKeys == ReviewKeys(replace: .commandReturn, changes: .tab))
 }
+
+/// Ollama is opt-in: a fresh install still rewrites with Qwen3 4B, starts
+/// pointed at Ollama on this Mac, and names no model, because the only honest
+/// list of models is the one the user's own server returns. Whatever the user
+/// then picks has to survive a relaunch.
+@Test("Ollama settings start at localhost with no model, persist, and leave the default engine alone")
+@MainActor
+func ollamaSettingsDefaultAndPersist() {
+    let suiteName = "com.kabrapratik.Everest.tests.\(UUID().uuidString)"
+    let store = UserDefaults(suiteName: suiteName)!
+    defer { store.removePersistentDomain(forName: suiteName) }
+
+    let fresh = AppSettings(store: store)
+    #expect(fresh.engineID == .qwen4B)
+    #expect(fresh.ollamaServer == "http://localhost:11434/v1")
+    #expect(fresh.ollamaModel == "")
+
+    fresh.engineID = .ollama
+    fresh.ollamaServer = "http://192.168.1.20:11434/v1"
+    fresh.ollamaModel = "qwen3:14b"
+
+    let relaunched = AppSettings(store: store)
+    #expect(relaunched.engineID == .ollama)
+    #expect(relaunched.ollamaServer == "http://192.168.1.20:11434/v1")
+    #expect(relaunched.ollamaModel == "qwen3:14b")
+}

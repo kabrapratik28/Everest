@@ -6,7 +6,7 @@
 
 ### Select text anywhere on your Mac, press `⌥R`, check the rewrite, and press `↩` to put it in place.
 
-No account, no server, no telemetry. Unplug the network and it still works.
+No account, no telemetry, and no server of ours. With the built-in models, unplug the network and it still works.
 
 <a href="https://github.com/kabrapratik28/Everest/releases/latest/download/Everest.dmg">
 <img src="docs/assets/download.png" width="300" alt="Download Everest for macOS">
@@ -25,7 +25,7 @@ No account, no server, no telemetry. Unplug the network and it still works.
 ## Why you might want it
 
 - **One keystroke, in the app you are already typing in.** No window to switch to, nothing to paste into and back out of.
-- **Your text does not leave the machine.** Not "encrypted in transit", not "we do not train on it". It never goes anywhere.
+- **With the built-in models, your text does not leave the machine.** Not "encrypted in transit", not "we do not train on it". It never goes anywhere. Already run Ollama? Settings ▸ Model can use your own models instead, listed straight from your Ollama.
 - **You see it before it lands.** The rewrite waits in a small panel you can edit. `↩` puts it in place of your selection, `esc` keeps what you wrote, and `⌘D` shows exactly what changed. Drag the panel anywhere and it opens there next time.
 - **Then it replaces the selection.** You are not handed a suggestion to copy. The text in your document changes, and `⌘Z` puts it back. Prefer one keystroke? Switch review off in Settings.
 - **Hand-verified in Slack, Linear, Google Docs, ChatGPT, Google Chat and Sublime Text.** Everything else follows the rules [below](#use) rather than a per-app list. Terminals and PDFs hand you the clipboard instead, and the panel says so rather than failing quietly.

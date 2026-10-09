@@ -109,7 +109,7 @@
         Select any text, press <span class="kbds"><kbd>⌥</kbd><kbd>R</kbd></span>, and a sharper
         version takes its place — in Slack, Linear, Google&nbsp;Docs, your favourite editors, your
         favourite browsers, and the rest of the Mac apps you type in.
-        <strong>The model runs on your Mac</strong>, so nothing you write is sent to a server,
+        <strong>The built-in model runs on your Mac</strong>, so nothing you write is sent to a server,
         and it keeps working on a plane.
       </p>
 
@@ -306,10 +306,10 @@
   <div class="wrap">
     <header class="sec-head">
       <p class="kicker">Privacy</p>
-      <h2>Your writing is processed on your Mac, and nowhere else.</h2>
+      <h2>Your writing is processed on your Mac, or on an Ollama server you choose.</h2>
       <p class="section-lede">
-        Most rewriting tools post your draft to somebody's server. Everest runs the model on
-        the machine in front of you, which is why it still works with the Wi-Fi off, and why
+        Most rewriting tools post your draft to somebody's server. With its built-in models,
+        Everest runs the model on the machine in front of you, which is why it still works with the Wi-Fi off, and why
         you can <a href="https://github.com/kabrapratik28/Everest/blob/main/EverestKit/Sources/RewriteCore/Presets.swift" target="_blank" rel="noopener noreferrer">read the exact prompt it sends</a>.
       </p>
     </header>
@@ -318,7 +318,7 @@
       <div class="panel">
         <h3>What does not leave</h3>
         <p>
-          The model runs locally. Your selections and your rewrites are not uploaded, and there
+          With the built-in models, the model runs locally. Your selections and your rewrites are not uploaded, and there
           is no account, no telemetry, no crash reporting, and no analytics. Once the model is on
           disk, rewriting works with networking switched off.
         </p>
@@ -331,10 +331,17 @@
         </p>
         <h3>What does</h3>
         <p>
-          Two requests, neither carrying your text. The first setup downloads model weights from
-          Hugging Face at a pinned revision. Update checks ask GitHub whether a newer version
-          exists, and that request discloses ordinary HTTP metadata: your IP address, the app
-          version, and your macOS version.
+          With the built-in models, two requests, neither carrying your text. The first setup
+          downloads model weights from Hugging Face at a pinned revision. Update checks ask GitHub
+          whether a newer version exists, and that request discloses ordinary HTTP metadata: your
+          IP address, the app version, and your macOS version.
+        </p>
+        <p>
+          If you choose Ollama in Settings ▸ Model, Everest sends what you rewrite to the Ollama
+          server at the address you set: this Mac by default, or another computer if you enter
+          one, in which case Settings warns you and macOS asks for Local Network access. Everest
+          only offers models that run on that server itself, never Ollama's cloud models, and
+          keeps no copy of what it sends.
         </p>
       </div>
       <div class="panel">

@@ -19,13 +19,18 @@
 public enum PrivacyCopy {
     /// Stated plainly rather than as a footnote. A privacy claim with an
     /// asterisk is worse than a smaller claim told straight, and the strong
-    /// half here is true and worth keeping loud: the model is local and
-    /// nothing reaches a server. Equally it must not overstate — the sync is
-    /// to the user's own devices, encrypted, for about two minutes, and only
-    /// with Handoff on. "Your text is sent to Apple" would be its own lie.
+    /// half here is true and worth keeping loud: with the built-in models the
+    /// model is local and nothing reaches a server. Ollama is the one choice
+    /// that changes that, because its address can be another computer, so it
+    /// is named rather than left to an exception nobody reads. Equally it must
+    /// not overstate — the sync is to the user's own devices, encrypted, for
+    /// about two minutes, and only with Handoff on. "Your text is sent to
+    /// Apple" would be its own lie.
     public static let whereTextGoes = """
-        Everest runs the model on this Mac. No selection, no rewrite and no telemetry is sent \
-        to any server, and the app works with networking switched off.
+        With the built-in models, Everest runs the model on this Mac: no selection, no rewrite \
+        and no telemetry is sent to any server, and the app works with networking switched off. \
+        If you pick Ollama in Settings ▸ Model, what you rewrite is sent to the Ollama server at \
+        the address shown there, which is this Mac unless you enter another computer.
 
         The clipboard is the one exception. Where macOS will not hand over a selection — \
         terminals, PDFs, Google Docs — Everest copies it, and it pastes rewrites back the same \

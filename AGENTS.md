@@ -1,6 +1,6 @@
 # Everest — architecture and decisions
 
-Menu-bar app. Select text anywhere, press a hotkey, a local model streams a rewrite into a floating panel, and ↩ replaces the selection once the user has seen it (review, on by default; esc keeps the original). Nothing leaves the machine.
+Menu-bar app. Select text anywhere, press a hotkey, a local model streams a rewrite into a floating panel, and ↩ replaces the selection once the user has seen it (review, on by default; esc keeps the original). With the built-in models nothing leaves the machine; Ollama, opt-in, sends text to the server the user enters, and says so.
 
 macOS 15+, Apple Silicon. MLX floors at 14, but a transitive dependency uses **typed throws**, whose runtime entry point `_swift_willThrowTypedImpl` ships in macOS 15; a 14 build links it strongly, embeds no shim, and dyld kills it before `main`. Measured on an M1 running 14.6.1: no log, no window, no menu bar item. Apple's own model needs 26 and reports `.requiresNewerOS` below it. `⌥R` = Quick Improve (one prompt, one output). `⌥⇧R` = pick a style, then rewrite. Both configurable. Two keys, and `⌥` because `⌘`+letter steals a formatting command and `⌃`+letter steals emacs bindings and terminal control codes; `⌥R` only costs `®`. Never `⌥I`/`⌥E`/`⌥U`/`⌥N` — dead keys, they break accented typing.
 
@@ -70,7 +70,7 @@ Rationalizations already used on this project, all rejected: "already manually t
 EverestKit/            SwiftPM. Everything testable. Every target has a test target.
   RewriteCore/         pure: prompts, validation, presets, catalog, settings
   TextBridge/          read the selection, write it back (AppKit + AX)
-  Engines/             MLX + Apple adapters, model download
+  Engines/             MLX, Apple and Ollama adapters, model download
   Overlay/             the floating panel
 Everest/               thin .app shell: App/, Settings/, Resources/
 project.yml            xcodegen spec, at repo root
@@ -80,16 +80,15 @@ Logic in the app target is untestable, and `swift test` does not even *compile* 
 
 ## 5. Model: `mlx-community/Qwen3-4B-Instruct-2507-4bit`
 
-Reverted to a Qwen3.5 model twice by people reading download counts. Do not be the third.
+Reverted to a Qwen3.5 model twice by people reading download counts. Do not be the third. Never bundle a model in the .app; download to `~/Library/Application Support/Everest/Models/`. Pin an exact revision, never a branch.
 
 | | Verdict |
 |---|---|
 | **Qwen3-4B-Instruct-2507** (~2.3 GB) | **Default.** Text-only, non-thinking *by design* (2507 split Instruct/Thinking into separate models), `mlx_lm`, Apache 2.0, ~2s/paragraph. |
 | **Qwen3-30B-A3B-Instruct-2507** (~17.2 GB) | Quality option. MoE, ~3B active so ~5s/paragraph. Needs 18-20 GB resident. |
 | Apple Foundation Models | Zero-download option, **not default**: guardrails kill streams mid-sentence on ordinary text and can't be disabled. |
+| Ollama | Opt-in, **never default**, no model names in code: the user's own server, models listed live minus cloud ones. Native `/api/chat` with `truncate: false`, long text split to fit. `Engines/Ollama/AGENTS.md`. |
 | **Any Qwen3.5** | **Disqualified.** Vision-language, thinking on by default, loads via `mlx_vlm`. ~10x slower. `LLMRegistry` ships `qwen3_5_2b_4bit` / `qwen3_6_27b_4bit`, so a substitution **compiles and produces plausible output** — the only symptom is "the app got slow". |
-
-Never bundle a model in the .app; download to `~/Library/Application Support/Everest/Models/`. Pin an exact revision, never a branch.
 
 ## 6. Guards that must not be simplified away
 

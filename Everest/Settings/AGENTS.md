@@ -28,10 +28,14 @@ which is what makes "Reset to default" visible in a touched field.
 **The Model tab's row is the radio button.** It used to draw one beside a
 separate "Use" button, so the control that looked like a radio was a picture.
 The row is a plain `Button` carrying `.isSelected`, and
-`ModelSettingsModel.select` is the only thing that moves the engine.
+`ModelSettingsModel.select` is the only thing that moves the engine. Ollama's
+row adds an address field committed on Return, on leaving it changed, or by ↻,
+never per keystroke (each commit asks the server), a model dropdown, no Delete.
 
 **The ⌘Tab toggle says "Dock and app switcher".** One activation policy drives
 both, so promising only ⌘Tab delivers an unasked-for Dock icon and no way back.
+**`SMAppService` failures put the toggle back and say why** — it throws after
+the switch moves, and one springing back silently reads as broken.
 
 **Permission state is polled every second**, in General and onboarding: it is
 granted in another process with this window open, so a value read once says
@@ -41,16 +45,12 @@ granted in another process with this window open, so a value read once says
 `List` affordances that in a macOS `Form` do nothing, or want an `EditButton`
 macOS does not have. Delete goes by `id`, never a captured index.
 
-**`SMAppService` failures put the toggle back and say why** — it throws after
-the switch moves, and one springing back silently reads as broken.
-
 **Onboarding is three steps; the capability grid was cut.** Seven rows
 between the permission and the model, read before the user had seen the app
 work — friction everyone paid to warn a few. Its two `AppCore`-pinned strings
 had to keep a home and neither may be dropped: `passwordPromise` onto the
 permission step, which is where that access is being asked for, and
 `exclusionCaveat` onto Settings ▸ Privacy beside the list it describes.
-
 **Continue is `model.canAdvance`, with `model.continueHint` beside it.** Two
 different things hold the model step; a grey button naming neither read as broken.
 

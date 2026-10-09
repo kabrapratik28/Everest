@@ -4,11 +4,20 @@ Last reviewed 2026-09-15, against the code at that commit.
 
 ## What leaves your Mac
 
-**Your selected text and your rewrites do not.** The model runs locally. There
-is no account, no telemetry, no crash reporting, and no analytics. Everest
-works with networking switched off once the model is downloaded.
+**With the built-in models, your selected text and your rewrites do not.** The
+model runs locally. There is no account, no telemetry, no crash reporting, and
+no analytics. Everest works with networking switched off once the model is
+downloaded.
 
-Two things do go out, and neither carries your text:
+**If you choose Ollama, your text goes to your Ollama server.** Settings ▸ Model
+can use a model you already run in Ollama. Everest then sends what you rewrite
+to the Ollama address shown there: this Mac by default, or another computer if
+you enter its address, in which case Settings warns you and macOS asks once for
+Local Network access. Everest asks that server for its model list and context
+window, and offers only models that run on the server itself, never Ollama's
+cloud models.
+
+Apart from Ollama, two things go out, and neither carries your text:
 
 - **The first model download.** Everest fetches the weights from Hugging Face
   at a pinned revision. That request tells Hugging Face your IP address and
@@ -68,7 +77,9 @@ see. The excluded-apps list in Settings ▸ Privacy is there for those.
 
 Your custom style instructions are your text and they are kept, because the
 app has to send them to the model on the next press. Your **selections** and
-**rewrites** are never written to disk by Everest.
+**rewrites** are never written to disk by Everest. That holds with Ollama too:
+its requests use a session with no cache, cookies or stored credentials. The
+Ollama server itself is yours and follows its own settings.
 
 Both logs are deliberately content-free: they carry lengths, booleans,
 Accessibility roles and enum case names, never the text itself. The four
@@ -87,6 +98,9 @@ yours: read it before attaching it to an issue.
   selection and writes the rewrite back. macOS has no narrower permission for
   this, which is also why Everest cannot be sandboxed or sold on the Mac App
   Store.
+- **Local Network**, only if you point Everest at Ollama on another computer.
+  macOS asks the first time Everest connects to it; Ollama on this Mac needs
+  no permission.
 - **Nothing else.** No camera, microphone, contacts, calendar, full disk
   access, or screen recording.
 

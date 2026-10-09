@@ -155,6 +155,19 @@ public enum OutputValidator {
     /// the target app — unlike the silent unrecoverable writes this project
     /// spends its budget avoiding.
     public static func validate(_ raw: String, source: String) -> Result<String, ValidationFailure> {
+        // Last, after the refusals, so it can never turn a refusal into a
+        // pass: a punctuation swap on text already accepted. See `EmDashes`.
+        checked(raw, source: source).map { EmDashes.replaced(in: $0) }
+    }
+
+    /// `validate` without the typography: the cleaning and the refusals.
+    ///
+    /// For a piece of a selection rewritten in pieces. `EmDashes` decides
+    /// what is code by counting backticks from the start of the text it is
+    /// given, so a piece that begins inside a code block reads the code as
+    /// prose and changes `b = 2 -- c` to `b = 2, c`. Pieces are checked here
+    /// and the joined text goes through `validate` once.
+    public static func checked(_ raw: String, source: String) -> Result<String, ValidationFailure> {
         let cleaned = clean(raw, source: source)
         // Blank, not merely zero-length. `"   \n\t "` is not a rewrite, and
         // writing it over the selection deletes the user's text silently —
@@ -185,8 +198,6 @@ public enum OutputValidator {
                 .replacing(/<\/?selected_text_[0-9a-fA-F]{16}>/, with: "")
             if !stripped.contains(where: { !$0.isWhitespace }) { return .failure(.packagingOnly) }
         }
-        // Last, after the refusals, so it can never turn a refusal into a
-        // pass: a punctuation swap on text already accepted. See `EmDashes`.
-        return .success(EmDashes.replaced(in: cleaned))
+        return .success(cleaned)
     }
 }

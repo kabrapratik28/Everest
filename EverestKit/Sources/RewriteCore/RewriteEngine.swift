@@ -5,6 +5,7 @@ public enum EngineID: String, Sendable, CaseIterable, Codable {
     case qwen4B  = "qwen3-4b-instruct-2507-4bit"
     case qwen30B = "qwen3-30b-a3b-instruct-2507-4bit"
     case apple   = "apple-foundation-models"
+    case ollama  = "ollama"
 }
 
 // NOTE on the four declarations below: pure shape (stored properties and a

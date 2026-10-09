@@ -68,6 +68,11 @@ func aPersistedOversizedEngineIsResolvedAway() {
     // Apple's engine holds no weights of ours, so memory never disqualifies
     // it — its availability is a System Settings toggle, decided elsewhere.
     #expect(EngineEligibility.resolved(.apple, physicalMemory: sixteenGB) == .apple)
+
+    // Nor Ollama's, whose models run in the user's own server. A saved
+    // Ollama choice survives launch even when Ollama is not running; the
+    // hotkey then names the problem instead of quietly switching engines.
+    #expect(EngineEligibility.resolved(.ollama, physicalMemory: sixteenGB) == .ollama)
 }
 
 /// **Onboarding's Continue reads this, so "ready" cannot mean "downloaded".**

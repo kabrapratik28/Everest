@@ -14,8 +14,8 @@ struct EngineConformanceTests {
     /// stops satisfying the protocol, this array stops building. The runtime
     /// assertion on `id` is there so the test is not vacuous if someone
     /// weakens the element type.
-    @Test("both engines are usable through the RewriteEngine protocol")
-    func bothEnginesConformToRewriteEngine() async throws {
+    @Test("every engine is usable through the RewriteEngine protocol")
+    func everyEngineConformsToRewriteEngine() async throws {
         let temp = try TempDirectory()
         let engines: [any RewriteEngine] = [
             MLXEngine(
@@ -28,8 +28,9 @@ struct EngineConformanceTests {
                 producer: ScriptedTokenProducer(deltas: [])
             ),
             AppleFoundationEngine(system: ScriptedAppleSystemModel()),
+            OllamaEngine(client: OllamaClient(transport: ScriptedTransport()), settings: { ("http://localhost:11434/v1", "") }),
         ]
 
-        #expect(engines.map(\.id) == [.qwen4B, .apple])
+        #expect(engines.map(\.id) == [.qwen4B, .apple, .ollama])
     }
 }

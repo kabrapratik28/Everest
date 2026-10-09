@@ -76,7 +76,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // The other half of the same gate: Continue used to be live with no
         // weights on disk, so the practice step asked for a rewrite the app
         // could not do.
-        isSelectedEngineReady: { [weak self] in self?.modelSettings.isSelectedEngineReady ?? false }
+        isSelectedEngineReady: { [weak self] in self?.modelSettings.isSelectedEngineReady ?? false },
+        // Ollama chosen in Settings needs a running server and a model, not
+        // a download; the hint says which.
+        engineHint: { [weak self] in self?.modelSettings.ollamaInUseHint }
     )
 
     private lazy var accessibility = AXSelectionAdapter()

@@ -54,7 +54,7 @@ weights are *seen*, or a press mid-download drops the engine that download was
 warming. **Switching evicts too:** a map per id held 4B *and* 30B, defeating
 `EngineEligibility`, which asks whether a model fits *in isolation* — a 24 GB
 Mac may pick 17.2 GB, true only if 2.3 GB is not also loaded. Two guards right
-alone and wrong together. Apple's engine is exempt, holding none of our
-weights. **`supersede()` nils `active` at the *next* transaction's start** —
+alone and wrong together. Apple's and Ollama's engines are exempt, holding
+none of our weights. **`supersede()` nils `active` at the *next* transaction's start** —
 held through idle, dropped as wanted, 1x not 2x peak.
 
