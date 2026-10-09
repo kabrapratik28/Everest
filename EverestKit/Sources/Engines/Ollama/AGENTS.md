@@ -12,6 +12,7 @@ refuses instead; `shift: false` ends a full window as `"length"`. 0.40.1's MLX
 runner never cuts and `/api/ps` gives a soft limit (32,768); runners word the
 refusal apart, so an error naming "context length" or "size" is `inputTooLong`.
 `think: false` never errors, even on a model that cannot think: 7.5 s → 0.8 s.
+`keep_alive: "24h"` on every chat: Ollama unloads after 5 idle minutes (`gemma4:26b` then took 6.7 to 11.4 s to reload), the Mac app's own setting (`launchctl setenv OLLAMA_KEEP_ALIVE`) is read only at launch and gone on reboot, and the request's value wins over it (0.40.2, 2026-10-09: `expires_at` 86,400 s after the last request). `-1` would hold a user's RAM until stopped.
 
 ## What reaches the server, and what does not
 - The dropdown is `/api/tags` minus entries with `remote_host` (cloud models run
@@ -25,10 +26,9 @@ refusal apart, so an error naming "context length" or "size" is `inputTooLong`.
 ## Splitting (`TextSplitter`)
 A prompt is at most window / 2.4 tokens, so a 1.4× answer fits beside it; a
 window that cannot hold the prompt alone refuses before sending. Tokens are
-UTF-8 bytes ÷ 3: a sizing guess. Live, prose ran 5 bytes a token, dense code
+UTF-8 bytes ÷ 3, a sizing guess: live, prose ran 5 bytes a token, but dense code
 2 and emoji 1.8 to 2.6 (`qwen3:14b`, `qwen3.5:9b`), so those are undercounted;
-the 1.4× answer room covers most of it, and past that Ollama refuses the piece
-and nothing is replaced, which is the guard.
+the 1.4× room covers most of it, and past that Ollama refuses: nothing replaced.
 
 Boundaries, best first: blank line, sentence end, line break, space. The best
 kind in reach wins, then the one nearest an even split. Never inside a word: an

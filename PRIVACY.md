@@ -79,7 +79,11 @@ Your custom style instructions are your text and they are kept, because the
 app has to send them to the model on the next press. Your **selections** and
 **rewrites** are never written to disk by Everest. That holds with Ollama too:
 its requests use a session with no cache, cookies or stored credentials. The
-Ollama server itself is yours and follows its own settings.
+Ollama server itself is yours and follows its own settings for logging and
+storage. Everest does ask it to keep the model loaded for 24 hours after each
+rewrite instead of Ollama's 5 minutes, to reduce reload delays between
+rewrites. That request takes precedence over the server's own keep-alive
+setting, and `ollama stop` unloads the model whenever you like.
 
 Both logs are deliberately content-free: they carry lengths, booleans,
 Accessibility roles and enum case names, never the text itself. The four

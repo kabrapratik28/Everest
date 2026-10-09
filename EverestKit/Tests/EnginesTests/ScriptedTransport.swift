@@ -144,6 +144,12 @@ struct ChatBody: Decodable, Equatable {
     let truncate: Bool
     let shift: Bool
     let options: Options
+    /// Optional, so a body without it still decodes and says so.
+    let keepAlive: String?
+    enum CodingKeys: String, CodingKey {
+        case model, messages, stream, think, truncate, shift, options
+        case keepAlive = "keep_alive"
+    }
 }
 
 extension ScriptedTransport.Reply {

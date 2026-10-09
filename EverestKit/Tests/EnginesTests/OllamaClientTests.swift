@@ -84,6 +84,21 @@ struct OllamaClientTests {
         #expect(abs(body.options.temperature - 0.2) < 1e-6)
     }
 
+    /// Ollama unloads a model five idle minutes after its last request unless
+    /// the request or the server says otherwise, and reloading `gemma4:26b`
+    /// took 6.7 to 11.4 s (measured 2026-10-09). On the Mac app the server's
+    /// setting is `launchctl setenv OLLAMA_KEEP_ALIVE`, read only at launch
+    /// and gone on reboot, so every request asks for a day: a workday's gaps
+    /// stay warm, and the model is asked to unload a day after the last rewrite.
+    @Test("a chat request asks Ollama to keep the model loaded for a day")
+    func chatRequestKeepsTheModelLoadedForADay() async throws {
+        let transport = ScriptedTransport(chat: [.chat(["Fixed."])])
+        for try await _ in OllamaClient(transport: transport).chat(Self.request("PROMPT", numPredict: 321), at: Self.server) {}
+
+        let body = try #require(transport.chatBodies.first)
+        #expect(body.keepAlive == "24h")
+    }
+
     @Test("streamed content arrives as text, thinking and blank lines are dropped, and the stop reason ends it")
     func chatStreamsContentOnly() async throws {
         var reply = ScriptedTransport.Reply.chat(["Fixed", " this", "."])

@@ -87,6 +87,12 @@ public enum OllamaError: Error, Equatable, Sendable {
 /// slides and the model keeps writing without the start of its instructions.
 /// `think: false` never errors on a model that cannot think (Ollama 0.13.0,
 /// `server/routes.go`) and cut one sentence from 7.5 s to 0.8 s on `qwen3:14b`.
+/// `keep_alive: "24h"` asks the server to keep the model loaded a day after
+/// each request rather than Ollama's five minutes, after which a rewrite
+/// waited 6.7 to 11.4 s for `gemma4:26b` to reload (measured 2026-10-09). It
+/// takes precedence over the server's own setting, which on the Mac app meant
+/// `launchctl setenv OLLAMA_KEEP_ALIVE`: read only at launch, gone on reboot.
+/// `-1` would hold the model until someone stops it.
 struct ChatRequest: Encodable, Equatable {
     struct Message: Encodable, Equatable {
         let role: String
@@ -108,6 +114,12 @@ struct ChatRequest: Encodable, Equatable {
     let truncate = false
     let shift = false
     let options: Options
+    let keepAlive = "24h"
+
+    enum CodingKeys: String, CodingKey {
+        case model, messages, stream, think, truncate, shift, options
+        case keepAlive = "keep_alive"
+    }
 
     init(model: String, prompt: String, numPredict: Int) {
         self.model = model
